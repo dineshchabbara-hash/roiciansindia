@@ -1,6 +1,6 @@
 # REQUIREMENTS.md
 
-## Roicians India — Training Management System / LMS
+## Roicians Tech — Training Management System / LMS
 
 **Status:** Draft v1.0 (Planning Phase)
 **Owner:** Product/Engineering
@@ -21,11 +21,13 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 
 ## 1. Business Requirements
 
-- BR-1: Operate as a single-tenant platform for one IT training company in India (brand
-  name/logo/contact details to be supplied via configurable Company Settings, not
-  hard-coded). **[ASSUMPTION]** No company name was provided; we use `Roicians India`
-  as a placeholder derived from the repository name and will not invent a different
-  brand. All branding must be edited from Settings before go-live.
+- BR-1: Operate as a single-tenant platform for **Roicians Tech Pvt. Ltd.**
+  (brand/display name: **Roicians Tech**), an IT training company operating in
+  **India**. **[RESOLVED — see `DECISIONS_NEEDED.md` D1]** Legal name, display
+  name, logo, address, and other contact details are stored in centralized,
+  configurable Company Settings, not hard-coded anywhere in application code — see
+  FR-140 for the legal-name vs. display-name usage rule. Any future legal-name or
+  branding change requires only a Settings update, never a code change.
 - BR-2: Support the full student lifecycle: Lead → Registration → Student record →
   Enrollment → Payment → Active → Completed/Withdrawn.
 - BR-3: A Student ID is permanent and belongs to the person, not to any one enrollment.
@@ -201,6 +203,14 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 - FR-140 (P0): Centralized Company Settings (name, legal name, logo, address,
   contact, GSTIN, tax config, receipt/certificate numbering formats, certificate
   signatory, social links). No company detail is hard-coded in UI/code.
+  **Naming rule:** the display/brand name (`company_name` = "Roicians Tech") is
+  used throughout normal UI/portal branding (nav bars, page titles, dashboard
+  headers, marketing pages, emails); the full legal name
+  (`legal_name` = "Roicians Tech Pvt. Ltd.") is used specifically on legal/
+  financial documents — receipts, invoices, certificates, payment records, and any
+  other legal disclosures — wherever a document needs to name the contracting
+  legal entity rather than just the brand. Both values live in the same
+  `company_settings` row; no component hard-codes either string.
 - FR-141 (P0): Tax configuration is explicit and off by default until GST details are
   supplied (see `DECISIONS_NEEDED.md`).
 

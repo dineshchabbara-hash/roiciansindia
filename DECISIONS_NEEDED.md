@@ -1,6 +1,6 @@
 # DECISIONS_NEEDED.md
 
-## Roicians India — Training Management System / LMS
+## Roicians Tech — Training Management System / LMS
 
 These are the only items where an engineering default would be a genuine guess
 about your business rather than a safe architectural choice. Everything else in
@@ -11,14 +11,27 @@ proceed with the default if no response is given before that phase starts.
 
 ---
 
-### D1. Company identity and branding
-No company legal name, logo, address, phone, email, GSTIN, or brand colors were
-provided. **Default:** ship with clearly-labeled placeholder values
-("Roicians India — Sample Training Institute", placeholder logo, no GSTIN) stored
-in `company_settings`, editable from Settings before go-live. **Needed from you:**
-actual company name, logo file, address, contact details, GSTIN (if registered),
-and primary/secondary brand colors — whenever you have them, no rush before
-Phase 22 (Public Website)/Phase 4 (Admin shell branding).
+### D1. Company identity and branding — **RESOLVED**
+Confirmed:
+- **Legal company name:** Roicians Tech Pvt. Ltd.
+- **Brand/display name:** Roicians Tech
+- **Country of operation:** India
+
+These are stored in `company_settings` as `legal_name = "Roicians Tech Pvt. Ltd."`
+and `company_name = "Roicians Tech"`. Per the naming rule in `REQUIREMENTS.md`
+FR-140 / `DATABASE_SCHEMA.md` §`company_settings`: **Roicians Tech** is used for
+normal UI/display branding (nav, dashboards, marketing pages, emails), and
+**Roicians Tech Pvt. Ltd.** is used on legal/financial documents (receipts,
+invoices, certificates, payment records, legal disclosures) wherever the
+contracting legal entity needs to be named. Neither string is hard-coded in
+application components — both are read from centralized Company Settings, so
+either can change independently later without a code change.
+
+Still outstanding (not blocking implementation start): logo file, registered
+address, phone, email, GSTIN, and primary/secondary brand colors — placeholders
+remain in `company_settings` for these until supplied, editable at any time from
+Settings, needed no later than Phase 4 (Admin shell branding) / Phase 22 (Public
+Website).
 
 ### D2. GST / tax applicability
 Is GST currently charged on your training fees? If yes, at what rate, and is your

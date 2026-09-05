@@ -1,6 +1,6 @@
 # DATABASE_SCHEMA.md
 
-## Roicians India — Training Management System / LMS
+## Roicians Tech — Training Management System / LMS
 
 **Status:** Draft v1.0 (Planning Phase) — implemented via versioned migrations under
 `supabase/migrations/`. This document is the narrative reference; migrations are the
@@ -419,7 +419,14 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
 ### `company_settings`
 - `id uuid pk` — single row enforced by application logic (and a check constraint
   on a fixed `id` value, or a `singleton boolean unique default true` trick)
-- `company_name text not null`, `legal_name text`, `logo_path text`
+- `company_name text not null` — brand/display name shown throughout the UI, e.g.
+  `"Roicians Tech"`
+- `legal_name text` — full registered legal entity name used specifically on
+  legal/financial documents (receipts, invoices, certificates, payment records,
+  legal disclosures), e.g. `"Roicians Tech Pvt. Ltd."` — distinct from
+  `company_name` by design so brand and legal-entity naming can change
+  independently
+- `logo_path text`
 - `address text`, `phone text`, `email text`, `website text`
 - `gstin text`, `tax_enabled boolean not null default false`,
   `default_tax_rate_percent numeric(5,2) not null default 0`, `tax_label text default 'GST'`

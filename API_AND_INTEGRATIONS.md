@@ -1,6 +1,6 @@
 # API_AND_INTEGRATIONS.md
 
-## Roicians India — Training Management System / LMS
+## Roicians Tech — Training Management System / LMS
 
 **Status:** Draft v1.0 (Planning Phase)
 
