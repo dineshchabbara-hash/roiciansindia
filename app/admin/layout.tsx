@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { canAccessRouteGroup, roleHomePath } from "@/lib/domain/rbac";
+import { getCompanyBranding } from "@/lib/data/company-settings";
+import { AdminShell } from "@/components/admin/admin-shell";
 
 // Every route under this layout depends on the caller's session/role and
 // must never be statically prerendered — force-dynamic is the documented
@@ -19,5 +21,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect(roleHomePath(user.role));
   }
 
-  return children;
+  const { companyName } = await getCompanyBranding();
+
+  return (
+    <AdminShell companyName={companyName} user={user}>
+      {children}
+    </AdminShell>
+  );
 }
