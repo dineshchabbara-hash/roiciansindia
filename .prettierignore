@@ -1,0 +1,13 @@
+.next
+node_modules
+coverage
+playwright-report
+test-results
+supabase/.branches
+supabase/.temp
+
+# Planning/reference docs are hand-authored prose; Prettier's code-oriented
+# formatting (line wrapping, list indentation) isn't a good fit for them and
+# reformatting would produce large, unrelated diffs on files that are
+# reviewed/edited as prose, not code.
+*.md
