@@ -50,17 +50,36 @@ including sequences, constraints, indexes, triggers (`updated_at`), and the
 
 **DB changes:** All tables in §4 of `DATABASE_SCHEMA.md`.
 
-**Security implications:** RLS is written but not yet enabled/tested against real
-auth sessions (that lands in Phase 3, since RLS policies reference `auth.uid()`
-which needs the auth wiring to test meaningfully) — schema-level constraints
-(FKs, checks, uniqueness) are the Phase 2 security contribution.
+**Security implications:** Per-role RLS *policies* are Phase 3 work (they
+reference `auth.uid()`/`user_roles`, which need the real auth wiring to test
+meaningfully) — but RLS itself is **enabled with no policies (default-deny)
+on every table** as of the Phase 2 verification pass, closing the gap where
+Supabase's `auto_expose_new_tables` default would otherwise expose every
+table to the `anon`/`authenticated` PostgREST roles the moment this schema
+reached a live project. Schema-level constraints (FKs, checks, uniqueness,
+immutability triggers) are the rest of the Phase 2 security contribution.
 
 **Tests:** Migration applies cleanly on a fresh DB; seed script idempotent;
-constraint tests (e.g. duplicate `program_code` rejected, `enrollment_code`
-immutability trigger fires).
+constraint tests (e.g. duplicate `program_code` rejected, `enrollment_code`/
+`payment_code`/`receipt_number`/`certificate_number` immutability triggers
+fire); a payment (and a refund) against one enrollment leaves a second
+enrollment's balance calculation untouched; a role with only a blanket
+`SELECT` grant (simulating `anon`/`authenticated`) sees zero rows on every
+table and through both reporting views, while a `BYPASSRLS` role (simulating
+`service_role`) is unaffected.
 
 **DoD:** `supabase db reset` produces a fully migrated + seeded local database;
 ERD in `DATABASE_SCHEMA.md` matches actual migrated schema.
+
+**Verification status:** Completed. A dedicated Phase 2 verification pass (13
+migrations total — the original 11 plus two fixes: receipt/certificate number
+immutability triggers, and the RLS lockdown + `security_invoker` fix on both
+views) was run against a real Postgres 16 instance with a minimal `auth.users`
+stub, since this sandbox has no Docker for the full local Supabase stack. See
+the Phase 2 verification report for the complete finding list and the exact
+commands used; re-verification against a real Supabase project is still
+required before Phase 3 begins (Docker/GoTrue's actual `auth.users` schema
+was never exercised here).
 
 ## Phase 3 — Authentication & Role Permissions
 
