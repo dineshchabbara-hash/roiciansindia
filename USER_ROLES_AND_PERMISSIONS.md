@@ -63,7 +63,7 @@ Update, Scoped, **–** = No access.
 | Issue/Revoke Certificates | F | F (audited) | – | R (own) |
 | View Reports | F | F | R (own batches/students only) | – |
 | Manage Leads | F | F | – | – |
-| Manage Company Settings (branding, tax, numbering formats) | F | – | – | – |
+| Manage Company Settings (branding, tax, numbering formats) | F | R | – | – |
 | Manage Notification Templates | F | R | – | – |
 | View Audit Logs | F | R (non-sensitive subset) | – | – |
 | Edit own profile (limited fields) | F | F | F | F (phone/address/photo/password only) |
@@ -72,12 +72,18 @@ Notes:
 - "Admin (audited)" means the action is permitted but always writes an
   `audit_logs` row with before/after values — this applies to fee overrides,
   discounts, manual payments, refunds, and certificate revocation.
-- Admin cannot edit **Company Settings** (tax config, numbering formats, GSTIN,
-  branding) — reserved for Super Admin to prevent an operational staff error from
-  silently changing receipt numbering or tax behavior platform-wide.
-  **[DECISION CONFIRMED AS DEFAULT]** — if the business wants Admin to also manage
-  Settings, this is a one-line matrix change; flagged for confirmation in
-  `DECISIONS_NEEDED.md` only if disputed.
+- Admin can **read** but not **edit** Company Settings (tax config, numbering
+  formats, GSTIN, branding) — write access is reserved for Super Admin to
+  prevent an operational staff error from silently changing receipt
+  numbering or tax behavior platform-wide.
+  **[CORRECTED during Phase 3 RLS implementation]** — the matrix cell
+  originally read "–" (no access at all) for Admin, which conflicted with
+  this very note (which only ever said "cannot edit") and with Admin's
+  everyday need to see the current tax rate/numbering format/branding.
+  Changed to "R". Write access is unaffected — still Super Admin only.
+  **[DECISION CONFIRMED AS DEFAULT]** — if the business wants Admin to also
+  manage (write) Settings, that is a one-line RLS policy change; flagged for
+  confirmation in `DECISIONS_NEEDED.md` only if disputed.
 - Trainer "R" on Students/Batches/Enrollments is **scoped**: only students currently
   enrolled in a batch the trainer is assigned to, and only non-financial fields
   (name, contact for coordination, attendance/assignment history) — never fee,
@@ -135,18 +141,22 @@ Notes:
 
 ## 5. Row Level Security Policy Summary
 
-**Status as of Phase 2:** RLS is enabled on every table listed below (migration
-`20260101000013_rls_lockdown.sql`), but with **no policies defined yet** — the
-safe default-deny posture, verified to actually block `anon`/`authenticated`
-reads while leaving `service_role` (BYPASSRLS) unaffected. The specific
-per-role policies described in the table below are Phase 3 (Auth &
-Permissions) work, since they reference `auth.uid()` and `user_roles`, which
-need the real authentication wiring in place to write and test meaningfully.
-Do not read "RLS enabled" as "access model implemented" — it only closes the
-accidental-public-exposure gap; the intended access rules below are not yet
-in force.
+**Status as of Phase 3:** the real per-role policies below are implemented in
+`20260101000014_rls_policies.sql` (on top of the Phase 2 default-deny
+baseline in `20260101000013_rls_lockdown.sql`) and verified with simulated
+`anon`/`authenticated`/`service_role` sessions per role — see the Phase 3
+verification report for the full test list. Two tables (`students`,
+`enrollments`) intentionally carry **no trainer-matching policy at all**,
+because Postgres RLS is row-level, not column-level, and a trainer sharing
+the same `authenticated` Postgres role as Admin/Student cannot be given a
+restricted column set via GRANT without also restricting Admin. Trainers
+instead read two dedicated views, `trainer_visible_students` and
+`trainer_visible_enrollments`, whose SELECT list omits every financial/
+sensitive column and whose own WHERE clause re-derives the
+`batch_trainers` scoping — base-table RLS still blocks trainers from
+reaching `students`/`enrollments` directly as defense in depth.
 
-Full policy SQL ships with the Phase 3 migration; summarized intent:
+Full policy SQL ships in the Phase 3 migration; summarized intent:
 
 | Table | Student policy | Trainer policy | Admin/Super Admin policy |
 |---|---|---|---|
