@@ -135,7 +135,18 @@ Notes:
 
 ## 5. Row Level Security Policy Summary
 
-Full SQL ships with the Phase 3 (Auth & Permissions) migration; summarized intent:
+**Status as of Phase 2:** RLS is enabled on every table listed below (migration
+`20260101000013_rls_lockdown.sql`), but with **no policies defined yet** — the
+safe default-deny posture, verified to actually block `anon`/`authenticated`
+reads while leaving `service_role` (BYPASSRLS) unaffected. The specific
+per-role policies described in the table below are Phase 3 (Auth &
+Permissions) work, since they reference `auth.uid()` and `user_roles`, which
+need the real authentication wiring in place to write and test meaningfully.
+Do not read "RLS enabled" as "access model implemented" — it only closes the
+accidental-public-exposure gap; the intended access rules below are not yet
+in force.
+
+Full policy SQL ships with the Phase 3 migration; summarized intent:
 
 | Table | Student policy | Trainer policy | Admin/Super Admin policy |
 |---|---|---|---|

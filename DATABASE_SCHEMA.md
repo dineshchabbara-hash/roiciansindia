@@ -96,9 +96,16 @@ create sequence certificate_number_seq start 1 increment 1; -- reset logic below
   action or a year-partitioned sequence name resolved at generation time (see
   implementation note below); format itself is configurable in `company_settings`
   (prefix, padding width, year inclusion) without changing the underlying
-  concurrency mechanism.
+  concurrency mechanism. Immutable after creation, alongside `payment_id` and
+  `pdf_path` — a trigger blocks changes to all three; only `emailed_at` may be
+  updated later (when the confirmation email actually sends).
 - **Certificate ID** (`certificates.certificate_number`): same pattern,
-  `CERT-{year}-{nextval('certificate_number_seq')::text padded to 6}`.
+  `CERT-{year}-{nextval('certificate_number_seq')::text padded to 6}`. Immutable
+  after creation, alongside `enrollment_id`/`student_id`/`program_id`/
+  `completion_date`/`issue_date`/`pdf_path` — a trigger blocks changes to all of
+  these; only `status`/`revoked_reason`/`revoked_at` may be updated later (the
+  revoke path). A reissue is a new row with a new number, never an edit of the
+  original (REQUIREMENTS.md §28).
 
 **Concurrency safety:** Postgres sequences (`nextval`) are inherently atomic and
 safe under concurrent transactions — this is what satisfies §92/§93 without any
