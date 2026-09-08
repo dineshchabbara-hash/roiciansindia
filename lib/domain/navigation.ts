@@ -32,7 +32,7 @@ export type AdminNavItem = {
 
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard, implemented: true },
-  { label: "Students", href: "/admin/students", icon: Users, implemented: false },
+  { label: "Students", href: "/admin/students", icon: Users, implemented: true },
   { label: "Trainers", href: "/admin/trainers", icon: GraduationCap, implemented: false },
   { label: "Programs", href: "/admin/programs", icon: BookOpen, implemented: false },
   { label: "Batches", href: "/admin/batches", icon: CalendarDays, implemented: false },

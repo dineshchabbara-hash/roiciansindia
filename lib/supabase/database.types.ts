@@ -76,12 +76,140 @@ export type Database = {
           auth_user_id: string | null;
           first_name: string;
           last_name: string;
+          preferred_name: string | null;
+          email: string | null;
+          phone: string;
+          alternate_phone: string | null;
+          date_of_birth: string | null;
+          gender: string | null;
+          address_line1: string | null;
+          address_line2: string | null;
+          city: string | null;
+          state: string | null;
+          postal_code: string | null;
+          country: string;
+          emergency_contact_name: string | null;
+          emergency_contact_phone: string | null;
+          registration_date: string;
           status: "active" | "inactive" | "archived";
+          profile_photo_path: string | null;
+          lead_id: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["students"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["students"]["Row"]>;
         Relationships: Relationships;
+      };
+      student_notes: {
+        Row: {
+          id: string;
+          student_id: string;
+          note: string;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["student_notes"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["student_notes"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "student_notes_student_id_fkey";
+            columns: ["student_id"];
+            isOneToOne: false;
+            referencedRelation: "students";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      student_documents: {
+        Row: {
+          id: string;
+          student_id: string;
+          document_type: string;
+          file_path: string;
+          uploaded_by: string;
+          uploaded_by_type: "admin" | "student";
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["student_documents"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["student_documents"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "student_documents_student_id_fkey";
+            columns: ["student_id"];
+            isOneToOne: false;
+            referencedRelation: "students";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      audit_logs: {
+        Row: {
+          id: string;
+          actor_auth_user_id: string | null;
+          actor_role: string | null;
+          action: string;
+          entity_type: string;
+          entity_id: string;
+          before_data: Record<string, unknown> | null;
+          after_data: Record<string, unknown> | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["audit_logs"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["audit_logs"]["Row"]>;
+        Relationships: Relationships;
+      };
+      attendance: {
+        Row: {
+          id: string;
+          class_session_id: string;
+          enrollment_id: string;
+          student_id: string;
+          batch_id: string;
+          status: "present" | "absent" | "late" | "excused";
+          marked_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["attendance"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["attendance"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "attendance_student_id_fkey";
+            columns: ["student_id"];
+            isOneToOne: false;
+            referencedRelation: "students";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      certificates: {
+        Row: {
+          id: string;
+          certificate_number: string;
+          enrollment_id: string;
+          student_id: string;
+          program_id: string;
+          completion_date: string;
+          issue_date: string;
+          status: "issued" | "revoked";
+        };
+        Insert: Partial<Database["public"]["Tables"]["certificates"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["certificates"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "certificates_student_id_fkey";
+            columns: ["student_id"];
+            isOneToOne: false;
+            referencedRelation: "students";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "certificates_program_id_fkey";
+            columns: ["program_id"];
+            isOneToOne: false;
+            referencedRelation: "programs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       trainers: {
         Row: {
@@ -263,6 +391,20 @@ export type Database = {
           batch_id: string | null;
           batch_name: string | null;
           batch_status: string | null;
+        };
+        Relationships: Relationships;
+      };
+      student_attendance_summary: {
+        Row: {
+          enrollment_id: string;
+          student_id: string;
+          batch_id: string;
+          total_sessions: number;
+          present_count: number;
+          absent_count: number;
+          late_count: number;
+          excused_count: number;
+          attendance_percentage: number | null;
         };
         Relationships: Relationships;
       };
