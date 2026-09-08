@@ -5,6 +5,8 @@ import {
   findDuplicateMatches,
   formatStudentCode,
   isStudentStatus,
+  sanitizeFileNameForStorage,
+  buildStudentDocumentPath,
   type DuplicateCandidate,
   type NewStudentInput,
 } from "@/lib/domain/students";
@@ -178,5 +180,44 @@ describe("isStudentStatus", () => {
   it("rejects anything else", () => {
     expect(isStudentStatus("deleted")).toBe(false);
     expect(isStudentStatus(null)).toBe(false);
+  });
+});
+
+describe("sanitizeFileNameForStorage", () => {
+  it("replaces unsafe characters with underscores", () => {
+    expect(sanitizeFileNameForStorage("my resume (final).pdf")).toBe(
+      "my_resume__final_.pdf",
+    );
+  });
+
+  it("keeps safe characters as-is", () => {
+    expect(sanitizeFileNameForStorage("id-proof_2026.pdf")).toBe("id-proof_2026.pdf");
+  });
+
+  it("replaces every character of an all-separator name, without collapsing to empty", () => {
+    expect(sanitizeFileNameForStorage("///")).toBe("___");
+  });
+
+  it("falls back to a default name for an empty input", () => {
+    expect(sanitizeFileNameForStorage("")).toBe("file");
+  });
+
+  it("caps extremely long names", () => {
+    const long = "a".repeat(500) + ".pdf";
+    expect(sanitizeFileNameForStorage(long).length).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("buildStudentDocumentPath", () => {
+  it("scopes the path to the server-verified studentId, not client input", () => {
+    const path = buildStudentDocumentPath("student-123", "obj-456", "resume.pdf");
+    expect(path).toBe("student-123/obj-456-resume.pdf");
+  });
+
+  it("sanitizes the original filename component", () => {
+    const path = buildStudentDocumentPath("student-123", "obj-456", "../../etc/passwd");
+    expect(path.startsWith("student-123/obj-456-")).toBe(true);
+    expect(path).not.toContain("..");
+    expect(path).not.toContain("/etc/");
   });
 });

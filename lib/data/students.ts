@@ -3,8 +3,14 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DataResult } from "@/lib/data/dashboard";
-import { findDuplicateMatches, type DuplicateMatch } from "@/lib/domain/students";
+import {
+  buildStudentDocumentPath,
+  findDuplicateMatches,
+  type DuplicateMatch,
+} from "@/lib/domain/students";
 import type { StudentProfileInput } from "@/lib/validation/students";
+
+const STUDENT_DOCUMENTS_BUCKET = "student-documents";
 
 function fail<T>(context: string, error: unknown): DataResult<T> {
   console.error(`[students data] ${context}:`, error);
@@ -552,6 +558,96 @@ export async function getStudentDocuments(
     };
   } catch (error) {
     return fail("student documents", error);
+  }
+}
+
+/**
+ * Uploads a document to the private student-documents bucket, Admin/Super
+ * Admin only (Storage RLS: 20260101000018_student_documents_storage.sql).
+ * The object path is always built server-side from the verified `studentId`
+ * argument and a freshly generated id — the caller-supplied `file.name` only
+ * ever contributes a sanitized cosmetic suffix, never the path's authority.
+ * Uses the caller's own RLS-scoped session (not the admin/service-role
+ * client) — the Storage policy itself is the authorization boundary here.
+ */
+export async function uploadStudentDocument(
+  studentId: string,
+  documentType: string,
+  file: File,
+  uploadedByAdminId: string,
+): Promise<DataResult<{ id: string }>> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const objectId = crypto.randomUUID();
+    const path = buildStudentDocumentPath(studentId, objectId, file.name);
+
+    const { error: uploadError } = await supabase.storage
+      .from(STUDENT_DOCUMENTS_BUCKET)
+      .upload(path, file, { contentType: file.type || undefined });
+    if (uploadError) throw uploadError;
+
+    const { data, error: insertError } = await supabase
+      .from("student_documents")
+      .insert({
+        student_id: studentId,
+        document_type: documentType,
+        file_path: path,
+        uploaded_by: uploadedByAdminId,
+        uploaded_by_type: "admin",
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      // Roll back the orphaned object rather than leaving an unreferenced
+      // file with no metadata row pointing at it.
+      await supabase.storage.from(STUDENT_DOCUMENTS_BUCKET).remove([path]);
+      throw insertError;
+    }
+
+    return { ok: true, data: { id: data.id } };
+  } catch (error) {
+    return fail("uploading the document", error);
+  }
+}
+
+/**
+ * Deletes a document. Re-fetches the `student_documents` row by its own id
+ * first and re-verifies it belongs to `studentId` before removing anything —
+ * never trusts a caller-supplied file path directly for the delete target.
+ */
+export async function deleteStudentDocument(
+  studentId: string,
+  documentId: string,
+): Promise<DataResult<null>> {
+  try {
+    const supabase = await createSupabaseServerClient();
+
+    const { data: doc, error: fetchError } = await supabase
+      .from("student_documents")
+      .select("id, student_id, file_path")
+      .eq("id", documentId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!doc || doc.student_id !== studentId) {
+      return { ok: false, error: "Document not found." };
+    }
+
+    const { error: storageError } = await supabase.storage
+      .from(STUDENT_DOCUMENTS_BUCKET)
+      .remove([doc.file_path]);
+    if (storageError) throw storageError;
+
+    const { error: deleteError } = await supabase
+      .from("student_documents")
+      .delete()
+      .eq("id", documentId);
+    if (deleteError) throw deleteError;
+
+    return { ok: true, data: null };
+  } catch (error) {
+    return fail("deleting the document", error);
   }
 }
 

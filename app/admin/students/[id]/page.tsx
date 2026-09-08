@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StudentStatusBadge } from "@/components/admin/students/student-status-badge";
 import { StudentStatusControl } from "@/components/admin/students/student-status-control";
 import { StudentNotesSection } from "@/components/admin/students/student-notes-section";
+import { StudentDocumentsSection } from "@/components/admin/students/student-documents-section";
 import { StudentEnrollmentHistoryCard } from "@/components/admin/students/student-enrollment-history-card";
 import { StudentPaymentHistoryCard } from "@/components/admin/students/student-payment-history-card";
 import { StudentAttendanceHistoryCard } from "@/components/admin/students/student-attendance-history-card";
@@ -83,34 +84,10 @@ async function NotesSection({ studentId }: { studentId: string }) {
 async function DocumentsSection({ studentId }: { studentId: string }) {
   const result = await getStudentDocuments(studentId);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Documents</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!result.ok ? (
-          <p role="alert" className="text-destructive text-sm">
-            {result.error}
-          </p>
-        ) : result.data.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No documents uploaded yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-2 text-sm">
-            {result.data.map((doc) => (
-              <li
-                key={doc.id}
-                className="flex justify-between border-b pb-2 last:border-0"
-              >
-                <span>{doc.documentType}</span>
-                <span className="text-muted-foreground text-xs">
-                  {new Date(doc.createdAt).toLocaleDateString()}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+    <StudentDocumentsSection
+      studentId={studentId}
+      documents={result.ok ? result.data : []}
+    />
   );
 }
 

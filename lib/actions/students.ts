@@ -1,15 +1,18 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { isAdminOrSuperAdmin } from "@/lib/domain/rbac";
 import {
   createStudentRecord,
+  deleteStudentDocument,
   findDuplicateStudents,
   getStudentProfile,
   insertStudentNote,
   updateStudentProfile,
   updateStudentStatus,
+  uploadStudentDocument,
 } from "@/lib/data/students";
 import { writeAuditLog } from "@/lib/data/audit-log";
 import {
@@ -239,6 +242,7 @@ export async function setStudentStatusAction(
     after: { status: parsed.data.status },
   });
 
+  revalidatePath(`/admin/students/${studentId}`);
   return { success: true };
 }
 
@@ -271,5 +275,76 @@ export async function addStudentNoteAction(
     after: { studentId },
   });
 
+  revalidatePath(`/admin/students/${studentId}`);
+  return { success: true };
+}
+
+export async function uploadStudentDocumentAction(
+  studentId: string,
+  _prevState: StudentFormState,
+  formData: FormData,
+): Promise<StudentFormState> {
+  const ctx = await getCurrentUserContext();
+  if (!ctx || !isAdminOrSuperAdmin(ctx.role) || !ctx.profileId) {
+    return { formError: NOT_AUTHORIZED };
+  }
+
+  const file = formData.get("file");
+  const documentType = formData.get("documentType");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return { fieldErrors: { file: ["Choose a file to upload"] } };
+  }
+  if (typeof documentType !== "string" || documentType.trim().length === 0) {
+    return { fieldErrors: { documentType: ["Document type is required"] } };
+  }
+
+  const result = await uploadStudentDocument(
+    studentId,
+    documentType.trim(),
+    file,
+    ctx.profileId,
+  );
+  if (!result.ok) {
+    return { formError: result.error };
+  }
+
+  await writeAuditLog({
+    actorAuthUserId: ctx.authUserId,
+    actorRole: ctx.role,
+    action: "student.document.upload",
+    entityType: "student_document",
+    entityId: result.data.id,
+    after: { studentId, documentType: documentType.trim() },
+  });
+
+  revalidatePath(`/admin/students/${studentId}`);
+  return { success: true };
+}
+
+export async function deleteStudentDocumentAction(
+  studentId: string,
+  documentId: string,
+): Promise<{ formError?: string; success?: boolean }> {
+  const ctx = await getCurrentUserContext();
+  if (!ctx || !isAdminOrSuperAdmin(ctx.role)) {
+    return { formError: NOT_AUTHORIZED };
+  }
+
+  const result = await deleteStudentDocument(studentId, documentId);
+  if (!result.ok) {
+    return { formError: result.error };
+  }
+
+  await writeAuditLog({
+    actorAuthUserId: ctx.authUserId,
+    actorRole: ctx.role,
+    action: "student.document.delete",
+    entityType: "student_document",
+    entityId: documentId,
+    after: { studentId },
+  });
+
+  revalidatePath(`/admin/students/${studentId}`);
   return { success: true };
 }

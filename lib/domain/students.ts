@@ -113,3 +113,29 @@ export function isStudentStatus(value: unknown): value is StudentStatus {
 export function formatStudentCode(prefix: string, sequenceValue: number): string {
   return `${prefix}${sequenceValue}`;
 }
+
+// ---------------------------------------------------------------------------
+// Document storage path — deterministic, server-generated. The caller never
+// supplies (or controls) the path itself; only the original filename is
+// used, and only for a cosmetic suffix after sanitization. Authorization for
+// the object comes entirely from the Storage RLS policy (is_admin_or_super()),
+// never from the shape of this path.
+
+export function sanitizeFileNameForStorage(originalName: string): string {
+  const base = originalName.trim().slice(-100);
+  return (
+    base
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      // Collapse any run of 2+ dots (e.g. from "../../") — a single "."
+      // only ever legitimately separates a name from its extension.
+      .replace(/\.{2,}/g, "_") || "file"
+  );
+}
+
+export function buildStudentDocumentPath(
+  studentId: string,
+  objectId: string,
+  originalName: string,
+): string {
+  return `${studentId}/${objectId}-${sanitizeFileNameForStorage(originalName)}`;
+}
