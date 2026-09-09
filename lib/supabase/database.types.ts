@@ -217,11 +217,47 @@ export type Database = {
           auth_user_id: string;
           first_name: string;
           last_name: string;
+          email: string;
+          phone: string | null;
+          bio: string | null;
+          specialization: string[];
           status: "active" | "inactive";
+          created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["trainers"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["trainers"]["Row"]>;
         Relationships: Relationships;
+      };
+      // Phase 6 (Trainer Management) reads this many-to-many table, joined
+      // to batches/programs for a trainer's read-only assignment history —
+      // see supabase/migrations/20260101000005_catalog_tables.sql.
+      batch_trainers: {
+        Row: {
+          id: string;
+          batch_id: string;
+          trainer_id: string;
+          is_primary: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["batch_trainers"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["batch_trainers"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "batch_trainers_batch_id_fkey";
+            columns: ["batch_id"];
+            isOneToOne: false;
+            referencedRelation: "batches";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "batch_trainers_trainer_id_fkey";
+            columns: ["trainer_id"];
+            isOneToOne: false;
+            referencedRelation: "trainers";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       programs: {
         Row: {
