@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  normalizeIndianPhone,
+  normalizeInternationalPhone,
   findDuplicateReasons,
   findDuplicateMatches,
   formatStudentCode,
@@ -30,46 +30,69 @@ const existing = (overrides: Partial<DuplicateCandidate> = {}): DuplicateCandida
   ...overrides,
 });
 
-describe("normalizeIndianPhone", () => {
-  it("accepts a valid bare 10-digit India number", () => {
-    expect(normalizeIndianPhone("9898595069")).toBe("+919898595069");
+describe("normalizeInternationalPhone", () => {
+  it("accepts a valid bare 10-digit India number given India as the country hint", () => {
+    expect(normalizeInternationalPhone("9898595069", "IN")).toBe("+919898595069");
   });
 
-  it("accepts a valid +91-prefixed number", () => {
-    expect(normalizeIndianPhone("+919898595069")).toBe("+919898595069");
+  it("accepts a valid +91 India number with no country hint needed", () => {
+    expect(normalizeInternationalPhone("+919898595069")).toBe("+919898595069");
   });
 
-  it("accepts a valid number with spaces and a + prefix", () => {
-    expect(normalizeIndianPhone("+91 98985 95069")).toBe("+919898595069");
+  it("accepts a valid India number with spaces and a + prefix", () => {
+    expect(normalizeInternationalPhone("+91 98985 95069")).toBe("+919898595069");
   });
 
-  it("accepts a valid number with a dash and no +", () => {
-    expect(normalizeIndianPhone("91-9898595069")).toBe("+919898595069");
+  it("accepts a valid India number with a dash and no +, given the country hint", () => {
+    expect(normalizeInternationalPhone("91-9898595069", "IN")).toBe("+919898595069");
   });
 
-  it("rejects a 9-digit number", () => {
-    expect(normalizeIndianPhone("987654321")).toBeNull();
+  it("accepts a valid Canada number in full E.164 form", () => {
+    expect(normalizeInternationalPhone("+14165551234")).toBe("+14165551234");
   });
 
-  it("rejects a subscriber number longer than 10 digits", () => {
-    expect(normalizeIndianPhone("98765432109")).toBeNull();
-    expect(normalizeIndianPhone("+9198765432109")).toBeNull();
+  it("accepts a valid Canada national number given Canada as the country hint", () => {
+    expect(normalizeInternationalPhone("416-555-1234", "CA")).toBe("+14165551234");
+  });
+
+  it("accepts a valid UK number in full E.164 form", () => {
+    expect(normalizeInternationalPhone("+447911123456")).toBe("+447911123456");
+  });
+
+  it("accepts a valid UK national number (with trunk 0) given the UK as the country hint", () => {
+    expect(normalizeInternationalPhone("07911 123456", "GB")).toBe("+447911123456");
+  });
+
+  it("rejects a 9-digit India number", () => {
+    expect(normalizeInternationalPhone("987654321", "IN")).toBeNull();
+  });
+
+  it("rejects an India subscriber number longer than 10 digits", () => {
+    expect(normalizeInternationalPhone("98765432109", "IN")).toBeNull();
+  });
+
+  it("rejects a UK number that is too short to be real", () => {
+    expect(normalizeInternationalPhone("+4479", "GB")).toBeNull();
+  });
+
+  it("rejects a Canada number with too few digits", () => {
+    expect(normalizeInternationalPhone("416-555", "CA")).toBeNull();
   });
 
   it("rejects alphabetic input", () => {
-    expect(normalizeIndianPhone("98NOTANUM1")).toBeNull();
+    expect(normalizeInternationalPhone("98NOTANUM1", "IN")).toBeNull();
   });
 
   it("rejects empty input", () => {
-    expect(normalizeIndianPhone("   ")).toBeNull();
+    expect(normalizeInternationalPhone("   ", "IN")).toBeNull();
   });
 
-  it("rejects a non-Indian country code", () => {
-    expect(normalizeIndianPhone("+12345678901")).toBeNull();
+  it("rejects a bare national number with no leading + and no country hint — never guesses", () => {
+    expect(normalizeInternationalPhone("9876543210")).toBeNull();
   });
 
-  it("never guesses — an ambiguous invalid number returns null, not a best-effort fix", () => {
-    expect(normalizeIndianPhone("123456")).toBeNull();
+  it("ignores an unsupported country hint rather than guessing with it", () => {
+    expect(normalizeInternationalPhone("9876543210", "ZZ")).toBeNull();
   });
 });
 
@@ -94,6 +117,14 @@ describe("findDuplicateReasons", () => {
     const reasons = findDuplicateReasons(
       { ...baseInput, phone: "91-9876543210" },
       existing({ phone: "+91 98765 43210", email: null, dateOfBirth: null }),
+    );
+    expect(reasons).toEqual(["phone"]);
+  });
+
+  it("matches a duplicate UK number entered in two different valid formats", () => {
+    const reasons = findDuplicateReasons(
+      { ...baseInput, phone: "+447911123456" },
+      existing({ phone: "+44 7911 123456", email: null, dateOfBirth: null }),
     );
     expect(reasons).toEqual(["phone"]);
   });

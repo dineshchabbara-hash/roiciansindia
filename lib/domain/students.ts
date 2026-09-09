@@ -1,12 +1,26 @@
 /**
- * Pure student-management domain logic — no I/O, no Supabase import.
+ * Pure student-management domain logic — no I/O, no Supabase import (the
+ * one exception being libphonenumber-js, a pure computation library with no
+ * I/O of its own — see normalizeInternationalPhone() below).
+ *
  * Duplicate-detection rules per REQUIREMENTS.md FR-14, deliberately
  * conservative: every rule here is chosen for a low false-positive rate,
  * even at the cost of missing some true duplicates. Phone numbers are the
- * one exception to "no guessing" — India-only, and only the exact input
- * shapes documented on normalizeIndianPhone() below are recognized; anything
- * else is rejected rather than guessed at.
+ * one exception to "no guessing": normalizeInternationalPhone() recognizes
+ * genuinely valid numbers for whichever country is given (or implied by a
+ * leading "+"), via libphonenumber-js's real numbering-plan data — never a
+ * hand-rolled length guess — and rejects, rather than guesses at, anything
+ * that isn't a real number for that country.
  */
+
+import {
+  parsePhoneNumberFromString,
+  isSupportedCountry,
+  type CountryCode,
+} from "libphonenumber-js";
+import { DEFAULT_PHONE_COUNTRY } from "@/lib/domain/phone-countries";
+
+export { DEFAULT_PHONE_COUNTRY };
 
 export type DuplicateCandidate = {
   id: string;
@@ -33,38 +47,45 @@ export type NewStudentInput = {
   dateOfBirth: string | null;
 };
 
-const INDIA_COUNTRY_CODE = "91";
-
 /**
- * The single source of truth for turning a user-typed Indian phone number
- * into the canonical E.164-style form `+91XXXXXXXXXX` — used for create,
+ * The single source of truth for turning a user-typed phone number into
+ * canonical E.164 (`+<country code><national number>`) — used for create,
  * edit, and duplicate detection alike (REQUIREMENTS.md FR-14 correction).
  *
- * Recognizes exactly: a bare 10-digit number ("9876543210"), the same with
- * a "+91" or "91" country-code prefix ("+919876543210", "919876543210"),
- * and any of those with spaces, dashes, or parentheses inserted for
- * readability ("+91 98765 43210", "91-9876543210"). Anything else — 9
- * digits, 11+ subscriber digits, letters, a non-Indian country code —
- * returns null rather than guessing: an invalid number must fail visibly,
- * never get silently "corrected" into some other number.
+ * `defaultCountry` is only a fallback hint for a number with no leading
+ * "+" (e.g. a bare "9876543210" typed while "India" is selected in the
+ * form) — a number that already starts with "+" is parsed as fully
+ * international regardless of it. Validity (including how many subscriber
+ * digits are correct) is real numbering-plan data from libphonenumber-js,
+ * never a hand-rolled digit count — a 10-digit assumption is only correct
+ * for some countries. Returns null, never a guess, for anything that isn't
+ * a genuinely valid number: an unrecognized country, a number with the
+ * wrong digit count for its country, or non-numeric input.
  */
-export function normalizeIndianPhone(raw: string): string | null {
-  const stripped = raw.trim().replace(/[\s\-()]/g, "");
-  if (stripped.length === 0) return null;
+export function normalizeInternationalPhone(
+  raw: string,
+  defaultCountry?: string,
+): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
 
-  const withoutPlus = stripped.startsWith("+") ? stripped.slice(1) : stripped;
-  if (!/^\d+$/.test(withoutPlus)) return null;
+  const hint: CountryCode | undefined =
+    defaultCountry && isSupportedCountry(defaultCountry) ? defaultCountry : undefined;
 
-  let subscriber: string;
-  if (withoutPlus.length === 12 && withoutPlus.startsWith(INDIA_COUNTRY_CODE)) {
-    subscriber = withoutPlus.slice(2);
-  } else if (withoutPlus.length === 10) {
-    subscriber = withoutPlus;
-  } else {
-    return null;
-  }
+  // Without a leading "+", a bare number is only interpretable given a
+  // country hint — otherwise there's nothing to guess from.
+  if (!trimmed.startsWith("+") && !hint) return null;
 
-  return `+${INDIA_COUNTRY_CODE}${subscriber}`;
+  const phoneNumber = parsePhoneNumberFromString(trimmed, hint);
+  if (!phoneNumber || !phoneNumber.isValid()) return null;
+
+  return phoneNumber.number;
+}
+
+/** The ISO country a canonical E.164 number belongs to, or null if unparseable. */
+export function getPhoneCountry(e164Phone: string): CountryCode | null {
+  const phoneNumber = parsePhoneNumberFromString(e164Phone);
+  return phoneNumber?.country ?? null;
 }
 
 function normalizeName(first: string, last: string): string {
@@ -86,11 +107,19 @@ export function findDuplicateReasons(
 ): DuplicateMatchReason[] {
   const reasons: DuplicateMatchReason[] = [];
 
-  const inputPhone = normalizeIndianPhone(input.phone);
-  const existingPhone = normalizeIndianPhone(existing.phone);
-  // Both sides must resolve to a valid canonical number — a candidate whose
-  // stored phone predates this validation and doesn't parse is simply not
-  // matchable on phone (never a crash, never a guessed match).
+  // The new input is always already canonical E.164 by this point (the
+  // validation schema normalizes it before this ever runs), so the default
+  // country hint below only matters for `existing.phone` — a candidate
+  // stored before international support existed may still be a bare
+  // digit-only legacy value, which DEFAULT_PHONE_COUNTRY (India) resolves
+  // the same way the earlier India-only fix did. A candidate whose stored
+  // phone doesn't parse at all is simply not matchable on phone (never a
+  // crash, never a guessed match).
+  const inputPhone = normalizeInternationalPhone(input.phone, DEFAULT_PHONE_COUNTRY);
+  const existingPhone = normalizeInternationalPhone(
+    existing.phone,
+    DEFAULT_PHONE_COUNTRY,
+  );
   if (inputPhone && existingPhone && inputPhone === existingPhone) {
     reasons.push("phone");
   }

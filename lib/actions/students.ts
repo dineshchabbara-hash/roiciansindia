@@ -47,6 +47,7 @@ function profileInputFromFormData(formData: FormData) {
     lastName: formData.get("lastName"),
     preferredName: formData.get("preferredName"),
     email: formData.get("email"),
+    phoneCountry: formData.get("phoneCountry"),
     phone: formData.get("phone"),
     alternatePhone: formData.get("alternatePhone"),
     dateOfBirth: formData.get("dateOfBirth"),

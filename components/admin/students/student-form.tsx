@@ -5,6 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DuplicateWarningPanel } from "@/components/admin/students/duplicate-warning-panel";
+import {
+  DEFAULT_PHONE_COUNTRY,
+  PHONE_COUNTRY_OPTIONS,
+} from "@/lib/domain/phone-countries";
 import type { StudentFormState } from "@/lib/actions/students";
 import type { StudentProfile } from "@/lib/data/students";
 
@@ -21,7 +25,7 @@ export function StudentForm({
   submitLabel,
 }: {
   action: (prevState: StudentFormState, formData: FormData) => Promise<StudentFormState>;
-  defaultValues?: Partial<StudentProfile>;
+  defaultValues?: Partial<StudentProfile> & { phoneCountry?: string };
   submitLabel: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -65,13 +69,29 @@ export function StudentForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
-            name="phone"
-            required
-            defaultValue={defaultValues?.phone}
-            aria-invalid={!!state.fieldErrors?.phone}
-          />
+          <div className="flex gap-2">
+            <select
+              id="phoneCountry"
+              name="phoneCountry"
+              aria-label="Phone country"
+              defaultValue={defaultValues?.phoneCountry ?? DEFAULT_PHONE_COUNTRY}
+              className="border-input h-9 w-[9.5rem] shrink-0 rounded-md border bg-transparent px-2 text-sm shadow-xs"
+            >
+              {PHONE_COUNTRY_OPTIONS.map((country) => (
+                <option key={country.code} value={country.code}>
+                  {country.name} (+{country.callingCode})
+                </option>
+              ))}
+            </select>
+            <Input
+              id="phone"
+              name="phone"
+              required
+              defaultValue={defaultValues?.phone}
+              aria-invalid={!!state.fieldErrors?.phone}
+              className="flex-1"
+            />
+          </div>
           <FieldError errors={state.fieldErrors?.phone} />
         </div>
         <div className="flex flex-col gap-1.5">
