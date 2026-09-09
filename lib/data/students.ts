@@ -12,9 +12,14 @@ import type { StudentProfileInput } from "@/lib/validation/students";
 
 const STUDENT_DOCUMENTS_BUCKET = "student-documents";
 
-function fail<T>(context: string, error: unknown): DataResult<T> {
-  console.error(`[students data] ${context}:`, error);
-  return { ok: false, error: `Could not load ${context}.` };
+// `message` is the complete, user-facing sentence — every call site supplies
+// one appropriate to what it was actually doing (loading vs. saving vs.
+// deleting), so a write failure never reads as if a read failed. No failure
+// here is ever silent: every caller propagates this into a visible
+// Server Action formError (REQUIREMENTS.md FR-14 correction #3).
+function fail<T>(message: string, error: unknown): DataResult<T> {
+  console.error(`[students data] ${message}:`, error);
+  return { ok: false, error: message };
 }
 
 const PAGE_SIZE_DEFAULT = 20;
@@ -126,7 +131,7 @@ export async function searchStudents(params: StudentSearchParams): Promise<
       },
     };
   } catch (error) {
-    return fail("student list", error);
+    return fail("Could not load the student list.", error);
   }
 }
 
@@ -146,7 +151,7 @@ export async function getProgramFilterOptions(): Promise<
     if (error) throw error;
     return { ok: true, data: data ?? [] };
   } catch (error) {
-    return fail("program list", error);
+    return fail("Could not load the program list.", error);
   }
 }
 
@@ -162,7 +167,7 @@ export async function getBatchFilterOptions(): Promise<
     if (error) throw error;
     return { ok: true, data: data ?? [] };
   } catch (error) {
-    return fail("batch list", error);
+    return fail("Could not load the batch list.", error);
   }
 }
 
@@ -230,7 +235,7 @@ export async function getStudentProfile(id: string): Promise<DataResult<StudentP
       },
     };
   } catch (error) {
-    return fail("student profile", error);
+    return fail("Could not load the student profile.", error);
   }
 }
 
@@ -275,7 +280,7 @@ export async function getStudentEnrollmentHistory(
       })),
     };
   } catch (error) {
-    return fail("enrollment history", error);
+    return fail("Could not load enrollment history.", error);
   }
 }
 
@@ -342,7 +347,7 @@ export async function getStudentPaymentHistory(
       })),
     };
   } catch (error) {
-    return fail("payment history", error);
+    return fail("Could not load payment history.", error);
   }
 }
 
@@ -402,7 +407,7 @@ export async function getStudentAttendanceHistory(
       })),
     };
   } catch (error) {
-    return fail("attendance history", error);
+    return fail("Could not load attendance history.", error);
   }
 }
 
@@ -454,7 +459,7 @@ export async function getStudentCertificateHistory(
       })),
     };
   } catch (error) {
-    return fail("certificate history", error);
+    return fail("Could not load certificate history.", error);
   }
 }
 
@@ -500,7 +505,7 @@ export async function getStudentNotes(
       })),
     };
   } catch (error) {
-    return fail("student notes", error);
+    return fail("Could not load notes.", error);
   }
 }
 
@@ -520,7 +525,7 @@ export async function insertStudentNote(
     if (error) throw error;
     return { ok: true, data: { id: data.id } };
   } catch (error) {
-    return fail("saving the note", error);
+    return fail("Could not save the note. Please try again.", error);
   }
 }
 
@@ -557,7 +562,7 @@ export async function getStudentDocuments(
       })),
     };
   } catch (error) {
-    return fail("student documents", error);
+    return fail("Could not load documents.", error);
   }
 }
 
@@ -607,7 +612,7 @@ export async function uploadStudentDocument(
 
     return { ok: true, data: { id: data.id } };
   } catch (error) {
-    return fail("uploading the document", error);
+    return fail("Could not upload the document. Please try again.", error);
   }
 }
 
@@ -647,7 +652,7 @@ export async function deleteStudentDocument(
 
     return { ok: true, data: null };
   } catch (error) {
-    return fail("deleting the document", error);
+    return fail("Could not delete the document. Please try again.", error);
   }
 }
 
@@ -700,7 +705,7 @@ export async function findDuplicateStudents(input: {
 
     return { ok: true, data: matches };
   } catch (error) {
-    return fail("duplicate check", error);
+    return fail("Could not check for duplicate students. Please try again.", error);
   }
 }
 
@@ -738,7 +743,7 @@ export async function updateStudentProfile(
     if (error) throw error;
     return { ok: true, data: null };
   } catch (error) {
-    return fail("updating the student", error);
+    return fail("Could not save changes. Please try again.", error);
   }
 }
 
@@ -782,7 +787,7 @@ export async function createStudentRecord(
     if (error) throw error;
     return { ok: true, data: { id: data.id, studentCode: data.student_code } };
   } catch (error) {
-    return fail("creating the student", error);
+    return fail("Could not create the student. Please try again.", error);
   }
 }
 
@@ -796,6 +801,6 @@ export async function updateStudentStatus(
     if (error) throw error;
     return { ok: true, data: null };
   } catch (error) {
-    return fail("updating student status", error);
+    return fail("Could not update the student's status. Please try again.", error);
   }
 }

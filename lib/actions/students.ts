@@ -87,7 +87,14 @@ export async function createStudentAction(
       dateOfBirth: parsed.data.dateOfBirth ?? null,
     });
 
-    if (duplicateResult.ok && duplicateResult.data.length > 0) {
+    // A failed duplicate check must never be treated as "no duplicates" —
+    // that would silently let a real duplicate through unwarned. Surface it
+    // and stop, the same as any other failed step (correction #3).
+    if (!duplicateResult.ok) {
+      return { formError: duplicateResult.error };
+    }
+
+    if (duplicateResult.data.length > 0) {
       return {
         duplicates: duplicateResult.data.map((match) => ({
           studentId: match.candidate.id,

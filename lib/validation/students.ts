@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeIndianPhone } from "@/lib/domain/students";
 
 /**
  * Shared between client-side form feedback and server-side enforcement in
@@ -28,16 +29,30 @@ const optionalEmail = z
     },
   );
 
+const PHONE_ERROR =
+  "Enter a valid 10-digit Indian phone number (e.g. 9876543210 or +91 98765 43210).";
+
+// The one shared validator for a required Indian phone field — normalizes to
+// canonical +91XXXXXXXXXX on success, rejects (with a visible field error,
+// never a silent fallback) anything normalizeIndianPhone() can't resolve.
+const indianPhone = z
+  .string()
+  .trim()
+  .transform((value, ctx) => {
+    const normalized = normalizeIndianPhone(value);
+    if (!normalized) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: PHONE_ERROR });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
 export const studentProfileSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required"),
   lastName: z.string().trim().min(1, "Last name is required"),
   preferredName: optionalTrimmed,
   email: optionalEmail,
-  phone: z
-    .string()
-    .trim()
-    .min(6, "Enter a valid phone number")
-    .max(20, "Enter a valid phone number"),
+  phone: indianPhone,
   alternatePhone: optionalTrimmed,
   dateOfBirth: optionalTrimmed,
   gender: optionalTrimmed,

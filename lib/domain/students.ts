@@ -2,10 +2,10 @@
  * Pure student-management domain logic — no I/O, no Supabase import.
  * Duplicate-detection rules per REQUIREMENTS.md FR-14, deliberately
  * conservative: every rule here is chosen for a low false-positive rate,
- * even at the cost of missing some true duplicates (e.g. the same phone
- * number entered with vs. without a country code is NOT treated as a
- * match — guessing at country codes is unreliable and risks false
- * positives, which is worse than an occasional missed warning here).
+ * even at the cost of missing some true duplicates. Phone numbers are the
+ * one exception to "no guessing" — India-only, and only the exact input
+ * shapes documented on normalizeIndianPhone() below are recognized; anything
+ * else is rejected rather than guessed at.
  */
 
 export type DuplicateCandidate = {
@@ -33,9 +33,38 @@ export type NewStudentInput = {
   dateOfBirth: string | null;
 };
 
-/** Strips spaces, dashes, and parentheses only — no country-code handling. */
-export function normalizePhone(phone: string): string {
-  return phone.replace(/[\s\-()]/g, "");
+const INDIA_COUNTRY_CODE = "91";
+
+/**
+ * The single source of truth for turning a user-typed Indian phone number
+ * into the canonical E.164-style form `+91XXXXXXXXXX` — used for create,
+ * edit, and duplicate detection alike (REQUIREMENTS.md FR-14 correction).
+ *
+ * Recognizes exactly: a bare 10-digit number ("9876543210"), the same with
+ * a "+91" or "91" country-code prefix ("+919876543210", "919876543210"),
+ * and any of those with spaces, dashes, or parentheses inserted for
+ * readability ("+91 98765 43210", "91-9876543210"). Anything else — 9
+ * digits, 11+ subscriber digits, letters, a non-Indian country code —
+ * returns null rather than guessing: an invalid number must fail visibly,
+ * never get silently "corrected" into some other number.
+ */
+export function normalizeIndianPhone(raw: string): string | null {
+  const stripped = raw.trim().replace(/[\s\-()]/g, "");
+  if (stripped.length === 0) return null;
+
+  const withoutPlus = stripped.startsWith("+") ? stripped.slice(1) : stripped;
+  if (!/^\d+$/.test(withoutPlus)) return null;
+
+  let subscriber: string;
+  if (withoutPlus.length === 12 && withoutPlus.startsWith(INDIA_COUNTRY_CODE)) {
+    subscriber = withoutPlus.slice(2);
+  } else if (withoutPlus.length === 10) {
+    subscriber = withoutPlus;
+  } else {
+    return null;
+  }
+
+  return `+${INDIA_COUNTRY_CODE}${subscriber}`;
 }
 
 function normalizeName(first: string, last: string): string {
@@ -57,7 +86,12 @@ export function findDuplicateReasons(
 ): DuplicateMatchReason[] {
   const reasons: DuplicateMatchReason[] = [];
 
-  if (normalizePhone(input.phone) === normalizePhone(existing.phone)) {
+  const inputPhone = normalizeIndianPhone(input.phone);
+  const existingPhone = normalizeIndianPhone(existing.phone);
+  // Both sides must resolve to a valid canonical number — a candidate whose
+  // stored phone predates this validation and doesn't parse is simply not
+  // matchable on phone (never a crash, never a guessed match).
+  if (inputPhone && existingPhone && inputPhone === existingPhone) {
     reasons.push("phone");
   }
 

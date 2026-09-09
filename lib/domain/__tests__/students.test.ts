@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  normalizePhone,
+  normalizeIndianPhone,
   findDuplicateReasons,
   findDuplicateMatches,
   formatStudentCode,
@@ -30,19 +30,46 @@ const existing = (overrides: Partial<DuplicateCandidate> = {}): DuplicateCandida
   ...overrides,
 });
 
-describe("normalizePhone", () => {
-  it("strips spaces, dashes, and parentheses only", () => {
-    expect(normalizePhone("(987) 654-3210")).toBe("9876543210");
-    expect(normalizePhone("987 654 3210")).toBe("9876543210");
+describe("normalizeIndianPhone", () => {
+  it("accepts a valid bare 10-digit India number", () => {
+    expect(normalizeIndianPhone("9898595069")).toBe("+919898595069");
   });
 
-  it("does NOT strip country codes or a leading +", () => {
-    expect(normalizePhone("+91 9876543210")).toBe("+919876543210");
+  it("accepts a valid +91-prefixed number", () => {
+    expect(normalizeIndianPhone("+919898595069")).toBe("+919898595069");
   });
 
-  it("does not treat a number with a country code as equal to the same number without one", () => {
-    // The exact false-positive case this rule must avoid.
-    expect(normalizePhone("9876543210")).not.toBe(normalizePhone("919876543210"));
+  it("accepts a valid number with spaces and a + prefix", () => {
+    expect(normalizeIndianPhone("+91 98985 95069")).toBe("+919898595069");
+  });
+
+  it("accepts a valid number with a dash and no +", () => {
+    expect(normalizeIndianPhone("91-9898595069")).toBe("+919898595069");
+  });
+
+  it("rejects a 9-digit number", () => {
+    expect(normalizeIndianPhone("987654321")).toBeNull();
+  });
+
+  it("rejects a subscriber number longer than 10 digits", () => {
+    expect(normalizeIndianPhone("98765432109")).toBeNull();
+    expect(normalizeIndianPhone("+9198765432109")).toBeNull();
+  });
+
+  it("rejects alphabetic input", () => {
+    expect(normalizeIndianPhone("98NOTANUM1")).toBeNull();
+  });
+
+  it("rejects empty input", () => {
+    expect(normalizeIndianPhone("   ")).toBeNull();
+  });
+
+  it("rejects a non-Indian country code", () => {
+    expect(normalizeIndianPhone("+12345678901")).toBeNull();
+  });
+
+  it("never guesses — an ambiguous invalid number returns null, not a best-effort fix", () => {
+    expect(normalizeIndianPhone("123456")).toBeNull();
   });
 });
 
@@ -55,10 +82,26 @@ describe("findDuplicateReasons", () => {
     expect(reasons).toEqual(["phone"]);
   });
 
-  it("does not match phone when a country code differs", () => {
+  it("matches phone even when one side has a country code and the other doesn't", () => {
     const reasons = findDuplicateReasons(
-      { ...baseInput, phone: "919876543210" },
+      { ...baseInput, phone: "+919876543210" },
       existing({ phone: "9876543210", email: null, dateOfBirth: null }),
+    );
+    expect(reasons).toEqual(["phone"]);
+  });
+
+  it("matches phone across differently-formatted input on both sides", () => {
+    const reasons = findDuplicateReasons(
+      { ...baseInput, phone: "91-9876543210" },
+      existing({ phone: "+91 98765 43210", email: null, dateOfBirth: null }),
+    );
+    expect(reasons).toEqual(["phone"]);
+  });
+
+  it("does not match phone when a stored legacy value doesn't parse as a valid number", () => {
+    const reasons = findDuplicateReasons(
+      { ...baseInput, phone: "9876543210" },
+      existing({ phone: "not-a-number", email: null, dateOfBirth: null }),
     );
     expect(reasons).not.toContain("phone");
   });
