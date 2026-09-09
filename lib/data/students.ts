@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DataResult } from "@/lib/data/dashboard";
 import {
   buildStudentDocumentPath,
+  documentDisplayFileName,
   findDuplicateMatches,
   type DuplicateMatch,
 } from "@/lib/domain/students";
@@ -536,6 +537,9 @@ export type StudentDocumentRow = {
   id: string;
   documentType: string;
   filePath: string;
+  /** Recovered from filePath for display only — never a separately stored
+   *  column (see documentDisplayFileName). */
+  fileName: string;
   createdAt: string;
 };
 
@@ -558,6 +562,7 @@ export async function getStudentDocuments(
         id: row.id,
         documentType: row.document_type,
         filePath: row.file_path,
+        fileName: documentDisplayFileName(row.file_path),
         createdAt: row.created_at,
       })),
     };

@@ -38,10 +38,20 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { createStudentAction } from "@/lib/actions/students";
+import {
+  createStudentAction,
+  uploadStudentDocumentAction,
+  deleteStudentDocumentAction,
+} from "@/lib/actions/students";
 import { getCurrentUserContext } from "@/lib/auth/session";
-import { findDuplicateStudents, createStudentRecord } from "@/lib/data/students";
+import {
+  findDuplicateStudents,
+  createStudentRecord,
+  uploadStudentDocument,
+  deleteStudentDocument,
+} from "@/lib/data/students";
 import { writeAuditLog } from "@/lib/data/audit-log";
+import { revalidatePath } from "next/cache";
 
 const adminContext = {
   authUserId: "admin-auth-1",
@@ -49,6 +59,30 @@ const adminContext = {
   role: "admin" as const,
   profileId: "admin-profile-1",
   displayName: "Test Admin",
+};
+
+const superAdminContext = {
+  authUserId: "super-admin-auth-1",
+  email: "superadmin@example.com",
+  role: "super_admin" as const,
+  profileId: "super-admin-profile-1",
+  displayName: "Test Super Admin",
+};
+
+const trainerContext = {
+  authUserId: "trainer-auth-1",
+  email: "trainer@example.com",
+  role: "trainer" as const,
+  profileId: "trainer-profile-1",
+  displayName: "Test Trainer",
+};
+
+const studentContext = {
+  authUserId: "student-auth-1",
+  email: "student@example.com",
+  role: "student" as const,
+  profileId: "student-profile-1",
+  displayName: "Test Student",
 };
 
 function baseFormData(overrides: Record<string, string> = {}): FormData {
@@ -190,5 +224,154 @@ describe("createStudentAction", () => {
         }),
       }),
     );
+  });
+});
+
+function fileFormData(file: File | null, documentType: string | null): FormData {
+  const formData = new FormData();
+  if (file) formData.set("file", file);
+  if (documentType !== null) formData.set("documentType", documentType);
+  return formData;
+}
+
+describe("uploadStudentDocumentAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects Trainer and Student without ever touching storage", async () => {
+    for (const ctx of [trainerContext, studentContext]) {
+      vi.mocked(getCurrentUserContext).mockResolvedValue(ctx);
+      const result = await uploadStudentDocumentAction(
+        "student-1",
+        {},
+        fileFormData(new File(["x"], "id.pdf"), "ID proof"),
+      );
+      expect(result.formError).toBe("You are not authorized to perform this action.");
+    }
+    expect(uploadStudentDocument).not.toHaveBeenCalled();
+  });
+
+  it("returns a visible field error, never a silent failure, when no file is chosen", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    const result = await uploadStudentDocumentAction(
+      "student-1",
+      {},
+      fileFormData(null, "ID proof"),
+    );
+    expect(result.fieldErrors?.file?.[0]).toBeTruthy();
+    expect(uploadStudentDocument).not.toHaveBeenCalled();
+  });
+
+  it("uploads, audits metadata only (never file contents), and revalidates the profile for Admin", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    vi.mocked(uploadStudentDocument).mockResolvedValue({
+      ok: true,
+      data: { id: "doc-1" },
+    });
+
+    const result = await uploadStudentDocumentAction(
+      "student-1",
+      {},
+      fileFormData(new File(["secret contents"], "id.pdf"), "ID proof"),
+    );
+
+    expect(result.success).toBe(true);
+    expect(uploadStudentDocument).toHaveBeenCalledWith(
+      "student-1",
+      "ID proof",
+      expect.any(File),
+      adminContext.profileId,
+    );
+    const auditCall = vi
+      .mocked(writeAuditLog)
+      .mock.calls.find(([entry]) => entry.action === "student.document.upload");
+    expect(auditCall).toBeTruthy();
+    expect(JSON.stringify(auditCall![0])).not.toContain("secret contents");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/students/student-1");
+  });
+
+  it("succeeds for Super Admin too", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(superAdminContext);
+    vi.mocked(uploadStudentDocument).mockResolvedValue({
+      ok: true,
+      data: { id: "doc-2" },
+    });
+
+    const result = await uploadStudentDocumentAction(
+      "student-1",
+      {},
+      fileFormData(new File(["x"], "id.pdf"), "ID proof"),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("surfaces a storage/data-layer failure as a visible formError, not a silent no-op", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    vi.mocked(uploadStudentDocument).mockResolvedValue({
+      ok: false,
+      error: "Could not upload the document. Please try again.",
+    });
+
+    const result = await uploadStudentDocumentAction(
+      "student-1",
+      {},
+      fileFormData(new File(["x"], "id.pdf"), "ID proof"),
+    );
+    expect(result.formError).toBe("Could not upload the document. Please try again.");
+    expect(writeAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteStudentDocumentAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects Trainer and Student without ever touching storage", async () => {
+    for (const ctx of [trainerContext, studentContext]) {
+      vi.mocked(getCurrentUserContext).mockResolvedValue(ctx);
+      const result = await deleteStudentDocumentAction("student-1", "doc-1");
+      expect(result.formError).toBe("You are not authorized to perform this action.");
+    }
+    expect(deleteStudentDocument).not.toHaveBeenCalled();
+  });
+
+  it("deletes (removing both the Storage object and the metadata row via the data layer), audits, and revalidates for Admin", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    vi.mocked(deleteStudentDocument).mockResolvedValue({ ok: true, data: null });
+
+    const result = await deleteStudentDocumentAction("student-1", "doc-1");
+
+    expect(result.success).toBe(true);
+    expect(deleteStudentDocument).toHaveBeenCalledWith("student-1", "doc-1");
+    expect(writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "student.document.delete",
+        entityType: "student_document",
+        entityId: "doc-1",
+      }),
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/students/student-1");
+  });
+
+  it("succeeds for Super Admin too", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(superAdminContext);
+    vi.mocked(deleteStudentDocument).mockResolvedValue({ ok: true, data: null });
+
+    const result = await deleteStudentDocumentAction("student-1", "doc-1");
+    expect(result.success).toBe(true);
+  });
+
+  it("surfaces a data-layer failure (e.g. ownership mismatch) as a visible formError, not a silent no-op", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    vi.mocked(deleteStudentDocument).mockResolvedValue({
+      ok: false,
+      error: "Document not found.",
+    });
+
+    const result = await deleteStudentDocumentAction("student-1", "doc-1");
+    expect(result.formError).toBe("Document not found.");
+    expect(writeAuditLog).not.toHaveBeenCalled();
   });
 });

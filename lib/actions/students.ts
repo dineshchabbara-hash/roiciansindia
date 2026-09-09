@@ -400,10 +400,17 @@ export async function uploadStudentDocumentAction(
   return { success: true };
 }
 
+export type DeleteDocumentState = { formError?: string; success?: boolean };
+
+// Only 2 of the 4 positional args useActionState's action signature requires
+// are declared — the trailing (prevState, formData) are never used, and a
+// function with fewer parameters is assignable wherever more are expected
+// (same as the .bind() callers of this function already relied on before
+// useActionState needed a 4-arg-shaped function here).
 export async function deleteStudentDocumentAction(
   studentId: string,
   documentId: string,
-): Promise<{ formError?: string; success?: boolean }> {
+): Promise<DeleteDocumentState> {
   const ctx = await getCurrentUserContext();
   if (!ctx || !isAdminOrSuperAdmin(ctx.role)) {
     return { formError: NOT_AUTHORIZED };

@@ -202,3 +202,19 @@ export function buildStudentDocumentPath(
 ): string {
   return `${studentId}/${objectId}-${sanitizeFileNameForStorage(originalName)}`;
 }
+
+// A v4 UUID from crypto.randomUUID(), exactly as buildStudentDocumentPath
+// above prefixes every stored object name with.
+const DOCUMENT_OBJECT_ID_PREFIX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i;
+
+/**
+ * Recovers the (sanitized) original filename from a stored document path,
+ * for display only — e.g. "student-1/3f9e...-passport.pdf" -> "passport.pdf".
+ * Stripping the fixed-width UUID prefix (rather than splitting on the first
+ * "-") is required because the original filename itself may contain "-".
+ */
+export function documentDisplayFileName(filePath: string): string {
+  const lastSegment = filePath.split("/").pop() ?? filePath;
+  return lastSegment.replace(DOCUMENT_OBJECT_ID_PREFIX, "") || lastSegment;
+}

@@ -7,6 +7,7 @@ import {
   isStudentStatus,
   sanitizeFileNameForStorage,
   buildStudentDocumentPath,
+  documentDisplayFileName,
   type DuplicateCandidate,
   type NewStudentInput,
 } from "@/lib/domain/students";
@@ -317,5 +318,23 @@ describe("buildStudentDocumentPath", () => {
     expect(path.startsWith("student-123/obj-456-")).toBe(true);
     expect(path).not.toContain("..");
     expect(path).not.toContain("/etc/");
+  });
+});
+
+describe("documentDisplayFileName", () => {
+  it("recovers the original filename from a real stored path", () => {
+    const objectId = crypto.randomUUID();
+    const path = buildStudentDocumentPath("student-123", objectId, "passport.pdf");
+    expect(documentDisplayFileName(path)).toBe("passport.pdf");
+  });
+
+  it("preserves dashes that were part of the original filename", () => {
+    const objectId = crypto.randomUUID();
+    const path = buildStudentDocumentPath("student-123", objectId, "id-proof-2026.pdf");
+    expect(documentDisplayFileName(path)).toBe("id-proof-2026.pdf");
+  });
+
+  it("falls back to the whole last path segment if there is no UUID prefix", () => {
+    expect(documentDisplayFileName("student-123/not-a-uuid.pdf")).toBe("not-a-uuid.pdf");
   });
 });

@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import {
   deleteStudentDocumentAction,
   uploadStudentDocumentAction,
+  type DeleteDocumentState,
   type StudentFormState,
 } from "@/lib/actions/students";
 import { Button } from "@/components/ui/button";
@@ -12,24 +13,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StudentDocumentRow } from "@/lib/data/students";
 
 const initialState: StudentFormState = {};
+const initialDeleteState: DeleteDocumentState = {};
 
 function DeleteDocumentButton({
   studentId,
   documentId,
+  fileName,
 }: {
   studentId: string;
   documentId: string;
+  fileName: string;
 }) {
   const boundAction = deleteStudentDocumentAction.bind(null, studentId, documentId);
+  const [state, formAction, isPending] = useActionState(boundAction, initialDeleteState);
+
   return (
     <form
-      action={async () => {
-        await boundAction();
+      action={formAction}
+      onSubmit={(event) => {
+        if (!window.confirm(`Delete "${fileName}"? This cannot be undone.`)) {
+          event.preventDefault();
+        }
       }}
+      className="flex flex-col items-end gap-1"
     >
-      <Button type="submit" variant="ghost" size="sm">
-        Delete
+      <Button type="submit" variant="ghost" size="sm" disabled={isPending}>
+        {isPending ? "Deleting..." : "Delete"}
       </Button>
+      {state.formError && (
+        <p role="alert" className="text-destructive text-xs">
+          {state.formError}
+        </p>
+      )}
     </form>
   );
 }
@@ -63,12 +78,19 @@ export function StudentDocumentsSection({
                 key={doc.id}
                 className="flex items-center justify-between border-b pb-2 last:border-0"
               >
-                <span>{doc.documentType}</span>
+                <div className="flex flex-col">
+                  <span>{doc.documentType}</span>
+                  <span className="text-muted-foreground text-xs">{doc.fileName}</span>
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground text-xs">
-                    {new Date(doc.createdAt).toLocaleDateString()}
+                    {new Date(doc.createdAt).toLocaleString()}
                   </span>
-                  <DeleteDocumentButton studentId={studentId} documentId={doc.id} />
+                  <DeleteDocumentButton
+                    studentId={studentId}
+                    documentId={doc.id}
+                    fileName={doc.fileName}
+                  />
                 </div>
               </li>
             ))}
@@ -94,6 +116,9 @@ export function StudentDocumentsSection({
             <p role="alert" className="text-destructive text-sm">
               {state.formError}
             </p>
+          )}
+          {state.success && (
+            <p className="text-sm text-green-700 dark:text-green-400">Uploaded</p>
           )}
           <Button type="submit" size="sm" disabled={isPending} className="w-fit">
             {isPending ? "Uploading..." : "Upload document"}
