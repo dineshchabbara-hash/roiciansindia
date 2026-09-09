@@ -142,14 +142,25 @@ test.describe("Role-based access to Admin Student Management", () => {
     await loginAsAdmin(page);
     await expect(page).toHaveURL(/\/admin$/);
     await page.goto("/admin/students");
-    await expect(page.getByRole("heading", { name: "Students" })).toBeVisible();
+    // Asserted separately from the heading below: if this page ever got
+    // redirected away (a session/auth hiccup, not a text problem), the
+    // heading check alone would just report "not found" with no clue why —
+    // this turns that into an explicit "wrong URL" failure instead.
+    await expect(page).toHaveURL(/\/admin\/students$/);
+    await expect(page.getByRole("heading", { name: "Students", level: 1 })).toBeVisible();
+    // A second, independent proof the real Student Management page (not an
+    // error boundary or empty shell) rendered — the "Add Student" action is
+    // only present on this page's actual content.
+    await expect(page.getByRole("link", { name: "Add Student" })).toBeVisible();
   });
 
   test("Super Admin is allowed to manage students", async ({ page }) => {
     const { superAdmin } = getFixtures();
     await login(page, "/login/admin", superAdmin.email, superAdmin.password);
     await page.goto("/admin/students");
-    await expect(page.getByRole("heading", { name: "Students" })).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/students$/);
+    await expect(page.getByRole("heading", { name: "Students", level: 1 })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Add Student" })).toBeVisible();
   });
 
   test("Trainer is blocked from Admin Student Management", async ({ page }) => {
