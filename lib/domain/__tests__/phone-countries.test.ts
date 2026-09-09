@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_PHONE_COUNTRY, PHONE_COUNTRY_OPTIONS } from "@/lib/domain/phone-countries";
+import {
+  DEFAULT_PHONE_COUNTRY,
+  PHONE_COUNTRY_OPTIONS,
+} from "@/lib/domain/phone-countries";
 
 /**
  * Regression coverage for the SSR/hydration mismatch: PHONE_COUNTRY_OPTIONS

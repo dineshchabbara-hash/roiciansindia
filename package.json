@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:phase5": "playwright test e2e/phase5-student-management.spec.ts",
     "test:rls": "bash scripts/test-rls.sh",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
