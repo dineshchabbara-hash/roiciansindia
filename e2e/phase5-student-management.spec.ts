@@ -94,6 +94,40 @@ async function login(page: Page, path: string, email: string, password: string) 
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
+/**
+ * TEMP-DIAGNOSTIC(phase5-e2e): investigating a real bug report — the
+ * synthetic Admin's session gets rejected on the navigation right after a
+ * successful login, while manual use in the same environment works fine.
+ * Prints only cookie names/attributes (never values) for Supabase's
+ * `sb-*` auth cookies, so a failing run shows concretely whether the
+ * session cookie is present, and with what shape, at each checkpoint —
+ * rather than us guessing. Safe to delete once the root cause is
+ * confirmed from real output. Pair with PHASE5_E2E_DEBUG_AUTH=1 (see
+ * lib/auth/session.ts / lib/supabase/middleware.ts) for the server-side
+ * half of the picture in the same run's webServer output.
+ */
+async function logAuthCookies(page: Page, label: string) {
+  const cookies = await page.context().cookies();
+  const authCookies = cookies.filter((c) => c.name.startsWith("sb-"));
+  console.log(
+    `[phase5 e2e][cookies @ ${label}] url=${page.url()}`,
+    authCookies.length === 0
+      ? "NO sb-* auth cookies present"
+      : JSON.stringify(
+          authCookies.map((c) => ({
+            name: c.name,
+            httpOnly: c.httpOnly,
+            secure: c.secure,
+            sameSite: c.sameSite,
+            path: c.path,
+            expires:
+              c.expires === -1 ? "session" : new Date(c.expires * 1000).toISOString(),
+            valueLength: c.value.length,
+          })),
+        ),
+  );
+}
+
 /** Every test body only ever runs after a successful beforeAll (skipSuite
  *  and setup failures both stop the suite before any test executes), so
  *  `fixtures` is always assigned here at runtime — this just gives a clear
@@ -141,7 +175,9 @@ test.describe("Role-based access to Admin Student Management", () => {
   test("Admin is allowed to manage students", async ({ page }) => {
     await loginAsAdmin(page);
     await expect(page).toHaveURL(/\/admin$/);
+    await logAuthCookies(page, "after login, before goto /admin/students");
     await page.goto("/admin/students");
+    await logAuthCookies(page, "after goto /admin/students");
     // Asserted separately from the heading below: if this page ever got
     // redirected away (a session/auth hiccup, not a text problem), the
     // heading check alone would just report "not found" with no clue why —
@@ -157,7 +193,9 @@ test.describe("Role-based access to Admin Student Management", () => {
   test("Super Admin is allowed to manage students", async ({ page }) => {
     const { superAdmin } = getFixtures();
     await login(page, "/login/admin", superAdmin.email, superAdmin.password);
+    await logAuthCookies(page, "after login, before goto /admin/students");
     await page.goto("/admin/students");
+    await logAuthCookies(page, "after goto /admin/students");
     await expect(page).toHaveURL(/\/admin\/students$/);
     await expect(page.getByRole("heading", { name: "Students", level: 1 })).toBeVisible();
     await expect(page.getByRole("link", { name: "Add Student" })).toBeVisible();
