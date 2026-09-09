@@ -55,6 +55,26 @@ describe("studentProfileSchema phone field", () => {
     if (result.success) expect(result.data.phone).toBe("+447911123456");
   });
 
+  it("accepts a valid UAE number with the UAE selected and normalizes it to E.164", () => {
+    const result = studentProfileSchema.safeParse({
+      ...baseFields,
+      phoneCountry: "AE",
+      phone: "050 123 4567",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.phone).toBe("+971501234567");
+  });
+
+  it("accepts a number formatted with parentheses and dashes", () => {
+    const result = studentProfileSchema.safeParse({
+      ...baseFields,
+      phoneCountry: "CA",
+      phone: "(416) 555-1234",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.phone).toBe("+14165551234");
+  });
+
   it("accepts a full E.164 number regardless of which country is selected", () => {
     // A "+" number is self-describing — the selector is only a fallback
     // hint for numbers without one.

@@ -63,6 +63,22 @@ describe("normalizeInternationalPhone", () => {
     expect(normalizeInternationalPhone("07911 123456", "GB")).toBe("+447911123456");
   });
 
+  it("accepts a valid UAE number in full E.164 form", () => {
+    expect(normalizeInternationalPhone("+971501234567")).toBe("+971501234567");
+  });
+
+  it("accepts a valid UAE national number (with trunk 0) given the UAE as the country hint", () => {
+    expect(normalizeInternationalPhone("0501234567", "AE")).toBe("+971501234567");
+  });
+
+  it("accepts a number formatted with parentheses and dashes, given the country hint", () => {
+    expect(normalizeInternationalPhone("(416) 555-1234", "CA")).toBe("+14165551234");
+  });
+
+  it("accepts a number formatted with extra dashes throughout", () => {
+    expect(normalizeInternationalPhone("98-98-59-50-69", "IN")).toBe("+919898595069");
+  });
+
   it("rejects a 9-digit India number", () => {
     expect(normalizeInternationalPhone("987654321", "IN")).toBeNull();
   });
@@ -125,6 +141,14 @@ describe("findDuplicateReasons", () => {
     const reasons = findDuplicateReasons(
       { ...baseInput, phone: "+447911123456" },
       existing({ phone: "+44 7911 123456", email: null, dateOfBirth: null }),
+    );
+    expect(reasons).toEqual(["phone"]);
+  });
+
+  it("matches a duplicate Canada number entered in two different valid formats", () => {
+    const reasons = findDuplicateReasons(
+      { ...baseInput, phone: "+14165551234" },
+      existing({ phone: "+1 (416) 555-1234", email: null, dateOfBirth: null }),
     );
     expect(reasons).toEqual(["phone"]);
   });
