@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   normalizeInternationalPhone,
   findDuplicateReasons,
@@ -8,6 +8,7 @@ import {
   sanitizeFileNameForStorage,
   buildStudentDocumentPath,
   documentDisplayFileName,
+  formatDisplayTimestamp,
   type DuplicateCandidate,
   type NewStudentInput,
 } from "@/lib/domain/students";
@@ -336,5 +337,59 @@ describe("documentDisplayFileName", () => {
 
   it("falls back to the whole last path segment if there is no UUID prefix", () => {
     expect(documentDisplayFileName("student-123/not-a-uuid.pdf")).toBe("not-a-uuid.pdf");
+  });
+});
+
+/**
+ * Regression coverage for a real hydration bug: student-notes-section.tsx
+ * and student-documents-section.tsx both used to call
+ * `new Date(iso).toLocaleString()` directly to display a timestamp. That
+ * formats using the runtime's *default* locale and time zone, which is not
+ * guaranteed to agree between Node's SSR pass and the browser's own
+ * settings during hydration — reproduced for real: the server rendered
+ * "2026-09-09, 12:58:52 p.m." while the browser hydrated
+ * "9/9/2026, 12:58:52 PM" for the exact same note. Same class of bug as the
+ * earlier Intl.DisplayNames country-name mismatch. Fixed by never calling a
+ * locale-dependent API at render time — formatDisplayTimestamp builds its
+ * string by hand from explicit UTC field accessors, so these tests assert
+ * exact output (not just "some text") and that no locale/Intl API is ever
+ * invoked.
+ */
+describe("formatDisplayTimestamp", () => {
+  it("formats a known instant deterministically", () => {
+    expect(formatDisplayTimestamp("2026-09-09T12:58:52.000Z")).toBe(
+      "9 Sep 2026, 12:58 UTC",
+    );
+  });
+
+  it("pads single-digit day-of-month, hours, and minutes", () => {
+    expect(formatDisplayTimestamp("2026-01-05T03:07:00.000Z")).toBe(
+      "5 Jan 2026, 03:07 UTC",
+    );
+  });
+
+  it("is stable across repeated calls for the same instant", () => {
+    const first = formatDisplayTimestamp("2026-09-09T12:58:52.000Z");
+    const second = formatDisplayTimestamp("2026-09-09T12:58:52.000Z");
+    expect(first).toBe(second);
+  });
+
+  it("never calls a locale- or time-zone-dependent Date/Intl API", () => {
+    const localeStringSpy = vi.spyOn(Date.prototype, "toLocaleString");
+    const localeDateStringSpy = vi.spyOn(Date.prototype, "toLocaleDateString");
+    const localeTimeStringSpy = vi.spyOn(Date.prototype, "toLocaleTimeString");
+    const intlSpy = vi.spyOn(Intl, "DateTimeFormat");
+
+    formatDisplayTimestamp("2026-09-09T12:58:52.000Z");
+
+    expect(localeStringSpy).not.toHaveBeenCalled();
+    expect(localeDateStringSpy).not.toHaveBeenCalled();
+    expect(localeTimeStringSpy).not.toHaveBeenCalled();
+    expect(intlSpy).not.toHaveBeenCalled();
+
+    localeStringSpy.mockRestore();
+    localeDateStringSpy.mockRestore();
+    localeTimeStringSpy.mockRestore();
+    intlSpy.mockRestore();
   });
 });

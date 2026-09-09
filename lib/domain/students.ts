@@ -218,3 +218,52 @@ export function documentDisplayFileName(filePath: string): string {
   const lastSegment = filePath.split("/").pop() ?? filePath;
   return lastSegment.replace(DOCUMENT_OBJECT_ID_PREFIX, "") || lastSegment;
 }
+
+// ---------------------------------------------------------------------------
+// Deterministic display timestamp — shared by every hydrated Client
+// Component in Student Management that renders a created/updated-at value
+// (student-notes-section.tsx, student-documents-section.tsx). Both used to
+// call `new Date(iso).toLocaleString()` directly, which formats using the
+// runtime's *default* locale and time zone — identical code, but a
+// genuinely different result on the Node SSR pass vs. the browser's own
+// locale/time zone during hydration (reproduced for real: server rendered
+// "2026-09-09, 12:58:52 p.m.", the browser hydrated "9/9/2026, 12:58:52
+// PM"). This is the same class of bug as the earlier Intl.DisplayNames
+// country-name mismatch (see phone-countries.ts) — any locale- or
+// time-zone-dependent API called identically on both sides can still
+// legitimately disagree, since "identical code" isn't "identical runtime
+// environment". Fixed the same way: never call a locale-dependent API at
+// render time. This builds the string by hand from explicit UTC field
+// accessors (getUTCFullYear() etc.) and a hardcoded month-name table —
+// there is no Intl call and no dependency on either side's default locale
+// or local time zone, so server and client always produce the same text
+// for the same instant.
+const MONTH_ABBREVIATIONS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+/** e.g. "9 Sep 2026, 12:58 UTC" — always UTC, always this exact shape. */
+export function formatDisplayTimestamp(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  const day = date.getUTCDate();
+  const month = MONTH_ABBREVIATIONS[date.getUTCMonth()];
+  const year = date.getUTCFullYear();
+  const hours = pad2(date.getUTCHours());
+  const minutes = pad2(date.getUTCMinutes());
+  return `${day} ${month} ${year}, ${hours}:${minutes} UTC`;
+}

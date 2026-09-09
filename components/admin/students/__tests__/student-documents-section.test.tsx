@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StudentDocumentsSection } from "@/components/admin/students/student-documents-section";
 import { deleteStudentDocumentAction } from "@/lib/actions/students";
+import { formatDisplayTimestamp } from "@/lib/domain/students";
 import type { StudentDocumentRow } from "@/lib/data/students";
 
 // lib/actions/students.ts is a "use server" module that imports
@@ -39,6 +40,18 @@ describe("StudentDocumentsSection", () => {
     expect(screen.getByText("ID proof")).toBeInTheDocument();
     expect(screen.getByText("passport.pdf")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("renders the upload timestamp using the deterministic shared formatter", () => {
+    // Same hydration-bug class as student-notes-section.tsx: this used to
+    // call `new Date(...).toLocaleString()` directly. Asserting the exact
+    // expected string from the shared formatter, not just "some date text",
+    // is what catches any drift back to a locale-dependent call.
+    render(<StudentDocumentsSection studentId="student-1" documents={[sample]} />);
+    expect(
+      screen.getByText(formatDisplayTimestamp(sample.createdAt)),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 Sep 2026, 00:00 UTC")).toBeInTheDocument();
   });
 
   it("always shows the admin-only upload form", () => {

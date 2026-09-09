@@ -5,6 +5,7 @@ import { addStudentNoteAction, type StudentFormState } from "@/lib/actions/stude
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StudentNoteRow } from "@/lib/data/students";
+import { formatDisplayTimestamp } from "@/lib/domain/students";
 
 const initialState: StudentFormState = {};
 
@@ -36,7 +37,7 @@ export function StudentNotesSection({
               <li key={note.id} className="border-b pb-3 text-sm last:border-0">
                 <p>{note.note}</p>
                 <p className="text-muted-foreground text-xs">
-                  {note.createdByName} · {new Date(note.createdAt).toLocaleString()}
+                  {note.createdByName} · {formatDisplayTimestamp(note.createdAt)}
                 </p>
               </li>
             ))}

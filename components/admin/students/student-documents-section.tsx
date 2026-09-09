@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StudentDocumentRow } from "@/lib/data/students";
+import { formatDisplayTimestamp } from "@/lib/domain/students";
 
 const initialState: StudentFormState = {};
 const initialDeleteState: DeleteDocumentState = {};
@@ -84,7 +85,7 @@ export function StudentDocumentsSection({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground text-xs">
-                    {new Date(doc.createdAt).toLocaleString()}
+                    {formatDisplayTimestamp(doc.createdAt)}
                   </span>
                   <DeleteDocumentButton
                     studentId={studentId}
