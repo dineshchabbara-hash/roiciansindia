@@ -9,8 +9,14 @@ import type { StudentFormState } from "@/lib/actions/students";
  */
 export function DuplicateWarningPanel({
   duplicates,
+  defaultChecked,
+  defaultReason,
 }: {
   duplicates: NonNullable<StudentFormState["duplicates"]>;
+  /** Re-shown values after a rejected reason, so correcting it doesn't
+   *  also make the admin re-check the box and retype from scratch. */
+  defaultChecked?: boolean;
+  defaultReason?: string;
 }) {
   return (
     <div className="border-warning flex flex-col gap-3 rounded-md border bg-amber-50 p-4 dark:bg-amber-950/30">
@@ -40,6 +46,7 @@ export function DuplicateWarningPanel({
           name="confirmOverride"
           className="mt-1"
           required
+          defaultChecked={defaultChecked}
         />
         <Label htmlFor="confirmOverride" className="font-normal">
           I have reviewed the above and confirm this is a different person.
@@ -57,6 +64,7 @@ export function DuplicateWarningPanel({
           rows={2}
           className="border-input rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs"
           placeholder="e.g. twin siblings, shared family phone number"
+          defaultValue={defaultReason}
         />
       </div>
     </div>

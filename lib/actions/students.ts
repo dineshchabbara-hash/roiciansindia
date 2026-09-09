@@ -28,6 +28,25 @@ import {
 
 const NOT_AUTHORIZED = "You are not authorized to perform this action.";
 
+export type SubmittedStudentValues = {
+  firstName: string;
+  lastName: string;
+  preferredName: string;
+  email: string;
+  phoneCountry: string;
+  phone: string;
+  alternatePhone: string;
+  dateOfBirth: string;
+  gender: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+};
+
 export type StudentFormState = {
   formError?: string;
   fieldErrors?: Partial<Record<string, string[]>>;
@@ -39,6 +58,21 @@ export type StudentFormState = {
     reasons: DuplicateMatchReason[];
     reasonLabels: string[];
   }>;
+  // Echoes the override checkbox/reason back whenever the duplicate panel
+  // is redisplayed (e.g. the reason itself was too short) — same reset
+  // problem and same fix as submittedValues below, applied to the panel's
+  // own fields so a rejected reason doesn't also silently uncheck the box.
+  submittedOverride?: { confirmOverride: boolean; overrideReason: string };
+  // Echoes back exactly what was submitted whenever the form is re-shown
+  // instead of redirecting (duplicate found, validation failed, save
+  // failed) — React resets a <form action={...}> hooked to useActionState
+  // to its uncontrolled fields' *original* defaultValue once the action
+  // resolves (documented React 19 behavior), which would otherwise wipe
+  // the whole form back to blank the moment a duplicate warning appears.
+  // Without this, confirming the override on the second submission would
+  // fail required-field validation on the now-empty name/phone instead of
+  // ever reaching the override logic.
+  submittedValues?: SubmittedStudentValues;
 };
 
 function profileInputFromFormData(formData: FormData) {
@@ -62,6 +96,30 @@ function profileInputFromFormData(formData: FormData) {
   };
 }
 
+function submittedValuesFromFormData(formData: FormData): SubmittedStudentValues {
+  const asString = (value: FormDataEntryValue | null) =>
+    typeof value === "string" ? value : "";
+  const raw = profileInputFromFormData(formData);
+  return {
+    firstName: asString(raw.firstName),
+    lastName: asString(raw.lastName),
+    preferredName: asString(raw.preferredName),
+    email: asString(raw.email),
+    phoneCountry: asString(raw.phoneCountry),
+    phone: asString(raw.phone),
+    alternatePhone: asString(raw.alternatePhone),
+    dateOfBirth: asString(raw.dateOfBirth),
+    gender: asString(raw.gender),
+    addressLine1: asString(raw.addressLine1),
+    addressLine2: asString(raw.addressLine2),
+    city: asString(raw.city),
+    state: asString(raw.state),
+    postalCode: asString(raw.postalCode),
+    emergencyContactName: asString(raw.emergencyContactName),
+    emergencyContactPhone: asString(raw.emergencyContactPhone),
+  };
+}
+
 export async function createStudentAction(
   _prevState: StudentFormState,
   formData: FormData,
@@ -71,57 +129,80 @@ export async function createStudentAction(
     return { formError: NOT_AUTHORIZED };
   }
 
+  const submittedValues = submittedValuesFromFormData(formData);
+
   const parsed = studentProfileSchema.safeParse(profileInputFromFormData(formData));
   if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
+    return { fieldErrors: parsed.error.flatten().fieldErrors, submittedValues };
   }
 
   const confirmOverride = formData.get("confirmOverride") === "on";
   const overrideReasonRaw = formData.get("overrideReason");
 
-  if (!confirmOverride) {
-    const duplicateResult = await findDuplicateStudents({
-      firstName: parsed.data.firstName,
-      lastName: parsed.data.lastName,
-      email: parsed.data.email ?? null,
-      phone: parsed.data.phone,
-      dateOfBirth: parsed.data.dateOfBirth ?? null,
-    });
+  // Computed once, up front, regardless of confirmOverride — reused both
+  // for deciding whether to block on an unconfirmed duplicate and, once
+  // confirmed, as the source of truth for the override audit entry (never
+  // the client's round-tripped duplicate list, which must not be trusted).
+  // A single check right before the create, rather than one before and a
+  // second one after, is simpler and no less accurate.
+  const duplicateResult = await findDuplicateStudents({
+    firstName: parsed.data.firstName,
+    lastName: parsed.data.lastName,
+    email: parsed.data.email ?? null,
+    phone: parsed.data.phone,
+    dateOfBirth: parsed.data.dateOfBirth ?? null,
+  });
 
-    // A failed duplicate check must never be treated as "no duplicates" —
-    // that would silently let a real duplicate through unwarned. Surface it
-    // and stop, the same as any other failed step (correction #3).
-    if (!duplicateResult.ok) {
-      return { formError: duplicateResult.error };
-    }
+  // A failed duplicate check must never be treated as "no duplicates" —
+  // that would silently let a real duplicate through unwarned. Surface it
+  // and stop, the same as any other failed step (correction #3).
+  if (!duplicateResult.ok) {
+    return { formError: duplicateResult.error, submittedValues };
+  }
 
-    if (duplicateResult.data.length > 0) {
-      return {
-        duplicates: duplicateResult.data.map((match) => ({
+  const duplicateMatches = duplicateResult.data;
+  const duplicatesForState =
+    duplicateMatches.length > 0
+      ? duplicateMatches.map((match) => ({
           studentId: match.candidate.id,
           studentCode: match.candidate.studentCode,
           name: `${match.candidate.firstName} ${match.candidate.lastName}`,
           reasons: match.reasons,
           reasonLabels: match.reasons.map((r) => DUPLICATE_REASON_LABELS[r]),
-        })),
-      };
+        }))
+      : undefined;
+
+  const submittedOverride = {
+    confirmOverride,
+    overrideReason: typeof overrideReasonRaw === "string" ? overrideReasonRaw : "",
+  };
+
+  if (!confirmOverride) {
+    if (duplicatesForState) {
+      return { duplicates: duplicatesForState, submittedValues, submittedOverride };
     }
   } else {
     const overrideParsed = duplicateOverrideSchema.safeParse({
       reason: overrideReasonRaw,
     });
     if (!overrideParsed.success) {
+      // The reason itself is what's invalid — the duplicate panel (and
+      // the match list it's showing) must stay visible so the admin isn't
+      // dropped back to a form that looks like the duplicate was forgotten.
       return {
         fieldErrors: {
           overrideReason: overrideParsed.error.flatten().fieldErrors.reason,
         },
+        duplicates: duplicatesForState,
+        submittedValues,
+        submittedOverride,
       };
     }
   }
 
   const created = await createStudentRecord(parsed.data);
   if (!created.ok) {
-    return { formError: created.error };
+    return { formError: created.error, submittedValues };
   }
 
   await writeAuditLog({
@@ -134,19 +215,6 @@ export async function createStudentAction(
   });
 
   if (confirmOverride) {
-    // Re-run the duplicate check to capture exactly which existing
-    // students/rules matched, for the override audit entry — the form's
-    // own duplicate list is client-round-tripped and must not be trusted
-    // as the source of truth for what actually matched.
-    const duplicateResult = await findDuplicateStudents({
-      firstName: parsed.data.firstName,
-      lastName: parsed.data.lastName,
-      email: parsed.data.email ?? null,
-      phone: parsed.data.phone,
-      dateOfBirth: parsed.data.dateOfBirth ?? null,
-    });
-    const matches = duplicateResult.ok ? duplicateResult.data : [];
-
     await writeAuditLog({
       actorAuthUserId: ctx.authUserId,
       actorRole: ctx.role,
@@ -155,8 +223,8 @@ export async function createStudentAction(
       entityId: created.data.id,
       after: {
         reason: (formData.get("overrideReason") as string).trim(),
-        matchedStudentCodes: matches.map((m) => m.candidate.studentCode),
-        matchedRules: Array.from(new Set(matches.flatMap((m) => m.reasons))),
+        matchedStudentCodes: duplicateMatches.map((m) => m.candidate.studentCode),
+        matchedRules: Array.from(new Set(duplicateMatches.flatMap((m) => m.reasons))),
       },
     });
   }
@@ -174,15 +242,17 @@ export async function updateStudentAction(
     return { formError: NOT_AUTHORIZED };
   }
 
+  const submittedValues = submittedValuesFromFormData(formData);
+
   const parsed = studentProfileSchema.safeParse(profileInputFromFormData(formData));
   if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
+    return { fieldErrors: parsed.error.flatten().fieldErrors, submittedValues };
   }
 
   const before = await getStudentProfile(studentId);
   const result = await updateStudentProfile(studentId, parsed.data);
   if (!result.ok) {
-    return { formError: result.error };
+    return { formError: result.error, submittedValues };
   }
 
   const changedFields = before.ok
