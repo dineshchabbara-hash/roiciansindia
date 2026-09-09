@@ -9,6 +9,10 @@ import {
   buildStudentDocumentPath,
   documentDisplayFileName,
   formatDisplayTimestamp,
+  MAX_DOCUMENT_FILE_SIZE_BYTES,
+  MAX_DOCUMENT_FILE_SIZE_LABEL,
+  DOCUMENT_FILE_TOO_LARGE_ERROR,
+  isDocumentFileSizeAllowed,
   type DuplicateCandidate,
   type NewStudentInput,
 } from "@/lib/domain/students";
@@ -391,5 +395,34 @@ describe("formatDisplayTimestamp", () => {
     localeDateStringSpy.mockRestore();
     localeTimeStringSpy.mockRestore();
     intlSpy.mockRestore();
+  });
+});
+
+/**
+ * Locks in the approved 10 MB business/application limit for Student
+ * Documents (distinct from the 12 MB Next.js Server Action transport
+ * ceiling in next.config.ts, which exists only to give this 10 MB check
+ * headroom to run before the transport layer would otherwise reject the
+ * request — see the comments on both constants).
+ */
+describe("MAX_DOCUMENT_FILE_SIZE_BYTES / isDocumentFileSizeAllowed", () => {
+  const TEN_MB = 10 * 1024 * 1024;
+
+  it("is exactly 10 MB", () => {
+    expect(MAX_DOCUMENT_FILE_SIZE_BYTES).toBe(TEN_MB);
+    expect(MAX_DOCUMENT_FILE_SIZE_LABEL).toBe("10 MB");
+    expect(DOCUMENT_FILE_TOO_LARGE_ERROR).toContain("10 MB");
+  });
+
+  it("allows a file of exactly 10 MB", () => {
+    expect(isDocumentFileSizeAllowed(TEN_MB)).toBe(true);
+  });
+
+  it("rejects a file even one byte over 10 MB", () => {
+    expect(isDocumentFileSizeAllowed(TEN_MB + 1)).toBe(false);
+  });
+
+  it("allows a small file", () => {
+    expect(isDocumentFileSizeAllowed(1024)).toBe(true);
   });
 });

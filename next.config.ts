@@ -4,16 +4,18 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       // Next's own default is 1MB — comfortably too small for a real
-      // scanned ID/document photo. Exceeding it makes Next reject the
-      // Server Action request before the action function ever runs,
-      // which is what crashed the Student Profile page to its error
-      // boundary for an ordinary document upload (Phase 5 bug). Raised to
-      // a conservative, commonly-used ceiling for document uploads; the
-      // app's own MAX_DOCUMENT_FILE_SIZE_BYTES (lib/domain/students.ts)
-      // validates comfortably under this, so an oversized file is always
-      // caught as a normal in-app error before it can hit this transport
-      // limit.
-      bodySizeLimit: "10mb",
+      // scanned ID/document photo, and exceeding it makes Next reject the
+      // Server Action request before the action function ever runs (the
+      // original Phase 5 crash). This is strictly a transport ceiling, not
+      // a user-facing allowance: the approved application/business limit
+      // for a student document is 10 MB (MAX_DOCUMENT_FILE_SIZE_BYTES in
+      // lib/domain/students.ts), enforced independently on both the client
+      // and the server. 12mb here just leaves that 10 MB limit enough
+      // headroom for multipart/form-data overhead and the action's other
+      // bound arguments — a real user is never meant to reach anywhere
+      // close to this number, since the 10 MB application check always
+      // rejects first.
+      bodySizeLimit: "12mb",
     },
   },
 };

@@ -77,6 +77,9 @@ describe("StudentDocumentsSection", () => {
     expect(
       screen.getByText(`Maximum file size: ${MAX_DOCUMENT_FILE_SIZE_LABEL}`),
     ).toBeInTheDocument();
+    // Locks in the approved 10 MB business limit literally, not just via
+    // the constant — this fails if that approved figure ever drifts.
+    expect(screen.getByText("Maximum file size: 10 MB")).toBeInTheDocument();
   });
 
   it("shows the selected filename once a file is chosen", async () => {
@@ -128,8 +131,39 @@ describe("StudentDocumentsSection", () => {
     await user.type(screen.getByPlaceholderText(/Document type/), "ID proof");
     await user.click(screen.getByRole("button", { name: "Upload document" }));
 
+    expect(
+      screen.getByText("File is too large. Maximum allowed size is 10 MB."),
+    ).toBeInTheDocument();
+    expect(uploadStudentDocumentAction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a file even one byte over the 10 MB limit, client-side", async () => {
+    const user = userEvent.setup();
+    render(<StudentDocumentsSection studentId="student-1" documents={[]} />);
+
+    const overByOneByte = new File(["x"], "over.pdf", { type: "application/pdf" });
+    Object.defineProperty(overByOneByte, "size", { value: 10 * 1024 * 1024 + 1 });
+    await user.upload(screen.getByLabelText("Select file"), overByOneByte);
+    await user.type(screen.getByPlaceholderText(/Document type/), "ID proof");
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+
     expect(screen.getByText(/too large/i)).toBeInTheDocument();
     expect(uploadStudentDocumentAction).not.toHaveBeenCalled();
+  });
+
+  it("allows a file of exactly the 10 MB limit through to the action", async () => {
+    vi.mocked(uploadStudentDocumentAction).mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    render(<StudentDocumentsSection studentId="student-1" documents={[]} />);
+
+    const exactLimitFile = new File(["x"], "exact.pdf", { type: "application/pdf" });
+    Object.defineProperty(exactLimitFile, "size", { value: 10 * 1024 * 1024 });
+    await user.upload(screen.getByLabelText("Select file"), exactLimitFile);
+    await user.type(screen.getByPlaceholderText(/Document type/), "ID proof");
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+
+    await waitFor(() => expect(uploadStudentDocumentAction).toHaveBeenCalled());
+    expect(await screen.findByText("Uploaded")).toBeInTheDocument();
   });
 
   it("shows a visible error, not a crash, when the upload action itself reports a failure", async () => {

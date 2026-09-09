@@ -283,6 +283,41 @@ describe("uploadStudentDocumentAction", () => {
     );
 
     expect(result.fieldErrors?.file?.[0]).toMatch(/too large/i);
+    expect(result.fieldErrors?.file?.[0]).toContain("10 MB");
+    expect(uploadStudentDocument).not.toHaveBeenCalled();
+  });
+
+  it("allows a file of exactly the 10 MB limit", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    vi.mocked(uploadStudentDocument).mockResolvedValue({
+      ok: true,
+      data: { id: "doc-exact" },
+    });
+    const exactLimitFile = new File(["x"], "exact.pdf", { type: "application/pdf" });
+    Object.defineProperty(exactLimitFile, "size", { value: 10 * 1024 * 1024 });
+
+    const result = await uploadStudentDocumentAction(
+      "student-1",
+      {},
+      fileFormData(exactLimitFile, "ID proof"),
+    );
+
+    expect(result.success).toBe(true);
+    expect(uploadStudentDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a file even one byte over the 10 MB limit", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    const overByOneByte = new File(["x"], "over.pdf", { type: "application/pdf" });
+    Object.defineProperty(overByOneByte, "size", { value: 10 * 1024 * 1024 + 1 });
+
+    const result = await uploadStudentDocumentAction(
+      "student-1",
+      {},
+      fileFormData(overByOneByte, "ID proof"),
+    );
+
+    expect(result.fieldErrors?.file?.[0]).toMatch(/too large/i);
     expect(uploadStudentDocument).not.toHaveBeenCalled();
   });
 

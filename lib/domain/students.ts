@@ -203,26 +203,24 @@ export function buildStudentDocumentPath(
   return `${studentId}/${objectId}-${sanitizeFileNameForStorage(originalName)}`;
 }
 
-// Real Phase 5 bug: no application-level file-size (or file-type) rule
-// existed anywhere for student documents — Storage itself has no
-// per-object limit configured, and uploadStudentDocumentAction only ever
-// checked for a missing/empty file. The only thing actually capping upload
-// size was Next.js's own default Server Action body limit (1MB — see
-// serverActions.bodySizeLimit in next.config.ts, now raised to 10MB for
-// this same reason). That default is a framework transport limit, not an
-// app validation rule: exceeding it makes Next reject the request before
-// uploadStudentDocumentAction ever runs, bypassing every try/catch inside
-// it — which is what crashed the Student Profile page to its error
-// boundary for a normal real-world file. This constant is the app's own
-// validation ceiling, kept safely under the raised 10MB transport limit
-// (leaving headroom for multipart overhead and the action's other bound
-// arguments, per Next's own documented guidance on the two not being the
-// same number) — the specific figure is a technical safety margin chosen
-// to eliminate the crash, not an asserted business/product policy on
-// document size; there is still no file*type* restriction of any kind.
-export const MAX_DOCUMENT_FILE_SIZE_BYTES = 9_000_000; // 9 MB
-export const MAX_DOCUMENT_FILE_SIZE_LABEL = "9 MB";
-export const DOCUMENT_FILE_TOO_LARGE_ERROR = `File is too large. Maximum size is ${MAX_DOCUMENT_FILE_SIZE_LABEL}.`;
+// Real Phase 5 bug, now a confirmed 10 MB business/application limit:
+// originally no application-level file-size (or file-type) rule existed
+// anywhere for student documents — Storage itself has no per-object limit
+// configured, and uploadStudentDocumentAction only ever checked for a
+// missing/empty file. The only thing actually capping upload size was
+// Next.js's own default Server Action body limit (1MB — see
+// serverActions.bodySizeLimit in next.config.ts, now 12MB, strictly a
+// transport ceiling with headroom above this 10MB business limit for
+// multipart overhead and the action's other bound arguments — never a
+// user-facing allowance in its own right). 10 MB (decided figure, defined
+// here as MiB — 1024*1024 — matching how file sizes are conventionally
+// displayed) is this app's approved ceiling; every request, whether it
+// came through this form or not, is rejected at exactly this number
+// regardless of what the transport layer would otherwise allow. There is
+// still no file *type* restriction of any kind.
+export const MAX_DOCUMENT_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_DOCUMENT_FILE_SIZE_LABEL = "10 MB";
+export const DOCUMENT_FILE_TOO_LARGE_ERROR = `File is too large. Maximum allowed size is ${MAX_DOCUMENT_FILE_SIZE_LABEL}.`;
 
 export function isDocumentFileSizeAllowed(sizeInBytes: number): boolean {
   return sizeInBytes <= MAX_DOCUMENT_FILE_SIZE_BYTES;
