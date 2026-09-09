@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   deleteStudentDocumentAction,
   uploadStudentDocumentAction,
@@ -9,9 +9,15 @@ import {
 } from "@/lib/actions/students";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StudentDocumentRow } from "@/lib/data/students";
-import { formatDisplayTimestamp } from "@/lib/domain/students";
+import {
+  DOCUMENT_FILE_TOO_LARGE_ERROR,
+  MAX_DOCUMENT_FILE_SIZE_LABEL,
+  formatDisplayTimestamp,
+  isDocumentFileSizeAllowed,
+} from "@/lib/domain/students";
 
 const initialState: StudentFormState = {};
 const initialDeleteState: DeleteDocumentState = {};
@@ -60,6 +66,24 @@ export function StudentDocumentsSection({
   const boundUploadAction = uploadStudentDocumentAction.bind(null, studentId);
   const [state, formAction, isPending] = useActionState(boundUploadAction, initialState);
 
+  // React resets a <form action> hooked up via useActionState — including
+  // the native file input — once the action resolves (same documented
+  // React 19 behavior worked around in student-form.tsx). That's the
+  // desired outcome for the input itself (ready for the next upload), but
+  // this component's own selectedFileName/clientFileError state doesn't
+  // reset with it automatically; without this, a successful upload would
+  // leave a stale filename shown next to an actually-empty file input.
+  const [priorState, setPriorState] = useState(state);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [clientFileError, setClientFileError] = useState<string | null>(null);
+  if (state !== priorState) {
+    setPriorState(state);
+    if (state.success) {
+      setSelectedFileName(null);
+      setClientFileError(null);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -98,13 +122,74 @@ export function StudentDocumentsSection({
           </ul>
         )}
 
-        <form action={formAction} className="flex flex-col gap-2" noValidate>
+        <form
+          action={formAction}
+          className="flex flex-col gap-2"
+          noValidate
+          onSubmit={(event) => {
+            const fileInput = event.currentTarget.elements.namedItem(
+              "file",
+            ) as HTMLInputElement | null;
+            const file = fileInput?.files?.[0];
+            // Blocks the request client-side before it's ever sent, so an
+            // oversized file can never reach (and be rejected by) Next's
+            // own Server Action body-size transport limit — that
+            // rejection happens before uploadStudentDocumentAction runs at
+            // all and is what crashed this page for a real file (Phase 5
+            // bug). The server independently re-checks the same rule
+            // (isDocumentFileSizeAllowed in uploadStudentDocumentAction)
+            // for any request that didn't go through this form.
+            if (file && !isDocumentFileSizeAllowed(file.size)) {
+              event.preventDefault();
+              setClientFileError(DOCUMENT_FILE_TOO_LARGE_ERROR);
+            }
+          }}
+        >
           <Input
             name="documentType"
             placeholder="Document type (e.g. ID proof)"
             required
           />
-          <input type="file" name="file" required className="text-sm" />
+
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-3">
+              {/* The real, accessible file input stays in the DOM and in
+                  the tab order — only visually hidden (sr-only clips it,
+                  it never gets display:none/hidden) — nested inside the
+                  Label so clicking the styled control opens the native OS
+                  picker exactly as a bare <input type="file"> would.
+                  focus-within on the Label (not a focus style on the
+                  input itself) is what makes the *visible* control show a
+                  focus ring when the hidden input has keyboard focus. */}
+              <Label
+                htmlFor="documentFile"
+                className="border-input hover:bg-accent focus-within:ring-ring inline-flex h-9 w-fit cursor-pointer items-center rounded-md border bg-transparent px-3 text-sm font-medium shadow-xs focus-within:ring-2 focus-within:ring-offset-2"
+              >
+                Select file
+                <input
+                  id="documentFile"
+                  type="file"
+                  name="file"
+                  required
+                  className="sr-only"
+                  onChange={(event) => {
+                    setSelectedFileName(event.target.files?.[0]?.name ?? null);
+                    setClientFileError(null);
+                  }}
+                />
+              </Label>
+              <span className="text-muted-foreground text-sm">
+                {selectedFileName ?? "No file chosen"}
+              </span>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Maximum file size: {MAX_DOCUMENT_FILE_SIZE_LABEL}
+            </p>
+          </div>
+
+          {clientFileError && (
+            <p className="text-destructive text-sm">{clientFileError}</p>
+          )}
           {state.fieldErrors?.file && (
             <p className="text-destructive text-sm">{state.fieldErrors.file[0]}</p>
           )}

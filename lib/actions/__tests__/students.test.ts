@@ -263,6 +263,29 @@ describe("uploadStudentDocumentAction", () => {
     expect(uploadStudentDocument).not.toHaveBeenCalled();
   });
 
+  it("rejects an oversized file with a visible field error and never calls uploadStudentDocument", async () => {
+    // Real Phase 5 bug: nothing validated file size before this fix, so a
+    // real-world file could reach (and be rejected by) Next's own Server
+    // Action body-size transport limit, crashing the page instead of
+    // showing this exact kind of controlled error. The client-side check
+    // in StudentDocumentsSection blocks this before it's ever submitted,
+    // but the server must never trust that alone (same posture as every
+    // other server-side check in this file) — a request that bypassed the
+    // form entirely must still be rejected here.
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    const oversizedFile = new File(["x"], "big.pdf", { type: "application/pdf" });
+    Object.defineProperty(oversizedFile, "size", { value: 20_000_000 });
+
+    const result = await uploadStudentDocumentAction(
+      "student-1",
+      {},
+      fileFormData(oversizedFile, "ID proof"),
+    );
+
+    expect(result.fieldErrors?.file?.[0]).toMatch(/too large/i);
+    expect(uploadStudentDocument).not.toHaveBeenCalled();
+  });
+
   it("uploads, audits metadata only (never file contents), and revalidates the profile for Admin", async () => {
     vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
     vi.mocked(uploadStudentDocument).mockResolvedValue({

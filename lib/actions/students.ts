@@ -16,7 +16,9 @@ import {
 } from "@/lib/data/students";
 import { writeAuditLog } from "@/lib/data/audit-log";
 import {
+  DOCUMENT_FILE_TOO_LARGE_ERROR,
   DUPLICATE_REASON_LABELS,
+  isDocumentFileSizeAllowed,
   type DuplicateMatchReason,
 } from "@/lib/domain/students";
 import {
@@ -373,6 +375,13 @@ export async function uploadStudentDocumentAction(
   if (!(file instanceof File) || file.size === 0) {
     return { fieldErrors: { file: ["Choose a file to upload"] } };
   }
+  // Never trust the client-side check in the form alone (same posture as
+  // every other server-side validation in this file) — a request that
+  // bypassed it entirely must still be rejected as a normal, visible field
+  // error rather than reaching Storage at all.
+  if (!isDocumentFileSizeAllowed(file.size)) {
+    return { fieldErrors: { file: [DOCUMENT_FILE_TOO_LARGE_ERROR] } };
+  }
   if (typeof documentType !== "string" || documentType.trim().length === 0) {
     return { fieldErrors: { documentType: ["Document type is required"] } };
   }
@@ -387,14 +396,24 @@ export async function uploadStudentDocumentAction(
     return { formError: result.error };
   }
 
-  await writeAuditLog({
-    actorAuthUserId: ctx.authUserId,
-    actorRole: ctx.role,
-    action: "student.document.upload",
-    entityType: "student_document",
-    entityId: result.data.id,
-    after: { studentId, documentType: documentType.trim() },
-  });
+  // writeAuditLog is documented to never throw (it catches its own
+  // failures and only logs them — a failed audit write must never undo or
+  // block the action it's recording), but the document was already
+  // created successfully above regardless of what happens here, so this
+  // is guarded defensively too: an audit-logging regression must never
+  // turn a successful upload into a crashed page.
+  try {
+    await writeAuditLog({
+      actorAuthUserId: ctx.authUserId,
+      actorRole: ctx.role,
+      action: "student.document.upload",
+      entityType: "student_document",
+      entityId: result.data.id,
+      after: { studentId, documentType: documentType.trim() },
+    });
+  } catch (error) {
+    console.error("[student.document.upload] audit log call threw unexpectedly:", error);
+  }
 
   revalidatePath(`/admin/students/${studentId}`);
   return { success: true };
@@ -421,14 +440,22 @@ export async function deleteStudentDocumentAction(
     return { formError: result.error };
   }
 
-  await writeAuditLog({
-    actorAuthUserId: ctx.authUserId,
-    actorRole: ctx.role,
-    action: "student.document.delete",
-    entityType: "student_document",
-    entityId: documentId,
-    after: { studentId },
-  });
+  // Same defensive posture as uploadStudentDocumentAction above: the
+  // document is already deleted at this point regardless, so a regression
+  // in audit logging must never crash the page instead of just being
+  // logged.
+  try {
+    await writeAuditLog({
+      actorAuthUserId: ctx.authUserId,
+      actorRole: ctx.role,
+      action: "student.document.delete",
+      entityType: "student_document",
+      entityId: documentId,
+      after: { studentId },
+    });
+  } catch (error) {
+    console.error("[student.document.delete] audit log call threw unexpectedly:", error);
+  }
 
   revalidatePath(`/admin/students/${studentId}`);
   return { success: true };

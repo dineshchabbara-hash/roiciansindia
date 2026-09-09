@@ -203,6 +203,31 @@ export function buildStudentDocumentPath(
   return `${studentId}/${objectId}-${sanitizeFileNameForStorage(originalName)}`;
 }
 
+// Real Phase 5 bug: no application-level file-size (or file-type) rule
+// existed anywhere for student documents — Storage itself has no
+// per-object limit configured, and uploadStudentDocumentAction only ever
+// checked for a missing/empty file. The only thing actually capping upload
+// size was Next.js's own default Server Action body limit (1MB — see
+// serverActions.bodySizeLimit in next.config.ts, now raised to 10MB for
+// this same reason). That default is a framework transport limit, not an
+// app validation rule: exceeding it makes Next reject the request before
+// uploadStudentDocumentAction ever runs, bypassing every try/catch inside
+// it — which is what crashed the Student Profile page to its error
+// boundary for a normal real-world file. This constant is the app's own
+// validation ceiling, kept safely under the raised 10MB transport limit
+// (leaving headroom for multipart overhead and the action's other bound
+// arguments, per Next's own documented guidance on the two not being the
+// same number) — the specific figure is a technical safety margin chosen
+// to eliminate the crash, not an asserted business/product policy on
+// document size; there is still no file*type* restriction of any kind.
+export const MAX_DOCUMENT_FILE_SIZE_BYTES = 9_000_000; // 9 MB
+export const MAX_DOCUMENT_FILE_SIZE_LABEL = "9 MB";
+export const DOCUMENT_FILE_TOO_LARGE_ERROR = `File is too large. Maximum size is ${MAX_DOCUMENT_FILE_SIZE_LABEL}.`;
+
+export function isDocumentFileSizeAllowed(sizeInBytes: number): boolean {
+  return sizeInBytes <= MAX_DOCUMENT_FILE_SIZE_BYTES;
+}
+
 // A v4 UUID from crypto.randomUUID(), exactly as buildStudentDocumentPath
 // above prefixes every stored object name with.
 const DOCUMENT_OBJECT_ID_PREFIX =

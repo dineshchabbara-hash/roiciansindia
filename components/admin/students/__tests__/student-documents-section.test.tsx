@@ -2,8 +2,14 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StudentDocumentsSection } from "@/components/admin/students/student-documents-section";
-import { deleteStudentDocumentAction } from "@/lib/actions/students";
-import { formatDisplayTimestamp } from "@/lib/domain/students";
+import {
+  deleteStudentDocumentAction,
+  uploadStudentDocumentAction,
+} from "@/lib/actions/students";
+import {
+  formatDisplayTimestamp,
+  MAX_DOCUMENT_FILE_SIZE_LABEL,
+} from "@/lib/domain/students";
 import type { StudentDocumentRow } from "@/lib/data/students";
 
 // lib/actions/students.ts is a "use server" module that imports
@@ -58,6 +64,89 @@ describe("StudentDocumentsSection", () => {
     render(<StudentDocumentsSection studentId="student-1" documents={[]} />);
     expect(screen.getByPlaceholderText(/Document type/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Upload document" })).toBeInTheDocument();
+  });
+
+  it("shows a real accessible file chooser with the current size limit, and no file chosen initially", () => {
+    render(<StudentDocumentsSection studentId="student-1" documents={[]} />);
+    // A real, labeled <input type="file"> — not a fake/decorative control —
+    // is what makes clicking the styled "Select file" control open the
+    // native OS picker and stay keyboard/screen-reader accessible.
+    const input = screen.getByLabelText("Select file");
+    expect(input).toHaveAttribute("type", "file");
+    expect(screen.getByText("No file chosen")).toBeInTheDocument();
+    expect(
+      screen.getByText(`Maximum file size: ${MAX_DOCUMENT_FILE_SIZE_LABEL}`),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the selected filename once a file is chosen", async () => {
+    const user = userEvent.setup();
+    render(<StudentDocumentsSection studentId="student-1" documents={[]} />);
+
+    const file = new File(["hello"], "passport-scan.pdf", { type: "application/pdf" });
+    await user.upload(screen.getByLabelText("Select file"), file);
+
+    expect(screen.getByText("passport-scan.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("No file chosen")).not.toBeInTheDocument();
+  });
+
+  it("submits a real file through to the action and shows success feedback", async () => {
+    vi.mocked(uploadStudentDocumentAction).mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    render(<StudentDocumentsSection studentId="student-1" documents={[]} />);
+
+    const file = new File(["hello"], "id.pdf", { type: "application/pdf" });
+    await user.upload(screen.getByLabelText("Select file"), file);
+    await user.type(screen.getByPlaceholderText(/Document type/), "ID proof");
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+
+    await waitFor(() => expect(uploadStudentDocumentAction).toHaveBeenCalled());
+    // bound as uploadStudentDocumentAction.bind(null, studentId), so the
+    // mock records (studentId, prevState, formData) — formData is the 3rd.
+    // (Not asserting the File's .name survives here: jsdom's own
+    // `new FormData(formElement)` doesn't copy a file input's File name —
+    // a jsdom limitation, not app behavior — so this checks what a real
+    // browser and this test environment can both actually prove: a real
+    // File instance reaches the action boundary through the real form.)
+    const formData = vi.mocked(uploadStudentDocumentAction).mock.calls[0][2];
+    expect(formData.get("file")).toBeInstanceOf(File);
+    expect(formData.get("documentType")).toBe("ID proof");
+    expect(await screen.findByText("Uploaded")).toBeInTheDocument();
+  });
+
+  it("blocks an oversized file client-side with a visible error, and never calls the action", async () => {
+    // Real Phase 5 bug: an oversized file used to reach (and be rejected
+    // by) Next's own Server Action body-size transport limit, crashing the
+    // page. This proves the fix at the form boundary: the request is never
+    // even sent for a file over the limit.
+    const user = userEvent.setup();
+    render(<StudentDocumentsSection studentId="student-1" documents={[]} />);
+
+    const oversizedFile = new File(["x"], "big.pdf", { type: "application/pdf" });
+    Object.defineProperty(oversizedFile, "size", { value: 50_000_000 });
+    await user.upload(screen.getByLabelText("Select file"), oversizedFile);
+    await user.type(screen.getByPlaceholderText(/Document type/), "ID proof");
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+
+    expect(screen.getByText(/too large/i)).toBeInTheDocument();
+    expect(uploadStudentDocumentAction).not.toHaveBeenCalled();
+  });
+
+  it("shows a visible error, not a crash, when the upload action itself reports a failure", async () => {
+    vi.mocked(uploadStudentDocumentAction).mockResolvedValue({
+      formError: "Could not upload the document. Please try again.",
+    });
+    const user = userEvent.setup();
+    render(<StudentDocumentsSection studentId="student-1" documents={[]} />);
+
+    const file = new File(["hello"], "id.pdf", { type: "application/pdf" });
+    await user.upload(screen.getByLabelText("Select file"), file);
+    await user.type(screen.getByPlaceholderText(/Document type/), "ID proof");
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+
+    expect(
+      await screen.findByText("Could not upload the document. Please try again."),
+    ).toBeInTheDocument();
   });
 
   it("notes this is admin/super-admin only, never shown to the student portal", () => {
