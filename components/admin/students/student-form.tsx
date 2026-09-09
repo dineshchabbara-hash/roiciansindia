@@ -75,6 +75,7 @@ export function StudentForm({
               name="phoneCountry"
               aria-label="Phone country"
               defaultValue={defaultValues?.phoneCountry ?? DEFAULT_PHONE_COUNTRY}
+              aria-invalid={!!state.fieldErrors?.phoneCountry}
               className="border-input h-9 w-[9.5rem] shrink-0 rounded-md border bg-transparent px-2 text-sm shadow-xs"
             >
               {PHONE_COUNTRY_OPTIONS.map((country) => (
@@ -92,6 +93,12 @@ export function StudentForm({
               className="flex-1"
             />
           </div>
+          {/* Only reachable via a request that didn't come from this <select>
+              (e.g. a tampered/direct API call) — the option list above only
+              ever offers values the server accepts, but the server still
+              never trusts that assumption, so this stays rendered for when
+              it doesn't hold. */}
+          <FieldError errors={state.fieldErrors?.phoneCountry} />
           <FieldError errors={state.fieldErrors?.phone} />
         </div>
         <div className="flex flex-col gap-1.5">

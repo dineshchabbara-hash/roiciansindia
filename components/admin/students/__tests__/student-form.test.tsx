@@ -33,9 +33,7 @@ describe("StudentForm", () => {
     const user = userEvent.setup();
     const fieldErrorAction = async (): Promise<StudentFormState> => ({
       fieldErrors: {
-        phone: [
-          "Enter a valid 10-digit Indian phone number (e.g. 9876543210 or +91 98765 43210).",
-        ],
+        phone: ["Enter a valid phone number for the selected country."],
       },
     });
 
@@ -47,7 +45,25 @@ describe("StudentForm", () => {
     await user.click(screen.getByRole("button", { name: "Create student" }));
 
     expect(
-      await screen.findByText(/Enter a valid 10-digit Indian phone number/),
+      await screen.findByText("Enter a valid phone number for the selected country."),
     ).toBeInTheDocument();
+  });
+
+  it("renders a field-level error when the country selector value is rejected server-side", async () => {
+    const user = userEvent.setup();
+    const countryErrorAction = async (): Promise<StudentFormState> => ({
+      fieldErrors: {
+        phoneCountry: ["Select a valid country."],
+      },
+    });
+
+    render(<StudentForm action={countryErrorAction} submitLabel="Create student" />);
+
+    await user.type(screen.getByLabelText("First name"), "Test");
+    await user.type(screen.getByLabelText("Last name"), "Student");
+    await user.type(screen.getByLabelText("Phone"), "9876543210");
+    await user.click(screen.getByRole("button", { name: "Create student" }));
+
+    expect(await screen.findByText("Select a valid country.")).toBeInTheDocument();
   });
 });

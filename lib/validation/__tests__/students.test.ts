@@ -99,7 +99,7 @@ describe("studentProfileSchema phone field", () => {
     expect(result.success).toBe(false);
   });
 
-  it("falls back to the default country rather than failing when the selector value is missing", () => {
+  it("falls back to the default country rather than failing when the selector value is genuinely missing", () => {
     const withoutCountry: Record<string, string> = { ...baseFields };
     delete withoutCountry.phoneCountry;
     const result = studentProfileSchema.safeParse({
@@ -108,6 +108,35 @@ describe("studentProfileSchema phone field", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.phone).toBe("+919898595069");
+  });
+
+  it("rejects a tampered/invalid country code with a visible error, never a silent fallback to India", () => {
+    // Simulates a request that didn't come from the rendered <select> (which
+    // only ever offers real country codes) — the server must not trust the
+    // value just because it looks like it came from the form.
+    const result = studentProfileSchema.safeParse({
+      ...baseFields,
+      phoneCountry: "ZZ",
+      phone: "9898595069",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors.phoneCountry?.[0]).toMatch(
+        /valid country/i,
+      );
+      // And critically: the phone itself must NOT have been silently
+      // accepted as if India had been assumed.
+      expect(result.error.flatten().fieldErrors.phone).toBeUndefined();
+    }
+  });
+
+  it("rejects a non-country-code garbage value the same way", () => {
+    const result = studentProfileSchema.safeParse({
+      ...baseFields,
+      phoneCountry: "<script>",
+      phone: "9898595069",
+    });
+    expect(result.success).toBe(false);
   });
 });
 

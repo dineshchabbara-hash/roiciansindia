@@ -34,20 +34,35 @@ const optionalEmail = z
   );
 
 const PHONE_ERROR = "Enter a valid phone number for the selected country.";
+const COUNTRY_ERROR = "Select a valid country.";
 
-// The country selector's value is only ever used as a fallback hint (see
-// normalizeInternationalPhone) — an unrecognized value just means "no
-// hint", it never itself blocks submission; a genuinely invalid phone
-// number is what produces the visible error, on the phone field itself.
+// The selector's value is never trusted just because it came from the UI —
+// the UI only ever POSTs one of PHONE_COUNTRY_OPTIONS' codes, but the
+// server has no way to know a given request actually came from that form.
+// Two distinct cases, deliberately not collapsed into one silent fallback:
+//   - genuinely absent (no field in the submission at all, e.g. an older
+//     API client from before this field existed) -> falls back to the
+//     default country, for backward compatibility.
+//   - present but not a country libphonenumber-js recognizes (e.g. a
+//     tampered request, "ZZ", "<script>") -> a visible field error, same
+//     as any other invalid input. This is never reachable by using the
+//     rendered form normally, since the <select> only offers valid codes —
+//     it exists specifically for a request that didn't come from that form.
 const phoneCountryField = z
   .string()
   .trim()
-  .transform((v) => (isSupportedCountry(v) ? v : DEFAULT_PHONE_COUNTRY))
-  // A missing/malformed selector value (e.g. a hand-crafted form post)
-  // falls back to the default rather than blocking the whole submission —
-  // the phone field's own validation is what must visibly fail, not this
-  // supporting hint.
-  .catch(DEFAULT_PHONE_COUNTRY);
+  .nullable()
+  .optional()
+  .transform((value, ctx) => {
+    if (value === null || value === undefined || value === "") {
+      return DEFAULT_PHONE_COUNTRY;
+    }
+    if (!isSupportedCountry(value)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: COUNTRY_ERROR });
+      return z.NEVER;
+    }
+    return value;
+  });
 
 export const studentProfileSchema = z
   .object({
