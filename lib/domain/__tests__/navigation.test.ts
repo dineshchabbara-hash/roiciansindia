@@ -27,9 +27,9 @@ describe("ADMIN_NAV_ITEMS", () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it("only Dashboard is marked implemented in Phase 4", () => {
+  it("Dashboard and Students are marked implemented as of Phase 5", () => {
     const implemented = ADMIN_NAV_ITEMS.filter((i) => i.implemented).map((i) => i.label);
-    expect(implemented).toEqual(["Dashboard"]);
+    expect(implemented).toEqual(["Dashboard", "Students"]);
   });
 });
 

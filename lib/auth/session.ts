@@ -12,6 +12,19 @@ export type UserContext = {
   displayName: string | null;
 };
 
+// TEMP-DIAGNOSTIC(phase5-e2e): opt-in only (PHASE5_E2E_DEBUG_AUTH=1), never
+// fires in normal operation. Added to pin down a real bug report — the
+// synthetic E2E Admin's session gets rejected on the very next navigation
+// after a successful login, while manual use in the same environment works
+// — by surfacing *which* branch below returns null instead of guessing.
+// Logs no token/secret values, only which check failed. Safe to delete once
+// the root cause is confirmed from real output.
+const DEBUG_AUTH = process.env.PHASE5_E2E_DEBUG_AUTH === "1";
+function debugAuth(reason: string, detail?: unknown) {
+  if (DEBUG_AUTH)
+    console.error(`[phase5-e2e][getCurrentUserContext] ${reason}`, detail ?? "");
+}
+
 /**
  * Resolves the current request's authenticated user and application role.
  * Returns null for "not authenticated" AND for any unexpected error —
@@ -31,6 +44,7 @@ export async function getCurrentUserContext(): Promise<UserContext | null> {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
+      debugAuth("no user from supabase.auth.getUser()", userError?.message);
       return null;
     }
 
@@ -41,6 +55,11 @@ export async function getCurrentUserContext(): Promise<UserContext | null> {
       .maybeSingle();
 
     if (roleError || !userRole || !isRole(userRole.role)) {
+      debugAuth("no resolvable role for authenticated user", {
+        authUserId: user.id,
+        roleError: roleError?.message,
+        userRole,
+      });
       return null;
     }
 
@@ -54,7 +73,8 @@ export async function getCurrentUserContext(): Promise<UserContext | null> {
       profileId,
       displayName,
     };
-  } catch {
+  } catch (error) {
+    debugAuth("threw", error instanceof Error ? error.message : error);
     return null;
   }
 }

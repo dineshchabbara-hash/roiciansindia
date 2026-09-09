@@ -62,3 +62,35 @@ grant execute on function auth.role() to anon, authenticated, service_role;
 alter default privileges in schema public grant select, insert, update, delete on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 alter default privileges in schema public grant usage, select on sequences to anon, authenticated, service_role;
+
+-- Minimal local stand-in for Supabase Storage's `storage.buckets` /
+-- `storage.objects` tables — just enough shape (bucket_id/name/public) for
+-- migrations that create a bucket and storage.objects RLS policies to apply
+-- and be tested locally. Not a functional Storage implementation (no actual
+-- file bytes) — only the metadata/RLS layer this project's policies touch.
+
+create schema if not exists storage;
+
+create table if not exists storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text references storage.buckets (id),
+  name text,
+  owner uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table storage.buckets enable row level security;
+alter table storage.objects enable row level security;
+
+grant usage on schema storage to anon, authenticated, service_role;
+grant select, insert, update, delete on storage.buckets to anon, authenticated, service_role;
+grant select, insert, update, delete on storage.objects to anon, authenticated, service_role;
