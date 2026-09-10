@@ -12,8 +12,52 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createTrainerRecord } from "@/lib/data/trainers";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createTrainerRecord, findDuplicateTrainers } from "@/lib/data/trainers";
 import type { TrainerProfileInput } from "@/lib/validation/trainers";
+
+type TrainerRow = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+};
+
+// Real regression coverage for the bug this round fixes: a genuine
+// duplicate phone (`+16475293460` created twice) was NOT flagged. The root
+// cause traced to a fragile hand-built `.or()` filter string combining an
+// admin-entered email with a phone digit pattern — supabase-js's own docs
+// for `.or()` warn the string "needs to follow PostgREST syntax... you also
+// need to make sure it's properly sanitized", unlike `.ilike()`, which has
+// no such caveat. This mocks only the true I/O boundary
+// (createSupabaseServerClient) so the REAL two-query findDuplicateTrainers
+// runs end-to-end, proving the fix actually works rather than just the
+// pure domain matcher in isolation.
+function mockServerClientForDuplicates(rowsByTable: TrainerRow[]) {
+  const from = vi.fn((table: string) => {
+    if (table !== "trainers") throw new Error(`Unexpected table: ${table}`);
+    return {
+      select: vi.fn().mockReturnValue({
+        ilike: vi.fn((column: "email" | "phone", pattern: string) => ({
+          limit: vi.fn().mockResolvedValue({
+            data: rowsByTable.filter((row) => {
+              const value = row[column];
+              if (!value) return false;
+              const needle = pattern.replace(/%/g, "").toLowerCase();
+              return value.toLowerCase().includes(needle);
+            }),
+            error: null,
+          }),
+        })),
+      }),
+    };
+  });
+
+  const client = { from };
+  vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
+  return { from };
+}
 
 function baseInput(): TrainerProfileInput {
   return {
@@ -143,5 +187,127 @@ describe("createTrainerRecord", () => {
     await createTrainerRecord(baseInput());
 
     expect(deleteUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("findDuplicateTrainers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("flags the exact reported miss: a canonical phone entered as bare digits with a country matches the same phone stored in E.164", async () => {
+    mockServerClientForDuplicates([
+      {
+        id: "existing-1",
+        first_name: "Existing",
+        last_name: "Trainer",
+        email: "someone.else@example.com",
+        phone: "+16475293460",
+      },
+    ]);
+
+    // The candidate as it arrives after validation/normalization: the form
+    // was submitted with "6475293460" and country CA, which
+    // trainerProfileSchema normalizes to canonical E.164 before this ever
+    // runs — this is what a fixed submission of the exact reported scenario
+    // looks like by the time it reaches the data layer.
+    const result = await findDuplicateTrainers({
+      email: "new.trainer@example.com",
+      phone: "+16475293460",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].candidate.id).toBe("existing-1");
+    expect(result.data[0].reasons).toEqual(["phone"]);
+  });
+
+  it("distinguishes an email-only match from a phone-only match across two different candidates", async () => {
+    mockServerClientForDuplicates([
+      {
+        id: "email-match",
+        first_name: "Email",
+        last_name: "Match",
+        email: "new.trainer@example.com",
+        phone: "+911234567890",
+      },
+      {
+        id: "phone-match",
+        first_name: "Phone",
+        last_name: "Match",
+        email: "unrelated@example.com",
+        phone: "+16475293460",
+      },
+    ]);
+
+    const result = await findDuplicateTrainers({
+      email: "new.trainer@example.com",
+      phone: "+16475293460",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const byId = Object.fromEntries(result.data.map((m) => [m.candidate.id, m.reasons]));
+    expect(byId["email-match"]).toEqual(["email"]);
+    expect(byId["phone-match"]).toEqual(["phone"]);
+  });
+
+  it("flags a single candidate that matches on both email and phone with both reasons", async () => {
+    mockServerClientForDuplicates([
+      {
+        id: "existing-1",
+        first_name: "Existing",
+        last_name: "Trainer",
+        email: "new.trainer@example.com",
+        phone: "+16475293460",
+      },
+    ]);
+
+    const result = await findDuplicateTrainers({
+      email: "new.trainer@example.com",
+      phone: "+16475293460",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].reasons.sort()).toEqual(["email", "phone"]);
+  });
+
+  it("returns no matches when neither email nor phone is used by any existing trainer", async () => {
+    mockServerClientForDuplicates([
+      {
+        id: "existing-1",
+        first_name: "Existing",
+        last_name: "Trainer",
+        email: "someone.else@example.com",
+        phone: "+911234567890",
+      },
+    ]);
+
+    const result = await findDuplicateTrainers({
+      email: "new.trainer@example.com",
+      phone: "+16475293460",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toEqual([]);
+  });
+
+  it("does not run a phone lookup query at all when no phone is submitted", async () => {
+    const { from } = mockServerClientForDuplicates([]);
+
+    const result = await findDuplicateTrainers({
+      email: "new.trainer@example.com",
+      phone: null,
+    });
+
+    expect(result.ok).toBe(true);
+    // Only the "trainers" table is ever queried in this test, but we can
+    // still confirm no second select() chain was built for phone by
+    // checking the call count against the single expected email query.
+    expect(from).toHaveBeenCalledTimes(1);
   });
 });

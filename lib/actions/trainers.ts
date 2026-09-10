@@ -109,6 +109,31 @@ export async function createTrainerAction(
   }
 
   const duplicateMatches = duplicateResult.data;
+
+  // Duplicate email is a hard block with no override, unconditionally,
+  // before confirmOverride/overrideReason are even inspected — every
+  // trainer requires a real, unique Supabase Auth account, so a duplicate
+  // email can never actually be created regardless of what the admin
+  // confirms (see createTrainerRecord's own Auth-level uniqueness check).
+  // Checking this first, and returning before any override logic runs,
+  // is what makes it impossible to bypass with a crafted/tampered
+  // confirmOverride=on + overrideReason in the submitted FormData — there
+  // is no code path from here that reaches createTrainerRecord while an
+  // email match exists. If a candidate matches on both email and phone,
+  // this still fires first, so the email block always takes precedence.
+  if (duplicateMatches.some((match) => match.reasons.includes("email"))) {
+    return {
+      fieldErrors: {
+        email: [
+          "This email is already registered to another trainer/account. Please use a different email address.",
+        ],
+      },
+      submittedValues,
+    };
+  }
+
+  // Everything remaining here matched on phone only — email duplicates
+  // already returned above — so this is the normal warn-and-override flow.
   const duplicatesForState =
     duplicateMatches.length > 0
       ? duplicateMatches.map((match) => ({

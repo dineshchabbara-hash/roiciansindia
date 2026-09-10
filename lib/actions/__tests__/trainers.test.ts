@@ -147,7 +147,158 @@ describe("createTrainerAction", () => {
     expect(createTrainerRecord).not.toHaveBeenCalled();
   });
 
-  it("returns the duplicate list instead of creating when a match is found and not overridden", async () => {
+  it("returns the duplicate list instead of creating when a phone-only match is found and not overridden", async () => {
+    vi.mocked(findDuplicateTrainers).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          candidate: {
+            id: "existing-1",
+            firstName: "Existing",
+            lastName: "Trainer",
+            email: "someone.else@example.com",
+            phone: "+919898595069",
+          },
+          reasons: ["phone"],
+        },
+      ],
+    });
+
+    const result = await createTrainerAction({}, baseFormData());
+
+    expect(result.duplicates).toEqual([
+      {
+        trainerId: "existing-1",
+        name: "Existing Trainer",
+        reasons: ["phone"],
+        reasonLabels: ["Same phone number"],
+      },
+    ]);
+    expect(createTrainerRecord).not.toHaveBeenCalled();
+  });
+
+  it("requires a reason when confirming a phone-only override, even with a real duplicate pending", async () => {
+    vi.mocked(findDuplicateTrainers).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          candidate: {
+            id: "existing-1",
+            firstName: "Existing",
+            lastName: "Trainer",
+            email: "someone.else@example.com",
+            phone: "+919898595069",
+          },
+          reasons: ["phone"],
+        },
+      ],
+    });
+
+    const result = await createTrainerAction({}, baseFormData({ confirmOverride: "on" }));
+
+    expect(result.fieldErrors?.overrideReason).toBeTruthy();
+    expect(createTrainerRecord).not.toHaveBeenCalled();
+  });
+
+  it("creates and audits the override once a phone-only duplicate is confirmed with a valid reason", async () => {
+    vi.mocked(findDuplicateTrainers).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          candidate: {
+            id: "existing-1",
+            firstName: "Existing",
+            lastName: "Trainer",
+            email: "someone.else@example.com",
+            phone: "+919898595069",
+          },
+          reasons: ["phone"],
+        },
+      ],
+    });
+    vi.mocked(createTrainerRecord).mockResolvedValue({
+      ok: true,
+      data: { id: "new-trainer-1" },
+    });
+
+    const formData = baseFormData({
+      confirmOverride: "on",
+      overrideReason: "Coincidentally shares a family phone number.",
+    });
+
+    await expect(createTrainerAction({}, formData)).rejects.toThrow("REDIRECT_CALLED");
+
+    expect(createTrainerRecord).toHaveBeenCalledTimes(1);
+    expect(writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "trainer.create" }),
+    );
+    expect(writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "trainer.duplicate_override_confirmed",
+        after: expect.objectContaining({
+          reason: "Coincidentally shares a family phone number.",
+          matchedRules: ["phone"],
+        }),
+      }),
+    );
+  });
+
+  it("hard-blocks a duplicate email with a visible field error, never calling createTrainerRecord, and never shows a duplicates list", async () => {
+    vi.mocked(findDuplicateTrainers).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          candidate: {
+            id: "existing-1",
+            firstName: "Existing",
+            lastName: "Trainer",
+            email: "test.trainer@example.com",
+            phone: null,
+          },
+          reasons: ["email"],
+        },
+      ],
+    });
+
+    const result = await createTrainerAction({}, baseFormData());
+
+    expect(result.fieldErrors?.email?.[0]).toBe(
+      "This email is already registered to another trainer/account. Please use a different email address.",
+    );
+    expect(result.duplicates).toBeUndefined();
+    expect(createTrainerRecord).not.toHaveBeenCalled();
+  });
+
+  it("cannot bypass the email hard block with a crafted confirmOverride=on and a reason in the FormData", async () => {
+    vi.mocked(findDuplicateTrainers).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          candidate: {
+            id: "existing-1",
+            firstName: "Existing",
+            lastName: "Trainer",
+            email: "test.trainer@example.com",
+            phone: null,
+          },
+          reasons: ["email"],
+        },
+      ],
+    });
+
+    const result = await createTrainerAction(
+      {},
+      baseFormData({
+        confirmOverride: "on",
+        overrideReason: "This is definitely a different person, trust me.",
+      }),
+    );
+
+    expect(result.fieldErrors?.email?.[0]).toMatch(/already registered/i);
+    expect(createTrainerRecord).not.toHaveBeenCalled();
+  });
+
+  it("blocks creation when a single candidate matches on both email and phone — email precedence, phone override cannot bypass it", async () => {
     vi.mocked(findDuplicateTrainers).mockResolvedValue({
       ok: true,
       data: [
@@ -164,83 +315,47 @@ describe("createTrainerAction", () => {
       ],
     });
 
+    const result = await createTrainerAction(
+      {},
+      baseFormData({ confirmOverride: "on", overrideReason: "Same household." }),
+    );
+
+    expect(result.fieldErrors?.email?.[0]).toMatch(/already registered/i);
+    expect(createTrainerRecord).not.toHaveBeenCalled();
+  });
+
+  it("blocks creation when different candidates separately match email and phone", async () => {
+    vi.mocked(findDuplicateTrainers).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          candidate: {
+            id: "email-match",
+            firstName: "Email",
+            lastName: "Match",
+            email: "test.trainer@example.com",
+            phone: null,
+          },
+          reasons: ["email"],
+        },
+        {
+          candidate: {
+            id: "phone-match",
+            firstName: "Phone",
+            lastName: "Match",
+            email: "unrelated@example.com",
+            phone: "+919898595069",
+          },
+          reasons: ["phone"],
+        },
+      ],
+    });
+
     const result = await createTrainerAction({}, baseFormData());
 
-    expect(result.duplicates).toEqual([
-      {
-        trainerId: "existing-1",
-        name: "Existing Trainer",
-        reasons: ["phone", "email"],
-        reasonLabels: ["Same phone number", "Same email address"],
-      },
-    ]);
+    expect(result.fieldErrors?.email?.[0]).toMatch(/already registered/i);
+    expect(result.duplicates).toBeUndefined();
     expect(createTrainerRecord).not.toHaveBeenCalled();
-  });
-
-  it("requires a reason when confirming an override, even with a real duplicate pending", async () => {
-    vi.mocked(findDuplicateTrainers).mockResolvedValue({
-      ok: true,
-      data: [
-        {
-          candidate: {
-            id: "existing-1",
-            firstName: "Existing",
-            lastName: "Trainer",
-            email: "test.trainer@example.com",
-            phone: null,
-          },
-          reasons: ["email"],
-        },
-      ],
-    });
-
-    const result = await createTrainerAction({}, baseFormData({ confirmOverride: "on" }));
-
-    expect(result.fieldErrors?.overrideReason).toBeTruthy();
-    expect(createTrainerRecord).not.toHaveBeenCalled();
-  });
-
-  it("creates and audits the override once confirmation and a valid reason are both present", async () => {
-    vi.mocked(findDuplicateTrainers).mockResolvedValue({
-      ok: true,
-      data: [
-        {
-          candidate: {
-            id: "existing-1",
-            firstName: "Existing",
-            lastName: "Trainer",
-            email: "test.trainer@example.com",
-            phone: null,
-          },
-          reasons: ["email"],
-        },
-      ],
-    });
-    vi.mocked(createTrainerRecord).mockResolvedValue({
-      ok: true,
-      data: { id: "new-trainer-1" },
-    });
-
-    const formData = baseFormData({
-      confirmOverride: "on",
-      overrideReason: "Coincidentally shared a work email alias.",
-    });
-
-    await expect(createTrainerAction({}, formData)).rejects.toThrow("REDIRECT_CALLED");
-
-    expect(createTrainerRecord).toHaveBeenCalledTimes(1);
-    expect(writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "trainer.create" }),
-    );
-    expect(writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: "trainer.duplicate_override_confirmed",
-        after: expect.objectContaining({
-          reason: "Coincidentally shared a work email alias.",
-          matchedRules: ["email"],
-        }),
-      }),
-    );
   });
 
   it("surfaces an account-creation failure (e.g. email already registered under another role) as a visible error", async () => {

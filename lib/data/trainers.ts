@@ -197,6 +197,14 @@ export async function getTrainerAssignments(
 // ---------------------------------------------------------------------------
 // Duplicate detection
 
+type TrainerCandidateRow = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+};
+
 export async function findDuplicateTrainers(input: {
   email: string;
   phone: string | null;
@@ -204,28 +212,48 @@ export async function findDuplicateTrainers(input: {
   try {
     const supabase = await createSupabaseServerClient();
 
-    // Coarse, indexable prefilter (same principle as findDuplicateStudents):
-    // over-fetch candidates by a broad OR, then let the precise, pure
-    // matching logic in lib/domain/trainers.ts decide what actually counts
-    // as a duplicate — this can never produce a false positive, only extra
-    // rows to filter out.
-    const orParts = [`email.ilike.${input.email.trim()}`];
-    if (input.phone) {
-      const phoneDigitsTail = input.phone.replace(/\D/g, "").slice(-7);
-      if (phoneDigitsTail) orParts.push(`phone.ilike.%${phoneDigitsTail}%`);
-    }
-
-    const { data, error } = await supabase
+    // Two independent, properly-parameterized queries rather than one
+    // hand-built `.or()` filter string. supabase-js's own docs for `.or()`
+    // state it "is used as-is and needs to follow PostgREST syntax — you
+    // also need to make sure it's properly sanitized"; `.ilike()` has no
+    // such caveat. This was found while tracing a real bug report (a
+    // genuine phone duplicate wasn't flagged) — the combined OR-string
+    // approach couldn't be fully verified safe for arbitrary admin-entered
+    // email values, so it's replaced here with two simple, independently
+    // correct queries whose results are merged before the precise matching
+    // logic in lib/domain/trainers.ts runs. Each query is still only a
+    // coarse prefilter (over-fetching is fine — findTrainerDuplicateMatches
+    // decides what actually counts as a duplicate), so this can never
+    // produce a false positive, only candidates to filter out.
+    const emailResult = await supabase
       .from("trainers")
       .select("id, first_name, last_name, email, phone")
-      .or(orParts.join(","))
+      .ilike("email", input.email.trim())
       .limit(50);
+    if (emailResult.error) throw emailResult.error;
 
-    if (error) throw error;
+    let phoneRows: TrainerCandidateRow[] = [];
+    if (input.phone) {
+      const phoneDigitsTail = input.phone.replace(/\D/g, "").slice(-7);
+      if (phoneDigitsTail) {
+        const phoneResult = await supabase
+          .from("trainers")
+          .select("id, first_name, last_name, email, phone")
+          .ilike("phone", `%${phoneDigitsTail}%`)
+          .limit(50);
+        if (phoneResult.error) throw phoneResult.error;
+        phoneRows = phoneResult.data ?? [];
+      }
+    }
+
+    const candidatesById = new Map<string, TrainerCandidateRow>();
+    for (const row of [...(emailResult.data ?? []), ...phoneRows]) {
+      candidatesById.set(row.id, row);
+    }
 
     const matches = findTrainerDuplicateMatches(
       input,
-      (data ?? []).map((row) => ({
+      Array.from(candidatesById.values()).map((row) => ({
         id: row.id,
         firstName: row.first_name,
         lastName: row.last_name,
