@@ -33,8 +33,11 @@ const optionalEmail = z
     },
   );
 
-const PHONE_ERROR = "Enter a valid phone number for the selected country.";
-const COUNTRY_ERROR = "Select a valid country.";
+// Exported so other Phase 6+ trainer/staff-profile validation schemas can
+// reuse the exact same country-aware phone rules rather than re-implement
+// them — see lib/validation/trainers.ts.
+export const PHONE_ERROR = "Enter a valid phone number for the selected country.";
+export const COUNTRY_ERROR = "Select a valid country.";
 
 // The selector's value is never trusted just because it came from the UI —
 // the UI only ever POSTs one of PHONE_COUNTRY_OPTIONS' codes, but the
@@ -48,7 +51,7 @@ const COUNTRY_ERROR = "Select a valid country.";
 //     as any other invalid input. This is never reachable by using the
 //     rendered form normally, since the <select> only offers valid codes —
 //     it exists specifically for a request that didn't come from that form.
-const phoneCountryField = z
+export const phoneCountryField = z
   .string()
   .trim()
   .nullable()
