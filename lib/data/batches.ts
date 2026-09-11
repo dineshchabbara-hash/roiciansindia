@@ -368,27 +368,112 @@ export async function findExistingAssignment(
   }
 }
 
+// At most one is_primary=true row per batch_id is a business rule with no
+// backing DB constraint — batch_trainers only has unique(batch_id,
+// trainer_id) (see the migration). Enforced here at the application layer
+// with two statements: insert the new assignment, then — only when it was
+// requested as primary — one atomic UPDATE that demotes every *other*
+// trainer on that batch in a single statement.
+//
+// This guarantees the invariant for the realistic case this bug report is
+// about: one admin action at a time, each fully completing (including this
+// function's own demote step) before the next begins — which is what the
+// UI actually does (the Assign button is disabled while a request is
+// pending). Proven empirically (see
+// lib/data/__tests__/batches.test.ts): given any sequence of such
+// non-overlapping calls, the batch always ends with at most one primary.
+//
+// It does NOT guarantee the invariant against two requests that are
+// genuinely in flight at the same time. Traced by hand and confirmed with a
+// deterministic interleaving test (see lib/data/__tests__/batches.test.ts):
+// for two concurrent "assign as primary" calls targeting different trainers
+// on the same batch, if both inserts land before either demote-update runs
+// — insert(A), insert(C), then demote-others(!=A) and demote-others(!=C) in
+// either order — the batch ends with *zero* primaries, not two. Each
+// demote-update only ever sets other rows to false; it never re-asserts its
+// own target back to true, so the second demote-update to run silently wipes
+// out the first request's legitimately-primary row without restoring its
+// own. (Any interleaving where one call's insert-then-demote fully completes
+// before the other call's insert begins self-corrects to exactly one
+// primary — the failure needs both inserts to race ahead of both demotes.)
+// No reordering of these two independent, separately-committed PostgREST
+// calls closes this, because neither statement can know about the other's
+// not-yet-committed row. Closing this completely needs a DB-level
+// mechanism — a partial unique index (`unique (batch_id) where is_primary`)
+// or an RPC wrapping both writes in one transaction — either is a
+// schema/migration change, out of scope for this fix without explicit
+// approval (see the Phase 8 Primary-Trainer report's Checkpoint 3 section).
+//
+// What this function does guarantee unconditionally: a failed demote step
+// is rolled back (the just-inserted row is deleted) rather than leaving
+// two primaries or any other half-applied state from a *single* call's own
+// two statements.
 export async function assignTrainerToBatch(
   batchId: string,
   trainerId: string,
   isPrimary: boolean,
-): Promise<DataResult<null>> {
+): Promise<DataResult<{ previousPrimaryTrainerId: string | null }>> {
   try {
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase
+
+    // Read before inserting: the new trainer can never already be primary
+    // (duplicate assignment is blocked before this is ever called), so
+    // whatever this finds is genuinely who held Primary immediately before
+    // this action — used only for the audit event below, not for
+    // correctness of the invariant itself.
+    let previousPrimaryTrainerId: string | null = null;
+    if (isPrimary) {
+      const { data: currentPrimary, error: currentPrimaryError } = await supabase
+        .from("batch_trainers")
+        .select("trainer_id")
+        .eq("batch_id", batchId)
+        .eq("is_primary", true)
+        .maybeSingle();
+      if (currentPrimaryError) throw currentPrimaryError;
+      previousPrimaryTrainerId = currentPrimary?.trainer_id ?? null;
+    }
+
+    const { error: insertError } = await supabase
       .from("batch_trainers")
       .insert({ batch_id: batchId, trainer_id: trainerId, is_primary: isPrimary });
 
-    if (error) {
-      if ((error as { code?: string }).code === POSTGRES_UNIQUE_VIOLATION) {
+    if (insertError) {
+      if ((insertError as { code?: string }).code === POSTGRES_UNIQUE_VIOLATION) {
         return { ok: false, error: "This trainer is already assigned to this batch." };
       }
-      if ((error as { code?: string }).code === POSTGRES_FOREIGN_KEY_VIOLATION) {
+      if ((insertError as { code?: string }).code === POSTGRES_FOREIGN_KEY_VIOLATION) {
         return { ok: false, error: "Selected trainer could not be found." };
       }
-      throw error;
+      throw insertError;
     }
-    return { ok: true, data: null };
+
+    if (isPrimary) {
+      const { error: demoteError } = await supabase
+        .from("batch_trainers")
+        .update({ is_primary: false })
+        .eq("batch_id", batchId)
+        .neq("trainer_id", trainerId);
+
+      if (demoteError) {
+        // Roll back the just-created assignment rather than leaving two
+        // Primary rows (this one plus whichever wasn't demoted) or any
+        // other half-applied state — same rollback-on-partial-failure
+        // pattern as createTrainerRecord's Auth-account rollback.
+        try {
+          await supabase
+            .from("batch_trainers")
+            .delete()
+            .eq("batch_id", batchId)
+            .eq("trainer_id", trainerId);
+        } catch {
+          // Best-effort: the outer catch below still returns a controlled
+          // error either way.
+        }
+        throw demoteError;
+      }
+    }
+
+    return { ok: true, data: { previousPrimaryTrainerId } };
   } catch (error) {
     return fail("Could not assign the trainer. Please try again.", error);
   }

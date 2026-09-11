@@ -295,7 +295,10 @@ describe("assignTrainerAction", () => {
     vi.clearAllMocks();
     vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
     vi.mocked(findExistingAssignment).mockResolvedValue({ ok: true, data: false });
-    vi.mocked(assignTrainerToBatch).mockResolvedValue({ ok: true, data: null });
+    vi.mocked(assignTrainerToBatch).mockResolvedValue({
+      ok: true,
+      data: { previousPrimaryTrainerId: null },
+    });
   });
 
   it("rejects Trainer and Student", async () => {
@@ -359,6 +362,41 @@ describe("assignTrainerAction", () => {
     const result = await assignTrainerAction("batch-1", {}, formData);
     expect(result.fieldErrors?.trainerId).toBeTruthy();
     expect(findExistingAssignment).not.toHaveBeenCalled();
+  });
+
+  it("allows both Admin and Super Admin to assign a trainer", async () => {
+    for (const ctx of [adminContext, superAdminContext]) {
+      vi.mocked(getCurrentUserContext).mockResolvedValue(ctx);
+      const formData = new FormData();
+      formData.set("trainerId", VALID_TRAINER_ID);
+      const result = await assignTrainerAction("batch-1", {}, formData);
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("includes previousPrimaryTrainerId in the audit event only when a Primary replacement actually occurred", async () => {
+    vi.mocked(assignTrainerToBatch).mockResolvedValue({
+      ok: true,
+      data: { previousPrimaryTrainerId: "trainer-old-primary" },
+    });
+    const formData = new FormData();
+    formData.set("trainerId", VALID_TRAINER_ID);
+    formData.set("isPrimary", "on");
+
+    const result = await assignTrainerAction("batch-1", {}, formData);
+
+    expect(result.success).toBe(true);
+    expect(writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "batch.trainer_assigned",
+        entityId: "batch-1",
+        after: {
+          trainerId: VALID_TRAINER_ID,
+          isPrimary: true,
+          previousPrimaryTrainerId: "trainer-old-primary",
+        },
+      }),
+    );
   });
 });
 

@@ -51,7 +51,10 @@ describe("BatchTrainerAssignmentsCard", () => {
     vi.clearAllMocks();
     vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
     vi.mocked(findExistingAssignment).mockResolvedValue({ ok: true, data: false });
-    vi.mocked(assignTrainerToBatch).mockResolvedValue({ ok: true, data: null });
+    vi.mocked(assignTrainerToBatch).mockResolvedValue({
+      ok: true,
+      data: { previousPrimaryTrainerId: null },
+    });
     vi.mocked(unassignTrainerFromBatch).mockResolvedValue({ ok: true, data: null });
   });
 

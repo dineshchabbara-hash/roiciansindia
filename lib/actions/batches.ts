@@ -267,13 +267,22 @@ export async function assignTrainerAction(
     return { formError: result.error };
   }
 
+  // One event per logical action: previousPrimaryTrainerId is only present
+  // when this assignment actually replaced an existing Primary, so a plain
+  // (non-primary) assignment or a first-ever Primary never carries it.
   await writeAuditLog({
     actorAuthUserId: ctx.authUserId,
     actorRole: ctx.role,
     action: "batch.trainer_assigned",
     entityType: "batch",
     entityId: batchId,
-    after: { trainerId: parsed.data.trainerId, isPrimary: parsed.data.isPrimary },
+    after: {
+      trainerId: parsed.data.trainerId,
+      isPrimary: parsed.data.isPrimary,
+      ...(result.data.previousPrimaryTrainerId
+        ? { previousPrimaryTrainerId: result.data.previousPrimaryTrainerId }
+        : {}),
+    },
   });
 
   revalidatePath(`/admin/batches/${batchId}`);

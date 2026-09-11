@@ -7,27 +7,36 @@
 
 begin;
 
--- Fixture identities: one admin, two trainers (A assigned to the batch,
--- B not), one student (enrolled in the batch), matching the pattern in
--- rls_trainer_isolation_test.sql / phase7_program_management_test.sql.
+-- Fixture identities: one admin, four trainers (A assigned to the batch,
+-- B never assigned — reserved for the isolation check below; C and D are
+-- used only by the Primary-uniqueness bug-fix section so they never
+-- interfere with B's "not assigned" assertion), one student (enrolled in
+-- the batch), matching the pattern in rls_trainer_isolation_test.sql /
+-- phase7_program_management_test.sql.
 insert into auth.users (id, email) values
   ('d1000000-0000-0000-0000-000000000001', 'phase8-admin@validation.local'),
   ('d1000000-0000-0000-0000-000000000002', 'phase8-trainer-a@validation.local'),
   ('d1000000-0000-0000-0000-000000000003', 'phase8-trainer-b@validation.local'),
-  ('d1000000-0000-0000-0000-000000000004', 'phase8-student@validation.local');
+  ('d1000000-0000-0000-0000-000000000004', 'phase8-student@validation.local'),
+  ('d1000000-0000-0000-0000-000000000005', 'phase8-trainer-c@validation.local'),
+  ('d1000000-0000-0000-0000-000000000006', 'phase8-trainer-d@validation.local');
 
 insert into user_roles (auth_user_id, role) values
   ('d1000000-0000-0000-0000-000000000001', 'admin'),
   ('d1000000-0000-0000-0000-000000000002', 'trainer'),
   ('d1000000-0000-0000-0000-000000000003', 'trainer'),
-  ('d1000000-0000-0000-0000-000000000004', 'student');
+  ('d1000000-0000-0000-0000-000000000004', 'student'),
+  ('d1000000-0000-0000-0000-000000000005', 'trainer'),
+  ('d1000000-0000-0000-0000-000000000006', 'trainer');
 
 insert into admins (id, auth_user_id, first_name, last_name, email, role_level) values
   ('d2000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000001', 'Phase8', 'Admin', 'phase8-admin@validation.local', 'admin');
 
 insert into trainers (id, auth_user_id, first_name, last_name, email) values
   ('d3000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000002', 'Phase8', 'TrainerA', 'phase8-trainer-a@validation.local'),
-  ('d3000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000003', 'Phase8', 'TrainerB', 'phase8-trainer-b@validation.local');
+  ('d3000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000003', 'Phase8', 'TrainerB', 'phase8-trainer-b@validation.local'),
+  ('d3000000-0000-0000-0000-000000000003', 'd1000000-0000-0000-0000-000000000005', 'Phase8', 'TrainerC', 'phase8-trainer-c@validation.local'),
+  ('d3000000-0000-0000-0000-000000000004', 'd1000000-0000-0000-0000-000000000006', 'Phase8', 'TrainerD', 'phase8-trainer-d@validation.local');
 
 insert into students (id, auth_user_id, student_code, first_name, last_name, phone) values
   ('d4000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000004', 'PHASE8-STU', 'Phase8', 'Student', '9990003001');
@@ -142,11 +151,104 @@ begin
 end
 $$;
 
--- Re-assign trainer A (admin, not primary this time) and assign trainer B
--- too, to set up the trainer-isolation checks below: only trainer A should
--- ever see this batch.
+-- Re-assign trainer A (admin, primary this time) to set up both the
+-- Primary-uniqueness checks immediately below and the trainer-isolation
+-- checks further down: only trainer A should ever see this batch.
 insert into batch_trainers (batch_id, trainer_id, is_primary) values
   ('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000001', true);
+
+-- ---------------------------------------------------------------------------
+-- Primary-Trainer uniqueness (bug-fix regression): a batch may have zero or
+-- one Primary trainer, never more than one. Proven against the real table
+-- and its real unique(batch_id, trainer_id) constraint, executing the exact
+-- two-statement sequence assignTrainerToBatch uses (lib/data/batches.ts) —
+-- insert the new assignment, then one atomic UPDATE demoting every other
+-- trainer on the batch — rather than trusting a mock.
+
+-- Trainer D assigned as non-primary must not disturb the existing Primary
+-- (Trainer A).
+insert into batch_trainers (batch_id, trainer_id, is_primary) values
+  ('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000004', false);
+
+do $$
+declare
+  primary_cnt int;
+  a_is_primary boolean;
+begin
+  select count(*) into primary_cnt from batch_trainers
+    where batch_id = 'd6000000-0000-0000-0000-000000000001' and is_primary;
+  select is_primary into a_is_primary from batch_trainers
+    where batch_id = 'd6000000-0000-0000-0000-000000000001' and trainer_id = 'd3000000-0000-0000-0000-000000000001';
+  if primary_cnt <> 1 or a_is_primary is not true then
+    raise exception 'FAIL: assigning trainer D as non-primary should not disturb the existing Primary (trainer A), got primary_cnt=%, a_is_primary=%', primary_cnt, a_is_primary;
+  end if;
+  raise notice 'PASS: assigning a non-primary trainer does not disturb the existing Primary';
+end
+$$;
+
+-- Assign trainer C as Primary — exactly the app's two-statement sequence —
+-- and prove exactly one Primary remains afterward, with no assignment rows
+-- lost (still 3 trainers assigned: A, C, D).
+insert into batch_trainers (batch_id, trainer_id, is_primary) values
+  ('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000003', true);
+
+update batch_trainers set is_primary = false
+  where batch_id = 'd6000000-0000-0000-0000-000000000001' and trainer_id <> 'd3000000-0000-0000-0000-000000000003';
+
+do $$
+declare
+  primary_cnt int;
+  primary_trainer uuid;
+  assigned_cnt int;
+begin
+  select count(*) into primary_cnt from batch_trainers
+    where batch_id = 'd6000000-0000-0000-0000-000000000001' and is_primary;
+  select trainer_id into primary_trainer from batch_trainers
+    where batch_id = 'd6000000-0000-0000-0000-000000000001' and is_primary;
+  select count(*) into assigned_cnt from batch_trainers
+    where batch_id = 'd6000000-0000-0000-0000-000000000001';
+
+  if primary_cnt <> 1 then
+    raise exception 'FAIL: batch should have exactly one Primary trainer after replacement, got %', primary_cnt;
+  end if;
+  if primary_trainer <> 'd3000000-0000-0000-0000-000000000003' then
+    raise exception 'FAIL: trainer C should be the sole Primary, got %', primary_trainer;
+  end if;
+  if assigned_cnt <> 3 then
+    raise exception 'FAIL: replacing the Primary must not delete any assignment rows, expected 3 assigned trainers (A, C, D), got %', assigned_cnt;
+  end if;
+  raise notice 'PASS: assigning a second trainer as Primary demotes the first — exactly one Primary remains, no assignment rows lost';
+end
+$$;
+
+-- Unassigning the Primary trainer must succeed and leave zero Primaries —
+-- not block, and not force a replacement to be chosen.
+delete from batch_trainers
+  where batch_id = 'd6000000-0000-0000-0000-000000000001' and trainer_id = 'd3000000-0000-0000-0000-000000000003';
+
+do $$
+declare
+  primary_cnt int;
+  assigned_cnt int;
+begin
+  select count(*) into primary_cnt from batch_trainers
+    where batch_id = 'd6000000-0000-0000-0000-000000000001' and is_primary;
+  select count(*) into assigned_cnt from batch_trainers
+    where batch_id = 'd6000000-0000-0000-0000-000000000001';
+  if primary_cnt <> 0 then
+    raise exception 'FAIL: unassigning the Primary trainer should leave zero Primaries, got %', primary_cnt;
+  end if;
+  if assigned_cnt <> 2 then
+    raise exception 'FAIL: unassigning the Primary should only remove that one row, expected 2 remaining (A, D), got %', assigned_cnt;
+  end if;
+  raise notice 'PASS: unassigning the Primary trainer succeeds and leaves zero Primaries (a valid state)';
+end
+$$;
+
+-- Clean up trainer D's assignment so later checks that count/inspect this
+-- batch's assignments only ever see trainer A, as originally intended.
+delete from batch_trainers
+  where batch_id = 'd6000000-0000-0000-0000-000000000001' and trainer_id = 'd3000000-0000-0000-0000-000000000004';
 
 insert into enrollments (id, enrollment_code, student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable) values
   ('d7000000-0000-0000-0000-000000000001', 'PHASE8-ENR', 'd4000000-0000-0000-0000-000000000001', 'd5000000-0000-0000-0000-000000000001', 'd6000000-0000-0000-0000-000000000001', 20000.00, 20000.00, 20000.00);

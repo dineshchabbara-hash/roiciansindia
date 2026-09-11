@@ -269,17 +269,52 @@ describe("findExistingAssignment / assignTrainerToBatch / unassignTrainerFromBat
     });
   });
 
-  it("assignTrainerToBatch inserts is_primary exactly as given", async () => {
+  it("assignTrainerToBatch inserts is_primary exactly as given, then demotes every other trainer on the batch", async () => {
+    // No existing primary for this pre-check.
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const selectEq2 = vi.fn().mockReturnValue({ maybeSingle });
+    const selectEq1 = vi.fn().mockReturnValue({ eq: selectEq2 });
+    const select = vi.fn().mockReturnValue({ eq: selectEq1 });
+
     const insert = vi.fn().mockResolvedValue({ error: null });
-    const from = vi.fn().mockReturnValue({ insert });
+
+    const updateNeq = vi.fn().mockResolvedValue({ error: null });
+    const updateEq = vi.fn().mockReturnValue({ neq: updateNeq });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+
+    const from = vi.fn().mockReturnValue({ select, insert, update });
     vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
 
-    await assignTrainerToBatch("batch-1", "trainer-1", true);
+    const result = await assignTrainerToBatch("batch-1", "trainer-1", true);
+
     expect(insert).toHaveBeenCalledWith({
       batch_id: "batch-1",
       trainer_id: "trainer-1",
       is_primary: true,
     });
+    expect(update).toHaveBeenCalledWith({ is_primary: false });
+    expect(updateEq).toHaveBeenCalledWith("batch_id", "batch-1");
+    expect(updateNeq).toHaveBeenCalledWith("trainer_id", "trainer-1");
+    expect(result).toEqual({ ok: true, data: { previousPrimaryTrainerId: null } });
+  });
+
+  it("assignTrainerToBatch does not query for or demote anyone when isPrimary is false", async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null });
+    const select = vi.fn();
+    const update = vi.fn();
+    const from = vi.fn().mockReturnValue({ select, insert, update });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+
+    const result = await assignTrainerToBatch("batch-1", "trainer-1", false);
+
+    expect(insert).toHaveBeenCalledWith({
+      batch_id: "batch-1",
+      trainer_id: "trainer-1",
+      is_primary: false,
+    });
+    expect(select).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, data: { previousPrimaryTrainerId: null } });
   });
 
   it("unassignTrainerFromBatch deletes scoped to both batch_id and trainer_id", async () => {
@@ -293,5 +328,208 @@ describe("findExistingAssignment / assignTrainerToBatch / unassignTrainerFromBat
     expect(result).toEqual({ ok: true, data: null });
     expect(eq1).toHaveBeenCalledWith("batch_id", "batch-1");
     expect(eq2).toHaveBeenCalledWith("trainer_id", "trainer-1");
+  });
+
+  it("assignTrainerToBatch reports the previously-Primary trainer for the audit event", async () => {
+    const maybeSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { trainer_id: "trainer-old-primary" }, error: null });
+    const selectEq2 = vi.fn().mockReturnValue({ maybeSingle });
+    const selectEq1 = vi.fn().mockReturnValue({ eq: selectEq2 });
+    const select = vi.fn().mockReturnValue({ eq: selectEq1 });
+
+    const insert = vi.fn().mockResolvedValue({ error: null });
+
+    const updateNeq = vi.fn().mockResolvedValue({ error: null });
+    const updateEq = vi.fn().mockReturnValue({ neq: updateNeq });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+
+    const from = vi.fn().mockReturnValue({ select, insert, update });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+
+    const result = await assignTrainerToBatch("batch-1", "trainer-new-primary", true);
+
+    expect(result).toEqual({
+      ok: true,
+      data: { previousPrimaryTrainerId: "trainer-old-primary" },
+    });
+  });
+
+  it("rolls back the just-inserted assignment if the demote step fails, never leaving two Primaries or a half-applied state", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const selectEq2 = vi.fn().mockReturnValue({ maybeSingle });
+    const selectEq1 = vi.fn().mockReturnValue({ eq: selectEq2 });
+    const select = vi.fn().mockReturnValue({ eq: selectEq1 });
+
+    const insert = vi.fn().mockResolvedValue({ error: null });
+
+    const updateNeq = vi
+      .fn()
+      .mockResolvedValue({ error: new Error("demote update failed") });
+    const updateEq = vi.fn().mockReturnValue({ neq: updateNeq });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+
+    const deleteEq2 = vi.fn().mockResolvedValue({ error: null });
+    const deleteEq1 = vi.fn().mockReturnValue({ eq: deleteEq2 });
+    const del = vi.fn().mockReturnValue({ eq: deleteEq1 });
+
+    const from = vi.fn().mockReturnValue({ select, insert, update, delete: del });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+
+    const result = await assignTrainerToBatch("batch-1", "trainer-1", true);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe("Could not assign the trainer. Please try again.");
+    }
+    // Rollback: the just-inserted row is deleted rather than left behind
+    // alongside whichever trainer the failed demote couldn't touch.
+    expect(del).toHaveBeenCalled();
+    expect(deleteEq1).toHaveBeenCalledWith("batch_id", "batch-1");
+    expect(deleteEq2).toHaveBeenCalledWith("trainer_id", "trainer-1");
+  });
+
+  // Concurrency analysis for the bug report (Phase 8 Primary-Trainer
+  // report, Checkpoint 3). Uses a small in-memory fake so both the
+  // realistic case and the proven residual gap can be demonstrated against
+  // the REAL assignTrainerToBatch function, not just reasoned about.
+  describe("concurrency", () => {
+    type Row = { batch_id: string; trainer_id: string; is_primary: boolean };
+
+    function makeSequentialFake(rows: Row[]) {
+      return vi.fn((table: string) => {
+        if (table !== "batch_trainers") throw new Error(`Unexpected table: ${table}`);
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: async () => {
+                  const existing = rows.find((r) => r.is_primary);
+                  return {
+                    data: existing ? { trainer_id: existing.trainer_id } : null,
+                    error: null,
+                  };
+                },
+              }),
+            }),
+          }),
+          insert: async (row: Row) => {
+            rows.push({ ...row });
+            return { error: null };
+          },
+          update: (patch: { is_primary: boolean }) => ({
+            eq: () => ({
+              neq: async (_col: string, excludeTrainerId: string) => {
+                for (const r of rows) {
+                  if (r.trainer_id !== excludeTrainerId) r.is_primary = patch.is_primary;
+                }
+                return { error: null };
+              },
+            }),
+          }),
+        };
+      });
+    }
+
+    it("guarantees exactly one Primary for any sequence of non-overlapping calls — the realistic case, since the UI disables Assign while a request is pending", async () => {
+      const rows: Row[] = [];
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        from: makeSequentialFake(rows),
+      } as never);
+
+      await assignTrainerToBatch("batch-1", "trainer-A", true);
+      expect(rows.filter((r) => r.is_primary).map((r) => r.trainer_id)).toEqual([
+        "trainer-A",
+      ]);
+
+      await assignTrainerToBatch("batch-1", "trainer-B", false);
+      expect(rows.filter((r) => r.is_primary).map((r) => r.trainer_id)).toEqual([
+        "trainer-A",
+      ]);
+
+      await assignTrainerToBatch("batch-1", "trainer-C", true);
+      expect(rows.filter((r) => r.is_primary).map((r) => r.trainer_id)).toEqual([
+        "trainer-C",
+      ]);
+      expect(rows).toHaveLength(3); // no assignment row was lost
+    });
+
+    it("documents the proven residual gap: two calls truly in flight at once can wipe out both Primary flags — this is exactly why a DB-level fix needs approval before implementation, not a passing guarantee this fix makes", async () => {
+      const rows: Row[] = [];
+
+      function deferred() {
+        let resolve!: () => void;
+        const promise = new Promise<void>((r) => (resolve = r));
+        return { promise, resolve };
+      }
+      const insertGateA = deferred();
+      const insertGateC = deferred();
+      const demoteGateA = deferred();
+      const demoteGateC = deferred();
+
+      const from = vi.fn((table: string) => {
+        if (table !== "batch_trainers") throw new Error(`Unexpected table: ${table}`);
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: null, error: null }),
+              }),
+            }),
+          }),
+          insert: (row: Row) => {
+            const gate = row.trainer_id === "trainer-A" ? insertGateA : insertGateC;
+            return gate.promise.then(() => {
+              rows.push({ ...row });
+              return { error: null };
+            });
+          },
+          update: (patch: { is_primary: boolean }) => ({
+            eq: () => ({
+              neq: (_col: string, excludeTrainerId: string) => {
+                const gate = excludeTrainerId === "trainer-A" ? demoteGateA : demoteGateC;
+                return gate.promise.then(() => {
+                  for (const r of rows) {
+                    if (r.trainer_id !== excludeTrainerId)
+                      r.is_primary = patch.is_primary;
+                  }
+                  return { error: null };
+                });
+              },
+            }),
+          }),
+        };
+      });
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+
+      const callA = assignTrainerToBatch("batch-1", "trainer-A", true);
+      const callC = assignTrainerToBatch("batch-1", "trainer-C", true);
+
+      // Force both inserts to land before either demote-update runs — the
+      // interleaving lib/data/batches.ts's header comment describes.
+      insertGateA.resolve();
+      insertGateC.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Each demote-update only excludes its own target, so it demotes the
+      // other request's row too — neither ever re-asserts itself
+      // afterward, since a demote-update never sets anything to true.
+      demoteGateA.resolve();
+      demoteGateC.resolve();
+      await Promise.all([callA, callC]);
+
+      const primaryIds = rows.filter((r) => r.is_primary).map((r) => r.trainer_id);
+      // This is the proven gap, not a desired outcome: each demote-update
+      // only ever sets the *other* request's row to false and never
+      // re-asserts its own target back to true, so whichever demote-update
+      // runs second silently un-sets the first request's legitimately-primary
+      // row — leaving the batch with zero Primaries, not two. Both
+      // assignment rows still exist (no data loss), just neither is primary.
+      // A DB-level partial unique index or an RPC-wrapped transaction is
+      // required to close this; see the Phase 8 Primary-Trainer report.
+      expect(primaryIds).toEqual([]);
+      expect(rows.map((r) => r.trainer_id).sort()).toEqual(["trainer-A", "trainer-C"]);
+    });
   });
 });
