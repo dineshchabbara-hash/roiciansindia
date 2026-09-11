@@ -292,8 +292,20 @@ export type Database = {
           program_id: string;
           name: string;
           start_date: string;
+          expected_end_date: string | null;
+          days_of_week: string[];
+          start_time: string | null;
+          end_time: string | null;
+          timezone: string;
+          delivery_mode: "online" | "in_person" | "hybrid" | null;
+          capacity: number | null;
           status:
             "draft" | "upcoming" | "active" | "completed" | "cancelled" | "archived";
+          meeting_link: string | null;
+          location: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["batches"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["batches"]["Row"]>;
