@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ProgramStatusBadge } from "@/components/admin/programs/program-status-badge";
-import { formatPaiseAsINR, toPaise } from "@/lib/domain/money";
+import { formatDecimalAsINR } from "@/lib/domain/money";
 import type { ProgramListRow } from "@/lib/data/programs";
 
 function formatDuration(row: ProgramListRow): string {
@@ -40,9 +40,7 @@ export function ProgramTable({ programs }: { programs: ProgramListRow[] }) {
                 </Link>
               </td>
               <td className="py-2 pr-4">{formatDuration(program)}</td>
-              <td className="py-2 pr-4">
-                {formatPaiseAsINR(toPaise(program.regularFee))}
-              </td>
+              <td className="py-2 pr-4">{formatDecimalAsINR(program.regularFee)}</td>
               <td className="py-2 pr-4">
                 <ProgramStatusBadge status={program.status} />
               </td>

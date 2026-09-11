@@ -25,8 +25,9 @@ describe("ProgramTable", () => {
     expect(link).toHaveAttribute("href", "/admin/programs/1");
     expect(screen.getByText("FSD-101")).toBeInTheDocument();
     expect(screen.getByText("8 weeks")).toBeInTheDocument();
-    // formatPaiseAsINR renders whole-rupee INR, e.g. "₹50,000".
-    expect(screen.getByText("₹50,000")).toBeInTheDocument();
+    // formatDecimalAsINR — a whole-number stored fee still shows exactly 2
+    // decimal places, e.g. "₹50,000.00", matching the numeric(12,2) column.
+    expect(screen.getByText("₹50,000.00")).toBeInTheDocument();
   });
 
   it("shows an em-dash for an unset duration rather than blank", () => {
@@ -36,5 +37,15 @@ describe("ProgramTable", () => {
       />,
     );
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  // Regression coverage for the real Phase 7 bug: formatPaiseAsINR's
+  // whole-rupee rounding (maximumFractionDigits: 0) silently turned
+  // "500.50" into "₹501" here. The list page must show the exact stored
+  // cents.
+  it("shows exact cents for a fee with a decimal component, never rounding", () => {
+    render(<ProgramTable programs={[{ ...sample, regularFee: "500.50" }]} />);
+    expect(screen.getByText("₹500.50")).toBeInTheDocument();
+    expect(screen.queryByText("₹501")).not.toBeInTheDocument();
   });
 });

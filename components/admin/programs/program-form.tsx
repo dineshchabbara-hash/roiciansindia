@@ -165,6 +165,9 @@ export function ProgramForm({
             <Input
               id="regularFee"
               name="regularFee"
+              type="number"
+              step="0.01"
+              min="0"
               inputMode="decimal"
               required
               defaultValue={value("regularFee") ?? defaultValues?.regularFee}
@@ -177,6 +180,9 @@ export function ProgramForm({
             <Input
               id="registrationFee"
               name="registrationFee"
+              type="number"
+              step="0.01"
+              min="0"
               inputMode="decimal"
               defaultValue={
                 value("registrationFee") ?? defaultValues?.registrationFee ?? "0"
@@ -192,6 +198,10 @@ export function ProgramForm({
           <Input
             id="taxRatePercent"
             name="taxRatePercent"
+            type="number"
+            step="0.01"
+            min="0"
+            max="100"
             inputMode="decimal"
             defaultValue={
               value("taxRatePercent") ?? defaultValues?.taxRatePercent ?? undefined

@@ -61,6 +61,44 @@ describe("createProgramRecord", () => {
     );
   });
 
+  // Regression coverage for a real Phase 7 bug report: 50000.50/500.50 were
+  // observed rounded after saving. Traced end to end — the root cause was
+  // isolated to the *display* formatter (see lib/domain/__tests__/money.test.ts),
+  // but this proves the other half: the insert payload sent to Postgres
+  // carries the admin-entered decimal string completely unchanged, for
+  // every value from the bug report, for both fee columns.
+  it.each([
+    ["50000.50", "0"],
+    ["500.50", "0"],
+    ["50000.99", "1000.50"],
+    ["0.50", "0.50"],
+    ["50000", "0"],
+  ])(
+    "inserts regular_fee=%s and registration_fee=%s as exact, unmodified decimal strings",
+    async (regularFee, registrationFee) => {
+      const single = vi.fn().mockResolvedValue({
+        data: { id: "program-1", program_code: "FSD-101" },
+        error: null,
+      });
+      const select = vi.fn().mockReturnValue({ single });
+      const insert = vi.fn().mockReturnValue({ select });
+      const from = vi.fn().mockReturnValue({ insert });
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+
+      await createProgramRecord({ ...baseInput(), regularFee, registrationFee });
+
+      const insertPayload = insert.mock.calls[0][0];
+      expect(insertPayload.regular_fee).toBe(regularFee);
+      expect(insertPayload.registration_fee).toBe(registrationFee);
+      // Never a JS number — that would silently normalize e.g. "500.50" to
+      // 500.5, and Postgres numeric would still store it correctly, but a
+      // number type is exactly the sort of value a future refactor could
+      // accidentally run through Math.round/parseInt.
+      expect(typeof insertPayload.regular_fee).toBe("string");
+      expect(typeof insertPayload.registration_fee).toBe("string");
+    },
+  );
+
   it("translates a Postgres unique_violation on program_code into a clear form error", async () => {
     const single = vi.fn().mockResolvedValue({
       data: null,
@@ -123,6 +161,33 @@ describe("updateProgramProfile", () => {
     expect(updatePayload).not.toHaveProperty("program_code");
     expect(updatePayload.name).toBe("Renamed Program");
   });
+
+  // Edit/re-save regression: re-saving an already-decimal fee must not
+  // round-trip it through anything lossy on the way back out either.
+  it.each([
+    ["50000.50", "0"],
+    ["500.50", "0"],
+    ["50000.99", "1000.50"],
+    ["0.50", "0.50"],
+  ])(
+    "updates regular_fee=%s and registration_fee=%s as exact, unmodified decimal strings",
+    async (regularFee, registrationFee) => {
+      const eq = vi.fn().mockResolvedValue({ error: null });
+      const update = vi.fn().mockReturnValue({ eq });
+      const from = vi.fn().mockReturnValue({ update });
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+
+      await updateProgramProfile("program-1", {
+        ...baseInput(),
+        regularFee,
+        registrationFee,
+      });
+
+      const updatePayload = update.mock.calls[0][0];
+      expect(updatePayload.regular_fee).toBe(regularFee);
+      expect(updatePayload.registration_fee).toBe(registrationFee);
+    },
+  );
 });
 
 describe("findProgramByExactCode", () => {

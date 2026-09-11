@@ -34,3 +34,37 @@ const inrFormatter = new Intl.NumberFormat("en-IN", {
 export function formatPaiseAsINR(paise: number): string {
   return inrFormatter.format(paiseToRupees(paise));
 }
+
+// Matches a plain non-negative decimal with at most 2 fraction digits —
+// exactly the shape a `numeric(_, 2)` column returns over the wire (e.g.
+// "500.50", "50000.99", "50000" if unscaled). Deliberately not shared with
+// toPaise/formatPaiseAsINR above: those exist for *whole-rupee* amounts
+// (payments/dashboard) where collapsing to an integer is correct by design.
+// A field that can genuinely hold cents — like Program fees — must never
+// go through that path, since Intl.NumberFormat's `maximumFractionDigits: 0`
+// there rounds e.g. 500.50 up to "₹501", silently discarding the cents.
+const RUPEES_WITH_CENTS_PATTERN = /^(\d+)(?:\.(\d{1,2}))?$/;
+
+/**
+ * Formats a `numeric(_, 2)` decimal string as INR *with* its exact cents,
+ * e.g. "500.50" -> "₹500.50", "50000" -> "₹50,000.00". Built entirely from
+ * string manipulation (Indian-style lakh/crore digit grouping done by
+ * regex, not division/rounding) — never `Number()`/`parseFloat` — so it
+ * can never reintroduce the float-rounding bug this helper exists to fix.
+ * Use this instead of formatPaiseAsINR for any field that can hold cents.
+ */
+export function formatDecimalAsINR(value: string | null | undefined): string {
+  const match = RUPEES_WITH_CENTS_PATTERN.exec((value ?? "0").trim());
+  if (!match) return "₹0.00";
+
+  const [, integerPart, decimalPart = ""] = match;
+  const cents = (decimalPart + "00").slice(0, 2);
+
+  const lastThree = integerPart.slice(-3);
+  const rest = integerPart.slice(0, -3);
+  const groupedInteger = rest
+    ? `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",")},${lastThree}`
+    : lastThree;
+
+  return `₹${groupedInteger}.${cents}`;
+}

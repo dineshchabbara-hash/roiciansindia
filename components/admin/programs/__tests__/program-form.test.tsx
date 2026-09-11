@@ -108,7 +108,36 @@ describe("ProgramForm + createProgramAction: duplicate-code failure preserves th
     // generation-keyed Fragment in ProgramForm must survive that.
     expect(screen.getByLabelText("Program code")).toHaveValue("FSD-101");
     expect(screen.getByLabelText("Program name")).toHaveValue("Full Stack Development");
-    expect(screen.getByLabelText("Regular fee (INR)")).toHaveValue("50000");
+    // Regular fee is now a type="number" input (see the money-precision fix
+    // in program-form.tsx) — jest-dom's toHaveValue compares it as a number.
+    expect(screen.getByLabelText("Regular fee (INR)")).toHaveValue(50000);
+  });
+
+  // Regression coverage for the real Phase 7 money-precision bug: a decimal
+  // fee must survive a validation-failure round trip exactly, not just a
+  // whole number.
+  it("keeps an exact decimal fee (e.g. 500.50) after a duplicate-code error", async () => {
+    vi.mocked(findProgramByExactCode).mockResolvedValue({
+      ok: true,
+      data: { id: "existing-1", name: "Existing Program" },
+    });
+
+    const user = userEvent.setup();
+    render(
+      <RedirectBoundary>
+        <ProgramForm action={createProgramAction} submitLabel="Create program" />
+      </RedirectBoundary>,
+    );
+
+    await user.type(screen.getByLabelText("Program code"), "FSD-101");
+    await user.type(screen.getByLabelText("Program name"), "Full Stack Development");
+    await user.type(screen.getByLabelText("Regular fee (INR)"), "500.50");
+    await user.click(screen.getByRole("button", { name: "Create program" }));
+
+    expect(
+      await screen.findByText(/already used by "Existing Program"/),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Regular fee (INR)")).toHaveValue(500.5);
   });
 });
 

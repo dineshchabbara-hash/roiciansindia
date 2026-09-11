@@ -52,6 +52,25 @@ describe("programProfileSchema", () => {
     expect(result.data.registrationFee).toBe("1000.50");
   });
 
+  // Regression coverage for the exact values from the Phase 7 money-precision
+  // bug report — the schema layer itself was already exact (the reported
+  // rounding traced to the display formatter instead), but this locks that
+  // in for both fee fields.
+  it.each(["50000.50", "500.50", "50000.99", "0.50", "50000"])(
+    "preserves %s exactly for both regularFee and registrationFee",
+    (amount) => {
+      const result = programProfileSchema.safeParse({
+        ...baseInput(),
+        regularFee: amount,
+        registrationFee: amount,
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.regularFee).toBe(amount);
+      expect(result.data.registrationFee).toBe(amount);
+    },
+  );
+
   it("requires program code and program name", () => {
     const missingCode = programProfileSchema.safeParse({
       ...baseInput(),

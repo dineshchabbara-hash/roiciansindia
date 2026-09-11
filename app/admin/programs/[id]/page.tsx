@@ -12,7 +12,7 @@ import {
   getProgramProfile,
   getProgramRelatedSummary,
 } from "@/lib/data/programs";
-import { formatPaiseAsINR, toPaise } from "@/lib/domain/money";
+import { formatDecimalAsINR } from "@/lib/domain/money";
 
 export const dynamic = "force-dynamic";
 
@@ -101,11 +101,11 @@ export default async function ProgramProfilePage({
           </div>
           <div>
             <p className="text-muted-foreground text-xs">Regular fee</p>
-            <p>{formatPaiseAsINR(toPaise(program.regularFee))}</p>
+            <p>{formatDecimalAsINR(program.regularFee)}</p>
           </div>
           <div>
             <p className="text-muted-foreground text-xs">Registration fee</p>
-            <p>{formatPaiseAsINR(toPaise(program.registrationFee))}</p>
+            <p>{formatDecimalAsINR(program.registrationFee)}</p>
           </div>
           <div>
             <p className="text-muted-foreground text-xs">Tax rate</p>
