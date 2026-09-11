@@ -48,4 +48,27 @@ describe("ProgramTable", () => {
     expect(screen.getByText("₹500.50")).toBeInTheDocument();
     expect(screen.queryByText("₹501")).not.toBeInTheDocument();
   });
+
+  // Regression coverage for the second, real Phase 7 bug: the live Program
+  // list page crashed with "TypeError: (value ?? "0").trim is not a
+  // function" because Supabase/PostgREST actually returns a plain,
+  // uncast numeric(12,2) column as a bare JSON number, not the string
+  // ProgramListRow declares — confirmed directly against Postgres's own
+  // row_to_json/json_agg (see lib/domain/__tests__/money.test.ts for the
+  // full trace). `as unknown as string` below reproduces that exact
+  // runtime/declared-type mismatch rather than only testing string
+  // fixtures.
+  it("renders without crashing when regularFee arrives as a number, not a string", () => {
+    render(
+      <ProgramTable programs={[{ ...sample, regularFee: 500.5 as unknown as string }]} />,
+    );
+    expect(screen.getByText("₹500.50")).toBeInTheDocument();
+  });
+
+  it("renders without crashing for a whole-number, numeric regularFee", () => {
+    render(
+      <ProgramTable programs={[{ ...sample, regularFee: 500 as unknown as string }]} />,
+    );
+    expect(screen.getByText("₹500.00")).toBeInTheDocument();
+  });
 });

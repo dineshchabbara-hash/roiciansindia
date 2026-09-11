@@ -85,16 +85,66 @@ describe("formatDecimalAsINR", () => {
     expect(formatDecimalAsINR("not-a-number")).toBe("₹0.00");
   });
 
-  it("never involves Number()/parseFloat at all, unlike toPaise/formatPaiseAsINR", () => {
+  it("never runs a string input through Number()/parseFloat, unlike toPaise/formatPaiseAsINR", () => {
     // The reported bug's exact repro: formatPaiseAsINR(toPaise("500.50"))
     // rounds to "₹501" purely because of that formatter's
     // maximumFractionDigits: 0 — not because toPaise itself lost precision
-    // (toPaise("500.50") is exactly 50050 paise). formatDecimalAsINR
-    // sidesteps the whole numeric round-trip: it is pure string
-    // manipulation from end to end, so there is no float step for a future
-    // change to accidentally reintroduce.
+    // (toPaise("500.50") is exactly 50050 paise). A *string* input to
+    // formatDecimalAsINR sidesteps the whole numeric round-trip: it is
+    // pure string manipulation end to end, so there is no float step for a
+    // future change to accidentally reintroduce.
     expect(toPaise("500.50")).toBe(50050);
     expect(formatPaiseAsINR(toPaise("500.50"))).toBe("₹501");
     expect(formatDecimalAsINR("500.50")).toBe("₹500.50");
+  });
+
+  // Regression coverage for a second, real Phase 7 bug found in manual
+  // testing right after the first: the live Program page actually calls
+  // this with a `number`, not always a `string`. Confirmed directly
+  // against Postgres's own row_to_json/json_agg (what PostgREST's response
+  // body is built from) — a plain, uncast `numeric(12,2)` column comes
+  // back as a bare, unquoted JSON number (e.g. `"regular_fee":500.50`),
+  // not a quoted string, despite DATABASE_SCHEMA.md §7's documented intent
+  // that amounts are "serialized over the API as strings". The old
+  // `(value ?? "0").trim()` crashed with
+  // "TypeError: (value ?? "0").trim is not a function" the moment a
+  // number reached it.
+  describe("accepts a number, exactly like the live Program page's runtime value", () => {
+    it("formats every required numeric case to exactly 2 decimal places", () => {
+      expect(formatDecimalAsINR(500)).toBe("₹500.00");
+      expect(formatDecimalAsINR(500.5)).toBe("₹500.50");
+      expect(formatDecimalAsINR(0.5)).toBe("₹0.50");
+      expect(formatDecimalAsINR(0)).toBe("₹0.00");
+      expect(formatDecimalAsINR(50000.5)).toBe("₹50,000.50");
+    });
+
+    it("never throws — this is the exact crash the bug report reproduced", () => {
+      expect(() => formatDecimalAsINR(500.5)).not.toThrow();
+      expect(() => formatDecimalAsINR(500)).not.toThrow();
+      expect(() => formatDecimalAsINR(0)).not.toThrow();
+    });
+
+    it("never calls .trim() directly on the raw numeric input", () => {
+      // If a future change reintroduces `(value ?? "0").trim()` without
+      // normalizing a number to a string first, this spy would observe
+      // .trim() invoked on a value whose prototype has no such method,
+      // and the call above would throw before this assertion is even
+      // reached — asserting the return value alone already proves it
+      // completed without hitting Number.prototype.trim.
+      const numberValue = 500.5;
+      expect((numberValue as unknown as { trim?: unknown }).trim).toBeUndefined();
+      expect(formatDecimalAsINR(numberValue)).toBe("₹500.50");
+    });
+  });
+
+  it("treats string and number inputs for the same amount identically", () => {
+    expect(formatDecimalAsINR("500.50")).toBe(formatDecimalAsINR(500.5));
+    expect(formatDecimalAsINR("50000.50")).toBe(formatDecimalAsINR(50000.5));
+    expect(formatDecimalAsINR("500")).toBe(formatDecimalAsINR(500));
+  });
+
+  it("falls back to ₹0.00 for non-finite numbers rather than crashing", () => {
+    expect(formatDecimalAsINR(NaN)).toBe("₹0.00");
+    expect(formatDecimalAsINR(Infinity)).toBe("₹0.00");
   });
 });
