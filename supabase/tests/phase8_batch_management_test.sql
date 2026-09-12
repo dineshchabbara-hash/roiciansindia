@@ -7,9 +7,10 @@
 
 begin;
 
--- Fixture identities: one admin, four trainers (A assigned to the batch,
--- B never assigned — reserved for the isolation check below; C and D are
--- used only by the Primary-uniqueness bug-fix section so they never
+-- Fixture identities: one admin, one super admin, five trainers (A assigned
+-- to the batch, B never assigned — reserved for the isolation check below;
+-- C and D are used only by the Primary-uniqueness bug-fix section, E only
+-- by the assign_batch_trainer() Super Admin check, so none of them
 -- interfere with B's "not assigned" assertion), one student (enrolled in
 -- the batch), matching the pattern in rls_trainer_isolation_test.sql /
 -- phase7_program_management_test.sql.
@@ -19,7 +20,9 @@ insert into auth.users (id, email) values
   ('d1000000-0000-0000-0000-000000000003', 'phase8-trainer-b@validation.local'),
   ('d1000000-0000-0000-0000-000000000004', 'phase8-student@validation.local'),
   ('d1000000-0000-0000-0000-000000000005', 'phase8-trainer-c@validation.local'),
-  ('d1000000-0000-0000-0000-000000000006', 'phase8-trainer-d@validation.local');
+  ('d1000000-0000-0000-0000-000000000006', 'phase8-trainer-d@validation.local'),
+  ('d1000000-0000-0000-0000-000000000007', 'phase8-superadmin@validation.local'),
+  ('d1000000-0000-0000-0000-000000000008', 'phase8-trainer-e@validation.local');
 
 insert into user_roles (auth_user_id, role) values
   ('d1000000-0000-0000-0000-000000000001', 'admin'),
@@ -27,16 +30,20 @@ insert into user_roles (auth_user_id, role) values
   ('d1000000-0000-0000-0000-000000000003', 'trainer'),
   ('d1000000-0000-0000-0000-000000000004', 'student'),
   ('d1000000-0000-0000-0000-000000000005', 'trainer'),
-  ('d1000000-0000-0000-0000-000000000006', 'trainer');
+  ('d1000000-0000-0000-0000-000000000006', 'trainer'),
+  ('d1000000-0000-0000-0000-000000000007', 'super_admin'),
+  ('d1000000-0000-0000-0000-000000000008', 'trainer');
 
 insert into admins (id, auth_user_id, first_name, last_name, email, role_level) values
-  ('d2000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000001', 'Phase8', 'Admin', 'phase8-admin@validation.local', 'admin');
+  ('d2000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000001', 'Phase8', 'Admin', 'phase8-admin@validation.local', 'admin'),
+  ('d2000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000007', 'Phase8', 'SuperAdmin', 'phase8-superadmin@validation.local', 'super_admin');
 
 insert into trainers (id, auth_user_id, first_name, last_name, email) values
   ('d3000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000002', 'Phase8', 'TrainerA', 'phase8-trainer-a@validation.local'),
   ('d3000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000003', 'Phase8', 'TrainerB', 'phase8-trainer-b@validation.local'),
   ('d3000000-0000-0000-0000-000000000003', 'd1000000-0000-0000-0000-000000000005', 'Phase8', 'TrainerC', 'phase8-trainer-c@validation.local'),
-  ('d3000000-0000-0000-0000-000000000004', 'd1000000-0000-0000-0000-000000000006', 'Phase8', 'TrainerD', 'phase8-trainer-d@validation.local');
+  ('d3000000-0000-0000-0000-000000000004', 'd1000000-0000-0000-0000-000000000006', 'Phase8', 'TrainerD', 'phase8-trainer-d@validation.local'),
+  ('d3000000-0000-0000-0000-000000000005', 'd1000000-0000-0000-0000-000000000008', 'Phase8', 'TrainerE', 'phase8-trainer-e@validation.local');
 
 insert into students (id, auth_user_id, student_code, first_name, last_name, phone) values
   ('d4000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000004', 'PHASE8-STU', 'Phase8', 'Student', '9990003001');
@@ -159,16 +166,15 @@ insert into batch_trainers (batch_id, trainer_id, is_primary) values
 
 -- ---------------------------------------------------------------------------
 -- Primary-Trainer uniqueness (bug-fix regression): a batch may have zero or
--- one Primary trainer, never more than one. Proven against the real table
--- and its real unique(batch_id, trainer_id) constraint, executing the exact
--- two-statement sequence assignTrainerToBatch uses (lib/data/batches.ts) —
--- insert the new assignment, then one atomic UPDATE demoting every other
--- trainer on the batch — rather than trusting a mock.
+-- one Primary trainer, never more than one, enforced at the database level
+-- by the batch_trainers_one_primary_per_batch partial unique index
+-- (20260101000020) and applied atomically through the one authoritative
+-- assign_batch_trainer() RPC (lib/data/batches.ts calls the same function),
+-- rather than trusting a mock or reproducing app logic by hand.
 
 -- Trainer D assigned as non-primary must not disturb the existing Primary
 -- (Trainer A).
-insert into batch_trainers (batch_id, trainer_id, is_primary) values
-  ('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000004', false);
+select assign_batch_trainer('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000004', false);
 
 do $$
 declare
@@ -186,21 +192,20 @@ begin
 end
 $$;
 
--- Assign trainer C as Primary — exactly the app's two-statement sequence —
--- and prove exactly one Primary remains afterward, with no assignment rows
--- lost (still 3 trainers assigned: A, C, D).
-insert into batch_trainers (batch_id, trainer_id, is_primary) values
-  ('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000003', true);
-
-update batch_trainers set is_primary = false
-  where batch_id = 'd6000000-0000-0000-0000-000000000001' and trainer_id <> 'd3000000-0000-0000-0000-000000000003';
-
+-- Assign trainer C as Primary via the one authoritative RPC and prove
+-- exactly one Primary remains afterward, with no assignment rows lost
+-- (still 3 trainers assigned: A, C, D), and that the function reports
+-- trainer A as the previous Primary for the audit event.
 do $$
 declare
+  previous_primary uuid;
   primary_cnt int;
   primary_trainer uuid;
   assigned_cnt int;
 begin
+  select assign_batch_trainer('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000003', true)
+    into previous_primary;
+
   select count(*) into primary_cnt from batch_trainers
     where batch_id = 'd6000000-0000-0000-0000-000000000001' and is_primary;
   select trainer_id into primary_trainer from batch_trainers
@@ -208,6 +213,9 @@ begin
   select count(*) into assigned_cnt from batch_trainers
     where batch_id = 'd6000000-0000-0000-0000-000000000001';
 
+  if previous_primary <> 'd3000000-0000-0000-0000-000000000001' then
+    raise exception 'FAIL: assign_batch_trainer should report trainer A as the previous Primary, got %', previous_primary;
+  end if;
   if primary_cnt <> 1 then
     raise exception 'FAIL: batch should have exactly one Primary trainer after replacement, got %', primary_cnt;
   end if;
@@ -217,7 +225,24 @@ begin
   if assigned_cnt <> 3 then
     raise exception 'FAIL: replacing the Primary must not delete any assignment rows, expected 3 assigned trainers (A, C, D), got %', assigned_cnt;
   end if;
-  raise notice 'PASS: assigning a second trainer as Primary demotes the first — exactly one Primary remains, no assignment rows lost';
+  raise notice 'PASS: assigning a second trainer as Primary via assign_batch_trainer() demotes the first — exactly one Primary remains, no assignment rows lost, previous Primary correctly reported for the audit event';
+end
+$$;
+
+-- The database itself, not just the RPC, rejects a second Primary: a raw
+-- INSERT that bypasses assign_batch_trainer() entirely and tries to mark a
+-- 4th trainer Primary while trainer C already holds it must fail on the
+-- batch_trainers_one_primary_per_batch partial unique index.
+do $$
+begin
+  begin
+    insert into batch_trainers (batch_id, trainer_id, is_primary)
+    values ('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000002', true);
+    raise exception 'FAIL: a second Primary Trainer row was allowed by the database';
+  exception
+    when unique_violation then
+      raise notice 'PASS: the database itself (batch_trainers_one_primary_per_batch) rejects a second Primary row, even bypassing assign_batch_trainer()';
+  end;
 end
 $$;
 
@@ -244,6 +269,31 @@ begin
   raise notice 'PASS: unassigning the Primary trainer succeeds and leaves zero Primaries (a valid state)';
 end
 $$;
+
+-- Super Admin can also call assign_batch_trainer() directly — is_admin_or_super()
+-- treats admin and super_admin identically, but this proves it against the
+-- real function under a real super_admin identity, not just the 'admin' one
+-- exercised above.
+set local "request.jwt.claims" to '{"sub":"d1000000-0000-0000-0000-000000000007","role":"authenticated"}';
+
+do $$
+declare
+  affected int;
+begin
+  perform assign_batch_trainer('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000005', false);
+  select count(*) into affected from batch_trainers
+    where batch_id = 'd6000000-0000-0000-0000-000000000001' and trainer_id = 'd3000000-0000-0000-0000-000000000005';
+  if affected <> 1 then
+    raise exception 'FAIL: super_admin should be able to call assign_batch_trainer()';
+  end if;
+  raise notice 'PASS: super_admin can call assign_batch_trainer()';
+end
+$$;
+
+delete from batch_trainers
+  where batch_id = 'd6000000-0000-0000-0000-000000000001' and trainer_id = 'd3000000-0000-0000-0000-000000000005';
+
+set local "request.jwt.claims" to '{"sub":"d1000000-0000-0000-0000-000000000001","role":"authenticated"}';
 
 -- Clean up trainer D's assignment so later checks that count/inspect this
 -- batch's assignments only ever see trainer A, as originally intended.
@@ -357,6 +407,21 @@ begin
 end
 $$;
 
+-- assign_batch_trainer() is SECURITY DEFINER (bypasses batch_trainers' own
+-- RLS), so its in-function is_admin_or_super() check is the only thing
+-- standing between a Trainer and a write — must reject, not silently no-op.
+do $$
+begin
+  begin
+    perform assign_batch_trainer('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000002', false);
+    raise exception 'FAIL: trainer should not be able to call assign_batch_trainer()';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: trainer is blocked from calling assign_batch_trainer()';
+  end;
+end
+$$;
+
 reset role;
 
 -- ---------------------------------------------------------------------------
@@ -429,6 +494,18 @@ begin
 end
 $$;
 
+do $$
+begin
+  begin
+    perform assign_batch_trainer('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000002', false);
+    raise exception 'FAIL: student should not be able to call assign_batch_trainer()';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: student is blocked from calling assign_batch_trainer()';
+  end;
+end
+$$;
+
 reset role;
 
 -- ---------------------------------------------------------------------------
@@ -467,6 +544,18 @@ begin
     raise exception 'FAIL: anon should have zero access to batch_trainers, got %', cnt;
   end if;
   raise notice 'PASS: anon has zero access to the batch_trainers table';
+end
+$$;
+
+do $$
+begin
+  begin
+    perform assign_batch_trainer('d6000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000002', false);
+    raise exception 'FAIL: anon should not be able to call assign_batch_trainer()';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: anon is blocked from calling assign_batch_trainer() (no EXECUTE grant)';
+  end;
 end
 $$;
 

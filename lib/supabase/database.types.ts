@@ -473,6 +473,15 @@ export type Database = {
         Relationships: Relationships;
       };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      assign_batch_trainer: {
+        Args: {
+          p_batch_id: string;
+          p_trainer_id: string;
+          p_is_primary: boolean;
+        };
+        Returns: string | null;
+      };
+    };
   };
 };
