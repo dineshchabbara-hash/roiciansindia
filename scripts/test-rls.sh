@@ -40,3 +40,6 @@ run_sql "${REPO_ROOT}/supabase/tests/phase5_student_management_test.sql"
 
 echo "Running Phase 7 (Program Management) regression assertions..."
 run_sql "${REPO_ROOT}/supabase/tests/phase7_program_management_test.sql"
+
+echo "Running Phase 8 (Batch Management) regression assertions..."
+run_sql "${REPO_ROOT}/supabase/tests/phase8_batch_management_test.sql"

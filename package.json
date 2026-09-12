@@ -15,6 +15,7 @@
     "test:e2e": "playwright test",
     "test:e2e:phase5": "playwright test e2e/phase5-student-management.spec.ts",
     "test:rls": "bash scripts/test-rls.sh",
+    "test:rls:concurrency": "bash scripts/test-batch-primary-concurrency.sh",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff",
