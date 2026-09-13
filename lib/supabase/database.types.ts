@@ -337,7 +337,20 @@ export type Database = {
             | "completed"
             | "withdrawn"
             | "cancelled";
+          regular_fee: string;
+          agreed_fee: string;
+          discount_amount: string;
+          discount_reason: string | null;
+          registration_fee: string;
+          tax_amount: string;
           total_payable: string;
+          amount_paid_cache: string;
+          outstanding_balance_cache: string;
+          payment_plan_type: "full" | "installments" | null;
+          source: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["enrollments"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["enrollments"]["Row"]>;

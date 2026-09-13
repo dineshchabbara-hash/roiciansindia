@@ -47,8 +47,9 @@ test("placeholder module pages are clearly labeled, not fake working features", 
   // sandbox (no real Supabase session available) — this test instead
   // proves the redirect target itself is the real login page, not a blank
   // or crashed page, for a representative placeholder route. `/admin/students`,
-  // `/admin/trainers`, `/admin/programs`, and `/admin/batches` are real as of
-  // Phase 5/6/7/8, so a still-unbuilt route is used here instead.
-  await page.goto("/admin/enrollments");
+  // `/admin/trainers`, `/admin/programs`, `/admin/batches`, and
+  // `/admin/enrollments` are real as of Phase 5/6/7/8/9, so a still-unbuilt
+  // route is used here instead.
+  await page.goto("/admin/payments");
   await expect(page.getByRole("heading", { name: "Admin Login" })).toBeVisible();
 });
