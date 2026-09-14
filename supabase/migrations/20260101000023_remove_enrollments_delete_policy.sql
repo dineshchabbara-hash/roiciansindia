@@ -1,0 +1,28 @@
+-- Security fix (manual data-integrity finding, approved before applying):
+-- enrollments_delete_admin (20260101000014_rls_policies.sql) authorized
+-- Admin/Super Admin to hard-delete an Enrollment row directly through
+-- Supabase/PostgREST. Enrollment is a historical academic/financial
+-- relationship (Student + Program + Batch, its own commercial-terms
+-- snapshot, and the payments/refunds/attendance/submissions/certificates
+-- that reference it) — the approved rule is that it must never be
+-- hard-deleted by any normal application role, Admin/Super Admin included;
+-- lifecycle status is the only sanctioned way to retire one.
+--
+-- The FK relationships pointing at enrollments do NOT reliably enforce this
+-- on their own: payments/certificates are RESTRICT (block a delete only
+-- once such a row exists), but payment_plans/attendance/
+-- assignment_submissions are CASCADE (a delete would silently destroy that
+-- history rather than being blocked). A brand-new Enrollment with no
+-- payments/certificates yet has no protection at all today. This migration
+-- closes the gap at its actual source — the DELETE authorization itself —
+-- rather than relying on those FK side effects.
+--
+-- Dropping this one policy, with RLS already enabled on enrollments and no
+-- other DELETE policy defined for it, makes Postgres's default-deny apply
+-- to every role's DELETE attempt (Admin/Super Admin/Trainer/Student/anon
+-- alike) — the same "no delete policy at all" pattern already used for
+-- audit_logs in this schema for the identical "append-only historical
+-- record" reason. No FK, cascade/restrict rule, status value, other
+-- table's DELETE policy, or Student/Program/Batch relationship is touched.
+
+drop policy if exists enrollments_delete_admin on public.enrollments;

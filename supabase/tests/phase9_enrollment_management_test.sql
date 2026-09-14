@@ -26,7 +26,9 @@ insert into auth.users (id, email) values
   ('f1000000-0000-0000-0000-000000000003', 'phase9-trainer-a@validation.local'),
   ('f1000000-0000-0000-0000-000000000004', 'phase9-trainer-b@validation.local'),
   ('f1000000-0000-0000-0000-000000000005', 'phase9-student-a@validation.local'),
-  ('f1000000-0000-0000-0000-000000000006', 'phase9-student-b@validation.local');
+  ('f1000000-0000-0000-0000-000000000006', 'phase9-student-b@validation.local'),
+  -- Used only by the repeat-enrollment-allowed probe further below.
+  ('f1000000-0000-0000-0000-000000000007', 'phase9-student-repeat-probe@validation.local');
 
 insert into user_roles (auth_user_id, role) values
   ('f1000000-0000-0000-0000-000000000001', 'admin'),
@@ -34,7 +36,8 @@ insert into user_roles (auth_user_id, role) values
   ('f1000000-0000-0000-0000-000000000003', 'trainer'),
   ('f1000000-0000-0000-0000-000000000004', 'trainer'),
   ('f1000000-0000-0000-0000-000000000005', 'student'),
-  ('f1000000-0000-0000-0000-000000000006', 'student');
+  ('f1000000-0000-0000-0000-000000000006', 'student'),
+  ('f1000000-0000-0000-0000-000000000007', 'student');
 
 insert into admins (id, auth_user_id, first_name, last_name, email, role_level) values
   ('f2000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000001', 'Phase9', 'Admin', 'phase9-admin@validation.local', 'admin'),
@@ -46,7 +49,9 @@ insert into trainers (id, auth_user_id, first_name, last_name, email) values
 
 insert into students (id, auth_user_id, student_code, first_name, last_name, phone) values
   ('f4000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000005', 'PHASE9-STU-A', 'Phase9', 'StudentA', '9990004001'),
-  ('f4000000-0000-0000-0000-000000000002', 'f1000000-0000-0000-0000-000000000006', 'PHASE9-STU-B', 'Phase9', 'StudentB', '9990004002');
+  ('f4000000-0000-0000-0000-000000000002', 'f1000000-0000-0000-0000-000000000006', 'PHASE9-STU-B', 'Phase9', 'StudentB', '9990004002'),
+  -- Used only by the repeat-enrollment-allowed probe further below.
+  ('f4000000-0000-0000-0000-000000000003', 'f1000000-0000-0000-0000-000000000007', 'PHASE9-STU-REPEAT', 'Phase9', 'StudentRepeatProbe', '9990004003');
 
 insert into programs (id, program_code, name, regular_fee, registration_fee, tax_rate_percent, status) values
   ('f5000000-0000-0000-0000-000000000001', 'PHASE9-PROG', 'Phase 9 Test Program', 50000.00, 1000.00, 18.00, 'active'),
@@ -54,7 +59,11 @@ insert into programs (id, program_code, name, regular_fee, registration_fee, tax
 
 insert into batches (id, program_id, name, start_date, status) values
   ('f6000000-0000-0000-0000-000000000001', 'f5000000-0000-0000-0000-000000000001', 'Phase 9 Test Batch', current_date, 'active'),
-  ('f6000000-0000-0000-0000-000000000002', 'f5000000-0000-0000-0000-000000000002', 'Phase 9 Other Batch', current_date, 'active');
+  ('f6000000-0000-0000-0000-000000000002', 'f5000000-0000-0000-0000-000000000002', 'Phase 9 Other Batch', current_date, 'active'),
+  -- Dedicated to the repeat-enrollment-allowed probe below only — never
+  -- assigned to any trainer, so it never perturbs trainer_visible_
+  -- enrollments()'s per-batch count for batch f6...0001.
+  ('f6000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'Phase 9 Repeat-Probe Batch', current_date, 'active');
 
 insert into batch_trainers (batch_id, trainer_id, is_primary) values
   ('f6000000-0000-0000-0000-000000000001', 'f3000000-0000-0000-0000-000000000001', true);
@@ -123,13 +132,28 @@ $$;
 -- by design (enrollments' own table comment: "No uniqueness constraint
 -- forces one enrollment per student — multiple/repeat enrollments are by
 -- design"). No policy in this codebase invents a block for it.
+--
+-- Uses its own dedicated, unused-elsewhere Student (never Student A/B,
+-- fixture inserted in the top fixtures block above) so both probe rows can
+-- be left in place permanently rather than cleaned up mid-test — since
+-- 20260101000023, no role (including this test's own admin session) can
+-- delete an Enrollment row at all, so a real DELETE here would now be
+-- blocked by the very policy this file also verifies, and would silently
+-- leave the row anyway. Isolating this to its own Student and its own
+-- dedicated batch (f6...0003, not assigned to any trainer) means the
+-- leftover rows never perturb any other assertion in this file (Student
+-- A/B's own enrollment counts, trainer_visible_enrollments()'s per-batch
+-- count, etc.).
+insert into enrollments (student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable) values
+  ('f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000003', 50000.00, 50000.00, 50000.00);
+
 do $$
 declare
   affected int;
 begin
   with attempt as (
     insert into enrollments (student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable)
-    values ('f4000000-0000-0000-0000-000000000001', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000001', 50000.00, 50000.00, 50000.00)
+    values ('f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000003', 50000.00, 50000.00, 50000.00)
     returning 1
   )
   select count(*) into affected from attempt;
@@ -139,12 +163,6 @@ begin
   raise notice 'PASS: a repeat Student+Program+Batch enrollment is allowed, matching the documented design';
 end
 $$;
-
--- Clean up the repeat-enrollment probe row so later single-enrollment counts
--- for Student A / the batch stay exactly 1, as the rest of this file expects.
-delete from enrollments
-  where student_id = 'f4000000-0000-0000-0000-000000000001'
-    and id <> 'f7000000-0000-0000-0000-000000000001';
 
 -- Second Enrollment (Student B, different Program, no Batch) — used below
 -- for the financial-isolation and enrollment_summary-no-fan-out checks.
@@ -489,6 +507,164 @@ end
 $$;
 
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- Hard-delete protection (20260101000023_remove_enrollments_delete_policy):
+-- no normal application role — Admin/Super Admin included — may hard-delete
+-- an Enrollment; lifecycle status is the only sanctioned way to retire one.
+-- Uses a dedicated fixture with NO payments/certificates/payment_plan/
+-- attendance/assignment_submissions row referencing it, so the protection
+-- proven here comes from RLS/authorization, never from an FK RESTRICT
+-- side effect (payments/certificates are RESTRICT and would mask this).
+
+do $$
+declare
+  delete_policy_count int;
+begin
+  select count(*) into delete_policy_count
+  from pg_policies where tablename = 'enrollments' and cmd = 'DELETE';
+  if delete_policy_count <> 0 then
+    raise exception 'FAIL: enrollments should have zero DELETE policies, found %', delete_policy_count;
+  end if;
+  raise notice 'PASS: enrollments_delete_admin no longer exists — no DELETE policy remains on enrollments';
+end
+$$;
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"f1000000-0000-0000-0000-000000000001","role":"authenticated"}';
+
+insert into enrollments (id, student_id, program_id, regular_fee, agreed_fee, total_payable) values
+  ('f7000000-0000-0000-0000-000000000099', 'f4000000-0000-0000-0000-000000000001', 'f5000000-0000-0000-0000-000000000001', 50000.00, 50000.00, 50000.00);
+
+do $$
+declare
+  affected int;
+begin
+  with attempt as (
+    delete from enrollments where id = 'f7000000-0000-0000-0000-000000000099'
+    returning 1
+  )
+  select count(*) into affected from attempt;
+  if affected <> 0 then
+    raise exception 'FAIL: admin should not be able to hard-delete an Enrollment, but % row(s) were affected', affected;
+  end if;
+  raise notice 'PASS: admin is blocked from hard-deleting an Enrollment (0 rows affected)';
+end
+$$;
+
+reset role;
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"f1000000-0000-0000-0000-000000000002","role":"authenticated"}';
+
+do $$
+declare
+  affected int;
+begin
+  with attempt as (
+    delete from enrollments where id = 'f7000000-0000-0000-0000-000000000099'
+    returning 1
+  )
+  select count(*) into affected from attempt;
+  if affected <> 0 then
+    raise exception 'FAIL: super_admin should not be able to hard-delete an Enrollment, but % row(s) were affected', affected;
+  end if;
+  raise notice 'PASS: super_admin is blocked from hard-deleting an Enrollment (0 rows affected)';
+end
+$$;
+
+reset role;
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"f1000000-0000-0000-0000-000000000003","role":"authenticated"}';
+
+do $$
+declare
+  affected int;
+begin
+  with attempt as (
+    delete from enrollments where id = 'f7000000-0000-0000-0000-000000000099'
+    returning 1
+  )
+  select count(*) into affected from attempt;
+  if affected <> 0 then
+    raise exception 'FAIL: trainer should not be able to hard-delete an Enrollment, but % row(s) were affected', affected;
+  end if;
+  raise notice 'PASS: trainer is blocked from hard-deleting an Enrollment (0 rows affected)';
+end
+$$;
+
+reset role;
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"f1000000-0000-0000-0000-000000000005","role":"authenticated"}';
+
+do $$
+declare
+  affected int;
+begin
+  with attempt as (
+    delete from enrollments where id = 'f7000000-0000-0000-0000-000000000099'
+    returning 1
+  )
+  select count(*) into affected from attempt;
+  if affected <> 0 then
+    raise exception 'FAIL: student should not be able to hard-delete an Enrollment, but % row(s) were affected', affected;
+  end if;
+  raise notice 'PASS: student is blocked from hard-deleting an Enrollment (0 rows affected)';
+end
+$$;
+
+reset role;
+
+set local role anon;
+
+do $$
+declare
+  affected int;
+begin
+  begin
+    with attempt as (
+      delete from enrollments where id = 'f7000000-0000-0000-0000-000000000099'
+      returning 1
+    )
+    select count(*) into affected from attempt;
+  exception
+    when insufficient_privilege then
+      affected := 0;
+  end;
+  if affected <> 0 then
+    raise exception 'FAIL: anon should not be able to hard-delete an Enrollment, but % row(s) were affected', affected;
+  end if;
+  raise notice 'PASS: anon is blocked from hard-deleting an Enrollment (0 rows affected)';
+end
+$$;
+
+reset role;
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"f1000000-0000-0000-0000-000000000001","role":"authenticated"}';
+
+do $$
+declare
+  cnt int;
+begin
+  select count(*) into cnt from enrollments where id = 'f7000000-0000-0000-0000-000000000099';
+  if cnt <> 1 then
+    raise exception 'FAIL: the unreferenced test Enrollment should still exist after every unauthorized DELETE attempt, got count=%', cnt;
+  end if;
+  raise notice 'PASS: the unreferenced test Enrollment survives every unauthorized DELETE attempt — the protection is authorization/RLS, not an FK side effect';
+end
+$$;
+
+reset role;
+
+-- No explicit fixture teardown needed: this entire file runs inside one
+-- transaction (begin ... rollback) that is never committed, so the test
+-- Enrollment above (and every other fixture in this file) vanishes on
+-- rollback regardless of pass/fail — no service-role/owner cleanup step,
+-- and the production enrollments_delete_admin removal is a real, committed
+-- migration applied separately, never touched by this rollback.
 
 rollback;
 
