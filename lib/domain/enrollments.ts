@@ -53,25 +53,45 @@ export function enrollmentStatusRequiresBatch(status: EnrollmentStatus): boolean
 }
 
 // Approved business rule (Phase 9 manual-acceptance correction, Sept 2026):
-// Withdrawn and Cancelled are terminal for the normal Admin status control —
-// manual testing found "cancelled -> enrolled" was allowed, silently
-// reactivating an Enrollment outside any approved workflow. This blocks
-// moving FROM a terminal status TO an operational one only; it does not
-// invent a full transition state machine, and does not restrict any other
-// currently-allowed transition (including terminal-to-terminal or
-// terminal-to-lead/applicant, neither of which is part of this rule).
-// Reinstatement, if ever needed, is a separate, later, explicitly approved
-// workflow with its own business rules and audit behavior.
-export const TERMINAL_ENROLLMENT_STATUSES = ["withdrawn", "cancelled"] as const;
+// Withdrawn, Cancelled, and Completed are terminal for the normal Admin
+// status control. An earlier, narrower version of this rule only blocked
+// moving a terminal Enrollment straight to an operational status — manual
+// testing then found that could be bypassed via "cancelled -> lead ->
+// enrolled" (or withdrawn -> applicant -> enrolled), since lead/applicant
+// themselves were untouched. The rule is now closed at its root: once an
+// Enrollment reaches a terminal status, the normal status control cannot
+// move it to ANY other status, ordinary or operational. This still does not
+// invent a full transition state machine — every other currently-allowed
+// transition (terminal-to-same-status included) is untouched. Reinstatement,
+// if ever needed, is a separate, later, explicitly approved workflow with
+// its own business rules and audit behavior — never implied by moving a
+// terminal Enrollment back to Lead/Applicant.
+export const TERMINAL_ENROLLMENT_STATUSES = [
+  "withdrawn",
+  "cancelled",
+  "completed",
+] as const;
 
-export function isTerminalReactivationBlocked(
+export function isTerminalStatusChangeBlocked(
   currentStatus: EnrollmentStatus,
   nextStatus: EnrollmentStatus,
 ): boolean {
   return (
     (TERMINAL_ENROLLMENT_STATUSES as readonly string[]).includes(currentStatus) &&
-    enrollmentStatusRequiresBatch(nextStatus)
+    currentStatus !== nextStatus
   );
+}
+
+// Approved business rule (Phase 9 manual-acceptance correction, Sept 2026):
+// a Batch may only be assigned or changed on an Enrollment while it is still
+// pre-enrollment (Lead/Applicant) — see the dedicated Batch-assignment
+// workflow in lib/data/enrollments.ts's assignEnrollmentBatch. Once
+// operational (or terminal), the Batch is fixed through that normal
+// workflow; it is never casually reassignable.
+export const PRE_ENROLLMENT_STATUSES = ["lead", "applicant"] as const;
+
+export function canAssignBatch(status: EnrollmentStatus): boolean {
+  return (PRE_ENROLLMENT_STATUSES as readonly string[]).includes(status);
 }
 
 // enrollments.payment_plan_type CHECK: ('full', 'installments'). Stored as a

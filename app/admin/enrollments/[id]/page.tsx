@@ -5,13 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EnrollmentStatusBadge } from "@/components/admin/enrollments/enrollment-status-badge";
 import { EnrollmentStatusControl } from "@/components/admin/enrollments/enrollment-status-control";
+import { EnrollmentBatchAssignmentControl } from "@/components/admin/enrollments/enrollment-batch-assignment-control";
 import { EnrollmentFinancialSummaryCard } from "@/components/admin/enrollments/enrollment-financial-summary-card";
 import { formatDecimalAsINR } from "@/lib/domain/money";
 import {
+  getBatchOptionsForEnrollment,
   getEnrollmentFinancialSummary,
   getEnrollmentProfile,
+  type BatchOption,
 } from "@/lib/data/enrollments";
-import { PAYMENT_PLAN_TYPES } from "@/lib/domain/enrollments";
+import { canAssignBatch, PAYMENT_PLAN_TYPES } from "@/lib/domain/enrollments";
 
 // Same friendly display text as components/admin/enrollments/enrollment-form.tsx
 // — the raw DB value (full/installments) is unchanged, only the label shown.
@@ -75,6 +78,20 @@ export default async function EnrollmentProfilePage({
 
   const enrollment = profileResult.data;
 
+  // Batch options for the assignment control below are scoped to this
+  // Enrollment's own Program server-side — the server also independently
+  // re-derives and checks this pairing on submit (assignEnrollmentBatch),
+  // never trusting this list for authorization.
+  let programBatchOptions: BatchOption[] = [];
+  if (canAssignBatch(enrollment.status)) {
+    const batchOptionsResult = await getBatchOptionsForEnrollment();
+    if (batchOptionsResult.ok) {
+      programBatchOptions = batchOptionsResult.data.filter(
+        (batch) => batch.programId === enrollment.programId,
+      );
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -110,10 +127,19 @@ export default async function EnrollmentProfilePage({
             )}
           </p>
         </div>
-        <EnrollmentStatusControl
-          enrollmentId={enrollment.id}
-          currentStatus={enrollment.status}
-        />
+        <div className="flex flex-col items-end gap-2">
+          <EnrollmentStatusControl
+            enrollmentId={enrollment.id}
+            currentStatus={enrollment.status}
+          />
+          {canAssignBatch(enrollment.status) && (
+            <EnrollmentBatchAssignmentControl
+              enrollmentId={enrollment.id}
+              currentBatchId={enrollment.batchId}
+              batchOptions={programBatchOptions}
+            />
+          )}
+        </div>
       </div>
 
       <Card>

@@ -5,12 +5,14 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { isAdminOrSuperAdmin } from "@/lib/domain/rbac";
 import {
+  assignEnrollmentBatch,
   createEnrollmentRecord,
   getEnrollmentProfile,
   updateEnrollmentStatus,
 } from "@/lib/data/enrollments";
 import { writeAuditLog } from "@/lib/data/audit-log";
 import {
+  enrollmentBatchAssignmentSchema,
   enrollmentCreateSchema,
   enrollmentStatusSchema,
 } from "@/lib/validation/enrollments";
@@ -155,6 +157,50 @@ export async function setEnrollmentStatusAction(
     entityId: enrollmentId,
     before: before.ok ? { status: before.data.status } : null,
     after: { status: parsed.data.status },
+  });
+
+  revalidatePath(`/admin/enrollments/${enrollmentId}`);
+  return { success: true };
+}
+
+export type EnrollmentBatchAssignmentFormState = {
+  formError?: string;
+  fieldErrors?: Partial<Record<string, string[]>>;
+  success?: boolean;
+};
+
+export async function assignEnrollmentBatchAction(
+  enrollmentId: string,
+  _prevState: EnrollmentBatchAssignmentFormState,
+  formData: FormData,
+): Promise<EnrollmentBatchAssignmentFormState> {
+  const ctx = await getCurrentUserContext();
+  if (!ctx || !isAdminOrSuperAdmin(ctx.role)) {
+    return { formError: NOT_AUTHORIZED };
+  }
+
+  const parsed = enrollmentBatchAssignmentSchema.safeParse({
+    batchId: formData.get("batchId"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const result = await assignEnrollmentBatch(enrollmentId, parsed.data.batchId);
+  if (!result.ok) {
+    return { formError: result.error };
+  }
+
+  // Minimal metadata only: ids, never financial fields or full objects —
+  // same convention as every other Phase 5-9 audit event.
+  await writeAuditLog({
+    actorAuthUserId: ctx.authUserId,
+    actorRole: ctx.role,
+    action: "enrollment.batch_change",
+    entityType: "enrollment",
+    entityId: enrollmentId,
+    before: { batchId: result.data.oldBatchId },
+    after: { batchId: result.data.newBatchId },
   });
 
   revalidatePath(`/admin/enrollments/${enrollmentId}`);

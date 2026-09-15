@@ -5,7 +5,11 @@ import {
   setEnrollmentStatusAction,
   type EnrollmentStatusFormState,
 } from "@/lib/actions/enrollments";
-import { ENROLLMENT_STATUSES, type EnrollmentStatus } from "@/lib/domain/enrollments";
+import {
+  ENROLLMENT_STATUSES,
+  TERMINAL_ENROLLMENT_STATUSES,
+  type EnrollmentStatus,
+} from "@/lib/domain/enrollments";
 import { Button } from "@/components/ui/button";
 
 const initialState: EnrollmentStatusFormState = {};
@@ -38,22 +42,42 @@ export function EnrollmentStatusControl({
   const boundAction = setEnrollmentStatusAction.bind(null, enrollmentId);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
 
+  // Approved business rule (Phase 9 manual-acceptance correction, Sept
+  // 2026): Cancelled/Withdrawn/Completed are terminal — the normal status
+  // control cannot move them anywhere else. Server-side validation
+  // (updateEnrollmentStatus) is authoritative; disabling the control here
+  // is UX only, preventing an invalid choice rather than merely hiding it.
+  const isTerminal = (TERMINAL_ENROLLMENT_STATUSES as readonly string[]).includes(
+    currentStatus,
+  );
+
   return (
     <form action={formAction} className="flex items-center gap-2">
       <select
         name="status"
         defaultValue={currentStatus}
-        className="border-input h-9 rounded-md border bg-transparent px-3 text-sm shadow-xs"
+        disabled={isTerminal}
+        className="border-input h-9 rounded-md border bg-transparent px-3 text-sm shadow-xs disabled:opacity-50"
       >
-        {ENROLLMENT_STATUSES.map((status) => (
+        {(isTerminal ? [currentStatus] : ENROLLMENT_STATUSES).map((status) => (
           <option key={status} value={status}>
             {STATUS_LABELS[status]}
           </option>
         ))}
       </select>
-      <Button type="submit" variant="outline" size="sm" disabled={isPending}>
+      <Button
+        type="submit"
+        variant="outline"
+        size="sm"
+        disabled={isPending || isTerminal}
+      >
         {isPending ? "Updating..." : "Update status"}
       </Button>
+      {isTerminal && (
+        <span className="text-muted-foreground text-xs">
+          Terminal status — cannot be reopened through the normal workflow.
+        </span>
+      )}
       {state.success && (
         <span className="text-sm text-green-700 dark:text-green-400">Saved</span>
       )}

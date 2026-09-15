@@ -162,3 +162,21 @@ export type EnrollmentCreateInput = z.infer<typeof enrollmentCreateSchema>;
 export const enrollmentStatusSchema = z.object({
   status: z.enum(ENROLLMENT_STATUSES),
 });
+
+// Same "blank means not provided" shape as batchId on enrollmentCreateSchema
+// — blank clears the Batch back to null, a valid UUID assigns/changes it.
+export const enrollmentBatchAssignmentSchema = z
+  .object({
+    batchId: optionalTrimmed,
+  })
+  .transform((data, ctx) => {
+    if (data.batchId && !z.string().uuid().safeParse(data.batchId).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select a valid batch",
+        path: ["batchId"],
+      });
+      return z.NEVER;
+    }
+    return { batchId: data.batchId ?? null };
+  });

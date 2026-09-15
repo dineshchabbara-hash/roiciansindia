@@ -5,9 +5,10 @@ import type { DataResult } from "@/lib/data/dashboard";
 import { computeOutstandingFeesPaise } from "@/lib/domain/dashboard-metrics";
 import { sumPaise, toPaise } from "@/lib/domain/money";
 import {
+  canAssignBatch,
   computeTotalPayable,
   enrollmentStatusRequiresBatch,
-  isTerminalReactivationBlocked,
+  isTerminalStatusChangeBlocked,
   type EnrollmentStatus,
 } from "@/lib/domain/enrollments";
 import type { EnrollmentCreateInput } from "@/lib/validation/enrollments";
@@ -558,37 +559,40 @@ export async function updateEnrollmentStatus(
     const supabase = await createSupabaseServerClient();
 
     // Approved business rules (Phase 9 manual-acceptance correction, Sept
-    // 2026), both checked against the Enrollment's own authoritative row —
-    // there is no client-supplied Batch value for this action to begin
-    // with, so neither check is ever a "trust the browser" check:
-    //   1. Withdrawn/Cancelled are terminal for the normal status control —
-    //      moving one back to an operational status is reactivation, not an
-    //      ordinary transition, and is not an approved Phase 9 workflow.
+    // 2026), both checked against the Enrollment's own authoritative
+    // current row — there is no client-supplied Batch value for this action
+    // to begin with, so neither check is ever a "trust the browser" check:
+    //   1. Withdrawn/Cancelled/Completed are terminal for the normal status
+    //      control — once reached, no other status (ordinary or
+    //      operational) is reachable through this action. Checked for every
+    //      status change, not only moves toward an operational status,
+    //      since "terminal -> lead/applicant -> operational" is exactly the
+    //      bypass this rule closes.
     //   2. An Enrollment may not move into an operational/student-active
     //      status without a Batch.
-    if (enrollmentStatusRequiresBatch(status)) {
-      const { data: current, error: currentError } = await supabase
-        .from("enrollments")
-        .select("status, batch_id")
-        .eq("id", id)
-        .maybeSingle();
-      if (currentError) throw currentError;
-      if (!current) {
-        return { ok: false, error: "Enrollment not found." };
-      }
-      if (isTerminalReactivationBlocked(current.status as EnrollmentStatus, status)) {
-        return {
-          ok: false,
-          error:
-            "Cancelled or withdrawn enrollments cannot be reactivated through the normal status workflow.",
-        };
-      }
-      if (!current.batch_id) {
-        return {
-          ok: false,
-          error: "A batch must be assigned before this enrollment can use this status.",
-        };
-      }
+    const { data: current, error: currentError } = await supabase
+      .from("enrollments")
+      .select("status, batch_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (currentError) throw currentError;
+    if (!current) {
+      return { ok: false, error: "Enrollment not found." };
+    }
+
+    if (isTerminalStatusChangeBlocked(current.status as EnrollmentStatus, status)) {
+      return {
+        ok: false,
+        error:
+          "Cancelled, withdrawn, or completed enrollments cannot be reopened through the normal status workflow.",
+      };
+    }
+
+    if (enrollmentStatusRequiresBatch(status) && !current.batch_id) {
+      return {
+        ok: false,
+        error: "A batch must be assigned before this enrollment can use this status.",
+      };
     }
 
     const { error } = await supabase.from("enrollments").update({ status }).eq("id", id);
@@ -596,5 +600,104 @@ export async function updateEnrollmentStatus(
     return { ok: true, data: null };
   } catch (error) {
     return fail("Could not update the enrollment's status. Please try again.", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Batch assignment — Admin/Super Admin may assign or change the Batch on an
+// Enrollment only while it is still pre-enrollment (Lead/Applicant). Once
+// operational or terminal, the Batch is fixed through this normal workflow.
+
+export async function assignEnrollmentBatch(
+  id: string,
+  batchId: string | null,
+): Promise<DataResult<{ oldBatchId: string | null; newBatchId: string | null }>> {
+  try {
+    const supabase = await createSupabaseServerClient();
+
+    const { data: current, error: currentError } = await supabase
+      .from("enrollments")
+      .select("status, batch_id, program_id, student_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (currentError) throw currentError;
+    if (!current) {
+      return { ok: false, error: "Enrollment not found." };
+    }
+
+    if (!canAssignBatch(current.status as EnrollmentStatus)) {
+      return {
+        ok: false,
+        error:
+          "Batch can only be assigned or changed while this enrollment is Lead or Applicant.",
+      };
+    }
+
+    if (batchId) {
+      // Server-side, independent re-check: the selected Batch must belong
+      // to the Enrollment's own authoritative Program — never trust
+      // anything the browser sent about that pairing.
+      const { data: batch, error: batchError } = await supabase
+        .from("batches")
+        .select("program_id")
+        .eq("id", batchId)
+        .maybeSingle();
+      if (batchError) throw batchError;
+      if (!batch) {
+        return { ok: false, error: "Selected batch could not be found." };
+      }
+      if (batch.program_id !== current.program_id) {
+        return {
+          ok: false,
+          error: "The selected batch does not belong to this enrollment's program.",
+        };
+      }
+
+      // Same rule as createEnrollmentRecord: a Student may have at most one
+      // Enrollment for a given non-null Batch. Excludes this Enrollment's
+      // own row so re-selecting its already-assigned Batch is a harmless
+      // no-op, never a false-positive duplicate against itself.
+      const { data: existingEnrollment, error: existingEnrollmentError } = await supabase
+        .from("enrollments")
+        .select("id")
+        .eq("student_id", current.student_id)
+        .eq("batch_id", batchId)
+        .neq("id", id)
+        .limit(1)
+        .maybeSingle();
+      if (existingEnrollmentError) throw existingEnrollmentError;
+      if (existingEnrollment) {
+        return {
+          ok: false,
+          error: "This student already has an enrollment for the selected batch.",
+        };
+      }
+    }
+
+    const { error } = await supabase
+      .from("enrollments")
+      .update({ batch_id: batchId })
+      .eq("id", id);
+
+    if (error) {
+      // Concurrency backstop: the same enrollments_one_per_student_batch
+      // race as createEnrollmentRecord — two simultaneous assignments could
+      // both pass the pre-check above before either commits. Map only this
+      // exact index's violation to the same friendly message.
+      if (
+        (error as { code?: string }).code === POSTGRES_UNIQUE_VIOLATION &&
+        error.message.includes("enrollments_one_per_student_batch")
+      ) {
+        return {
+          ok: false,
+          error: "This student already has an enrollment for the selected batch.",
+        };
+      }
+      throw error;
+    }
+
+    return { ok: true, data: { oldBatchId: current.batch_id, newBatchId: batchId } };
+  } catch (error) {
+    return fail("Could not assign the batch. Please try again.", error);
   }
 }

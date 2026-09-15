@@ -13,6 +13,7 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 
 vi.mock("@/lib/data/enrollments", () => ({
+  assignEnrollmentBatch: vi.fn(),
   createEnrollmentRecord: vi.fn(),
   getEnrollmentProfile: vi.fn(),
   updateEnrollmentStatus: vi.fn(),
@@ -33,11 +34,13 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  assignEnrollmentBatchAction,
   createEnrollmentAction,
   setEnrollmentStatusAction,
 } from "@/lib/actions/enrollments";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import {
+  assignEnrollmentBatch,
   createEnrollmentRecord,
   getEnrollmentProfile,
   updateEnrollmentStatus,
@@ -46,6 +49,7 @@ import { writeAuditLog } from "@/lib/data/audit-log";
 
 const VALID_STUDENT_ID = "11111111-1111-4111-8111-111111111111";
 const VALID_PROGRAM_ID = "22222222-2222-4222-8222-222222222222";
+const VALID_BATCH_ID = "33333333-3333-4333-8333-333333333333";
 
 const adminContext = {
   authUserId: "admin-auth-1",
@@ -328,19 +332,19 @@ describe("setEnrollmentStatusAction", () => {
     expect(writeAuditLog).not.toHaveBeenCalled();
   });
 
-  // (9) A blocked terminal-status reactivation must surface the friendly
+  // (33) A blocked terminal-status transition must surface the friendly
   // error and create no success audit entry.
-  it("surfaces a terminal-reactivation rejection as a visible error, without auditing", async () => {
+  it("surfaces a terminal-status rejection as a visible error, without auditing", async () => {
     vi.mocked(updateEnrollmentStatus).mockResolvedValue({
       ok: false,
       error:
-        "Cancelled or withdrawn enrollments cannot be reactivated through the normal status workflow.",
+        "Cancelled, withdrawn, or completed enrollments cannot be reopened through the normal status workflow.",
     });
     const formData = new FormData();
     formData.set("status", "enrolled");
     const result = await setEnrollmentStatusAction("enr-1", {}, formData);
     expect(result.formError).toBe(
-      "Cancelled or withdrawn enrollments cannot be reactivated through the normal status workflow.",
+      "Cancelled, withdrawn, or completed enrollments cannot be reopened through the normal status workflow.",
     );
     expect(writeAuditLog).not.toHaveBeenCalled();
   });
@@ -371,6 +375,146 @@ describe("setEnrollmentStatusAction", () => {
     expect(result.formError).toBe(
       "Could not update the enrollment's status. Please try again.",
     );
+    expect(writeAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+describe("assignEnrollmentBatchAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    vi.mocked(assignEnrollmentBatch).mockResolvedValue({
+      ok: true,
+      data: { oldBatchId: null, newBatchId: VALID_BATCH_ID },
+    });
+  });
+
+  it("rejects Trainer and Student", async () => {
+    const formData = new FormData();
+    formData.set("batchId", VALID_BATCH_ID);
+    for (const ctx of [trainerContext, studentContext]) {
+      vi.mocked(getCurrentUserContext).mockResolvedValue(ctx);
+      const result = await assignEnrollmentBatchAction("enr-1", {}, formData);
+      expect(result.formError).toBe("You are not authorized to perform this action.");
+    }
+    expect(assignEnrollmentBatch).not.toHaveBeenCalled();
+  });
+
+  it("rejects anonymous (no session)", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(null);
+    const formData = new FormData();
+    formData.set("batchId", VALID_BATCH_ID);
+    const result = await assignEnrollmentBatchAction("enr-1", {}, formData);
+    expect(result.formError).toBe("You are not authorized to perform this action.");
+    expect(assignEnrollmentBatch).not.toHaveBeenCalled();
+  });
+
+  it.each([adminContext, superAdminContext])(
+    "allows $role to assign a Batch",
+    async (ctx) => {
+      vi.mocked(getCurrentUserContext).mockResolvedValue(ctx);
+      const formData = new FormData();
+      formData.set("batchId", VALID_BATCH_ID);
+      const result = await assignEnrollmentBatchAction("enr-1", {}, formData);
+      expect(assignEnrollmentBatch).toHaveBeenCalledWith("enr-1", VALID_BATCH_ID);
+      expect(result.success).toBe(true);
+    },
+  );
+
+  it("rejects a malformed batchId with a field error, never calling the data layer", async () => {
+    const formData = new FormData();
+    formData.set("batchId", "not-a-uuid");
+    const result = await assignEnrollmentBatchAction("enr-1", {}, formData);
+    expect(result.fieldErrors?.batchId).toBeTruthy();
+    expect(assignEnrollmentBatch).not.toHaveBeenCalled();
+  });
+
+  it("treats a blank batchId as clearing the Batch (null)", async () => {
+    const formData = new FormData();
+    formData.set("batchId", "");
+    await assignEnrollmentBatchAction("enr-1", {}, formData);
+    expect(assignEnrollmentBatch).toHaveBeenCalledWith("enr-1", null);
+  });
+
+  // (5) Program/Batch mismatch, surfaced as a visible error without auditing.
+  it("surfaces a Program/Batch mismatch as a visible error, without auditing", async () => {
+    vi.mocked(assignEnrollmentBatch).mockResolvedValue({
+      ok: false,
+      error: "The selected batch does not belong to this enrollment's program.",
+    });
+    const formData = new FormData();
+    formData.set("batchId", VALID_BATCH_ID);
+    const result = await assignEnrollmentBatchAction("enr-1", {}, formData);
+    expect(result.formError).toBe(
+      "The selected batch does not belong to this enrollment's program.",
+    );
+    expect(writeAuditLog).not.toHaveBeenCalled();
+  });
+
+  // (6)/(7)/(9) A duplicate Student+Batch (pre-check or DB-race) is
+  // rejected by the data layer; the action must surface it and audit
+  // nothing on failure.
+  it("surfaces a duplicate Student+Batch rejection as a visible error, without auditing", async () => {
+    vi.mocked(assignEnrollmentBatch).mockResolvedValue({
+      ok: false,
+      error: "This student already has an enrollment for the selected batch.",
+    });
+    const formData = new FormData();
+    formData.set("batchId", VALID_BATCH_ID);
+    const result = await assignEnrollmentBatchAction("enr-1", {}, formData);
+    expect(result.formError).toBe(
+      "This student already has an enrollment for the selected batch.",
+    );
+    expect(writeAuditLog).not.toHaveBeenCalled();
+  });
+
+  // (10-15) Rejected when the Enrollment is not Lead/Applicant.
+  it("surfaces a not-pre-enrollment rejection as a visible error, without auditing", async () => {
+    vi.mocked(assignEnrollmentBatch).mockResolvedValue({
+      ok: false,
+      error:
+        "Batch can only be assigned or changed while this enrollment is Lead or Applicant.",
+    });
+    const formData = new FormData();
+    formData.set("batchId", VALID_BATCH_ID);
+    const result = await assignEnrollmentBatchAction("enr-1", {}, formData);
+    expect(result.formError).toBe(
+      "Batch can only be assigned or changed while this enrollment is Lead or Applicant.",
+    );
+    expect(writeAuditLog).not.toHaveBeenCalled();
+  });
+
+  // (8) Audit created on success, with minimal metadata only.
+  it("audits enrollment.batch_change on success with minimal old/new batch metadata only", async () => {
+    vi.mocked(assignEnrollmentBatch).mockResolvedValue({
+      ok: true,
+      data: { oldBatchId: null, newBatchId: VALID_BATCH_ID },
+    });
+    const formData = new FormData();
+    formData.set("batchId", VALID_BATCH_ID);
+    await assignEnrollmentBatchAction("enr-1", {}, formData);
+
+    expect(writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "enrollment.batch_change",
+        entityId: "enr-1",
+        before: { batchId: null },
+        after: { batchId: VALID_BATCH_ID },
+      }),
+    );
+  });
+
+  // (9) Failed assignment creates no success audit event (covered
+  // explicitly above for each rejection reason; this asserts the general
+  // invariant once more directly against the data-layer failure path).
+  it("creates no audit event when the data layer rejects the assignment", async () => {
+    vi.mocked(assignEnrollmentBatch).mockResolvedValue({
+      ok: false,
+      error: "Selected batch could not be found.",
+    });
+    const formData = new FormData();
+    formData.set("batchId", VALID_BATCH_ID);
+    await assignEnrollmentBatchAction("enr-1", {}, formData);
     expect(writeAuditLog).not.toHaveBeenCalled();
   });
 });

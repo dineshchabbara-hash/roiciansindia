@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAssignBatch,
   computeTotalPayable,
   enrollmentStatusRequiresBatch,
   isEnrollmentStatus,
   isPaymentPlanType,
-  isTerminalReactivationBlocked,
+  isTerminalStatusChangeBlocked,
 } from "@/lib/domain/enrollments";
 
 describe("isEnrollmentStatus", () => {
@@ -64,43 +65,71 @@ describe("enrollmentStatusRequiresBatch — approved rule: an Enrollment may not
   );
 });
 
-describe("isTerminalReactivationBlocked — approved rule: Cancelled/Withdrawn cannot reactivate through the normal status control", () => {
-  it.each(["withdrawn", "cancelled"])(
-    "blocks %s -> enrolled/active/on_hold/completed",
+describe("isTerminalStatusChangeBlocked — approved rule: Cancelled/Withdrawn/Completed cannot be reopened through the normal status control", () => {
+  // Closes the "cancelled -> lead -> enrolled" bypass: a terminal status
+  // blocks a move to ANY different status, not only operational ones.
+  it.each(["withdrawn", "cancelled", "completed"])(
+    "(16-32) blocks %s -> every other ordinary status",
     (terminal) => {
-      for (const operational of ["enrolled", "active", "on_hold", "completed"]) {
-        expect(
-          isTerminalReactivationBlocked(terminal as never, operational as never),
-        ).toBe(true);
-      }
-    },
-  );
-
-  // Only the move INTO an operational status is blocked — this does not
-  // invent a full transition state machine. Terminal-to-terminal and
-  // terminal-to-pre-enrollment transitions are untouched by this rule.
-  it.each(["lead", "applicant", "withdrawn", "cancelled"])(
-    "does not block cancelled -> %s",
-    (next) => {
-      expect(isTerminalReactivationBlocked("cancelled", next as never)).toBe(false);
-    },
-  );
-
-  it.each(["enrolled", "active", "on_hold", "completed"])(
-    "does not block a non-terminal current status moving to %s",
-    (operational) => {
-      for (const current of [
+      for (const next of [
         "lead",
         "applicant",
         "enrolled",
         "active",
         "on_hold",
         "completed",
+        "withdrawn",
+        "cancelled",
       ]) {
-        expect(
-          isTerminalReactivationBlocked(current as never, operational as never),
-        ).toBe(false);
+        if (next === terminal) continue;
+        expect(isTerminalStatusChangeBlocked(terminal as never, next as never)).toBe(
+          true,
+        );
       }
+    },
+  );
+
+  it.each(["withdrawn", "cancelled", "completed"])(
+    "does not block %s -> itself (a no-op re-submission)",
+    (terminal) => {
+      expect(isTerminalStatusChangeBlocked(terminal as never, terminal as never)).toBe(
+        false,
+      );
+    },
+  );
+
+  // (34) The bypass this rule specifically closes: a terminal status is
+  // never allowed to reach lead/applicant either, so it can never be routed
+  // back to an operational status through that detour.
+  it.each(["withdrawn", "cancelled", "completed"])(
+    "(34) blocks the terminal-status-via-lead/applicant bypass for %s",
+    (terminal) => {
+      expect(isTerminalStatusChangeBlocked(terminal as never, "lead")).toBe(true);
+      expect(isTerminalStatusChangeBlocked(terminal as never, "applicant")).toBe(true);
+    },
+  );
+
+  it.each(["enrolled", "active", "on_hold", "completed", "lead", "applicant"])(
+    "does not block a non-terminal current status moving to %s",
+    (next) => {
+      for (const current of ["lead", "applicant", "enrolled", "active", "on_hold"]) {
+        expect(isTerminalStatusChangeBlocked(current as never, next as never)).toBe(
+          false,
+        );
+      }
+    },
+  );
+});
+
+describe("canAssignBatch — approved rule: a Batch may only be assigned/changed while pre-enrollment", () => {
+  it.each(["lead", "applicant"])("allows Batch assignment for %s", (status) => {
+    expect(canAssignBatch(status as never)).toBe(true);
+  });
+
+  it.each(["enrolled", "active", "on_hold", "completed", "withdrawn", "cancelled"])(
+    "does not allow Batch assignment for %s",
+    (status) => {
+      expect(canAssignBatch(status as never)).toBe(false);
     },
   );
 });
