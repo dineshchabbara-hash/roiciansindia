@@ -219,7 +219,6 @@ describe("enrollmentStatusSchema", () => {
     for (const status of [
       "lead",
       "applicant",
-      "registered",
       "enrolled",
       "active",
       "on_hold",
@@ -233,5 +232,13 @@ describe("enrollmentStatusSchema", () => {
 
   it("rejects an invented status", () => {
     expect(enrollmentStatusSchema.safeParse({ status: "hold" }).success).toBe(false);
+  });
+
+  // Manual-acceptance correction (Sept 2026): "Registered" was removed as a
+  // separate stage — no longer accepted by server-side validation.
+  it("rejects the removed 'registered' status", () => {
+    expect(enrollmentStatusSchema.safeParse({ status: "registered" }).success).toBe(
+      false,
+    );
   });
 });

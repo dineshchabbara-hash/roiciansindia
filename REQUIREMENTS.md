@@ -90,8 +90,10 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 ### 2.4 Enrollment
 - FR-30 (P0): Enrollment links Student + Program + Batch, carries its own immutable
   Enrollment ID, financial terms (agreed fee, discount + reason, registration fee,
-  tax, total payable), and a status lifecycle (Lead → Applicant → Registered →
-  Enrolled → Active → On Hold → Completed → Withdrawn → Cancelled).
+  tax, total payable), and a status lifecycle (Lead → Applicant → Enrolled →
+  Active → On Hold → Completed → Withdrawn → Cancelled). ("Registered" was
+  removed as a separate stage — Phase 9 manual-acceptance correction, Sept
+  2026 — Registered and Enrolled are not distinct stages for this workflow.)
 - FR-31 (P0): Outstanding balance is **derived**, not stored as a freely-editable
   number: `total payable − sum(valid payments) − sum(approved refunds/credits)`. See
   §91 logic, reproduced in `DATABASE_SCHEMA.md`.

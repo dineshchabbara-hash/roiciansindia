@@ -10,14 +10,16 @@ import { Button } from "@/components/ui/button";
 
 const initialState: EnrollmentStatusFormState = {};
 
-// All 9 values the enrollments.status CHECK constraint allows, freely
+// All 8 values the enrollments.status CHECK constraint allows, freely
 // selectable — no trigger/constraint in the schema restricts transition
 // order, and no other status control in this codebase (Batch/Program/
 // Student/Trainer) enforces one either, so this doesn't invent one.
+// ("Registered" was removed — Phase 9 manual-acceptance correction,
+// Sept 2026 — Registered and Enrolled are not separate stages for this
+// workflow.)
 const STATUS_LABELS: Record<EnrollmentStatus, string> = {
   lead: "Lead",
   applicant: "Applicant",
-  registered: "Registered",
   enrolled: "Enrolled",
   active: "Active",
   on_hold: "On Hold",

@@ -1,13 +1,17 @@
 /**
  * Pure Enrollment-management domain logic — no I/O. Statuses are exactly
  * what the schema's own CHECK constraint allows
- * (supabase/migrations/20260101000006_enrollment_tables.sql) — 9 values,
+ * (supabase/migrations/20260101000006_enrollment_tables.sql, corrected by
+ * 20260101000024_remove_registered_enrollment_status.sql) — 8 values,
  * matching REQUIREMENTS.md FR-30's documented lifecycle (Lead -> Applicant
- * -> Registered -> Enrolled -> Active -> On Hold -> Completed -> Withdrawn
- * -> Cancelled) exactly. No transition-order enforcement is implemented:
- * the schema has no trigger/constraint restricting status changes, and no
- * other status control in this codebase (Program/Batch/Student/Trainer)
- * enforces one either, so this doesn't invent one.
+ * -> Enrolled -> Active -> On Hold -> Completed -> Withdrawn -> Cancelled)
+ * exactly. "Registered" was removed as a Phase 9 manual-acceptance
+ * correction (Sept 2026) — approved business decision that Registered and
+ * Enrolled are not separate stages for Roicians' workflow. No
+ * transition-order enforcement is implemented: the schema has no trigger/
+ * constraint restricting status changes, and no other status control in
+ * this codebase (Program/Batch/Student/Trainer) enforces one either, so
+ * this doesn't invent one.
  */
 
 import { toPaise, paiseToRupees } from "@/lib/domain/money";
@@ -15,7 +19,6 @@ import { toPaise, paiseToRupees } from "@/lib/domain/money";
 export const ENROLLMENT_STATUSES = [
   "lead",
   "applicant",
-  "registered",
   "enrolled",
   "active",
   "on_hold",
@@ -30,6 +33,23 @@ export function isEnrollmentStatus(value: unknown): value is EnrollmentStatus {
     typeof value === "string" &&
     (ENROLLMENT_STATUSES as readonly string[]).includes(value)
   );
+}
+
+// Approved business rule (Phase 9 manual-acceptance correction, Sept 2026):
+// an Enrollment may not be in an operational/student-active lifecycle state
+// without a Batch. Lead/Applicant are pre-enrollment and may legitimately
+// have no Batch yet. Withdrawn/Cancelled are historical/terminal states —
+// deliberately excluded here: their existing batch_id (whatever it is) is
+// preserved as-is, never checked or rewritten by this rule.
+export const OPERATIONAL_ENROLLMENT_STATUSES = [
+  "enrolled",
+  "active",
+  "on_hold",
+  "completed",
+] as const;
+
+export function enrollmentStatusRequiresBatch(status: EnrollmentStatus): boolean {
+  return (OPERATIONAL_ENROLLMENT_STATUSES as readonly string[]).includes(status);
 }
 
 // enrollments.payment_plan_type CHECK: ('full', 'installments'). Stored as a

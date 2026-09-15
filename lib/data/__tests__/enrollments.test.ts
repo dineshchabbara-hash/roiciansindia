@@ -172,6 +172,14 @@ describe("createEnrollmentRecord", () => {
     const batchEq = vi.fn().mockReturnValue({ maybeSingle: batchMaybeSingle });
     const batchSelect = vi.fn().mockReturnValue({ eq: batchEq });
 
+    // No existing Enrollment for this Student+Batch — the duplicate check
+    // passes and creation proceeds.
+    const dupeMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const dupeLimit = vi.fn().mockReturnValue({ maybeSingle: dupeMaybeSingle });
+    const dupeEq2 = vi.fn().mockReturnValue({ limit: dupeLimit });
+    const dupeEq1 = vi.fn().mockReturnValue({ eq: dupeEq2 });
+    const enrollmentsSelect = vi.fn().mockReturnValue({ eq: dupeEq1 });
+
     const insertSingle = vi.fn().mockResolvedValue({
       data: { id: "enr-1", enrollment_code: "ENR-000001" },
       error: null,
@@ -181,7 +189,7 @@ describe("createEnrollmentRecord", () => {
 
     const from = vi.fn((table: string) => {
       if (table === "batches") return { select: batchSelect };
-      if (table === "enrollments") return { insert };
+      if (table === "enrollments") return { select: enrollmentsSelect, insert };
       throw new Error(`Unexpected table: ${table}`);
     });
     vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
@@ -199,6 +207,8 @@ describe("createEnrollmentRecord", () => {
     );
 
     expect(batchEq).toHaveBeenCalledWith("id", "batch-1");
+    expect(dupeEq1).toHaveBeenCalledWith("student_id", "student-1");
+    expect(dupeEq2).toHaveBeenCalledWith("batch_id", "batch-1");
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
         student_id: "student-1",
@@ -211,6 +221,143 @@ describe("createEnrollmentRecord", () => {
       ok: true,
       data: { id: "enr-1", enrollmentCode: "ENR-000001" },
     });
+  });
+
+  // Approved business rule (Phase 9 manual-acceptance correction, Sept
+  // 2026): a Student may have only one Enrollment for a given non-null
+  // Batch. Required tests 17-23.
+  describe("duplicate Student+Batch prevention", () => {
+    function mockEnrollmentsTable({
+      programId,
+      duplicateExists,
+    }: {
+      programId: string;
+      duplicateExists: boolean;
+    }) {
+      const batchMaybeSingle = vi
+        .fn()
+        .mockResolvedValue({ data: { program_id: programId }, error: null });
+      const batchEq = vi.fn().mockReturnValue({ maybeSingle: batchMaybeSingle });
+      const batchSelect = vi.fn().mockReturnValue({ eq: batchEq });
+
+      const dupeMaybeSingle = vi.fn().mockResolvedValue({
+        data: duplicateExists ? { id: "existing-enr" } : null,
+        error: null,
+      });
+      const dupeLimit = vi.fn().mockReturnValue({ maybeSingle: dupeMaybeSingle });
+      const dupeEq2 = vi.fn().mockReturnValue({ limit: dupeLimit });
+      const dupeEq1 = vi.fn().mockReturnValue({ eq: dupeEq2 });
+      const enrollmentsSelect = vi.fn().mockReturnValue({ eq: dupeEq1 });
+
+      const insertSingle = vi.fn().mockResolvedValue({
+        data: { id: "enr-new", enrollment_code: "ENR-000099" },
+        error: null,
+      });
+      const insertSelect = vi.fn().mockReturnValue({ single: insertSingle });
+      const insert = vi.fn().mockReturnValue({ select: insertSelect });
+
+      const from = vi.fn((table: string) => {
+        if (table === "batches") return { select: batchSelect };
+        if (table === "enrollments") return { select: enrollmentsSelect, insert };
+        throw new Error(`Unexpected table: ${table}`);
+      });
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+      return { insert, dupeEq1, dupeEq2 };
+    }
+
+    it("(17) allows the first Enrollment for a Student+Batch", async () => {
+      const { insert } = mockEnrollmentsTable({
+        programId: "program-1",
+        duplicateExists: false,
+      });
+      const result = await createEnrollmentRecord(
+        baseCreateInput({
+          studentId: "student-1",
+          programId: "program-1",
+          batchId: "batch-1",
+        }),
+      );
+      expect(insert).toHaveBeenCalled();
+      expect(result.ok).toBe(true);
+    });
+
+    it("(18)/(19) rejects a second Enrollment for the same Student+Batch regardless of the requested status — status is not part of this decision", async () => {
+      const { insert } = mockEnrollmentsTable({
+        programId: "program-1",
+        duplicateExists: true,
+      });
+      const result = await createEnrollmentRecord(
+        baseCreateInput({
+          studentId: "student-1",
+          programId: "program-1",
+          batchId: "batch-1",
+        }),
+      );
+      expect(insert).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        ok: false,
+        error: "This student already has an enrollment for the selected batch.",
+      });
+    });
+
+    it("(20)/(21) rejects a second Enrollment for the same Student+Batch even though the existing one is cancelled/withdrawn — no reinstatement exception", async () => {
+      // The duplicate check is keyed on student_id+batch_id only — the
+      // existing row's status is never part of the query or the decision,
+      // so an existing 'cancelled' or 'withdrawn' row still blocks creation
+      // exactly like an 'enrolled' one would.
+      const { insert } = mockEnrollmentsTable({
+        programId: "program-1",
+        duplicateExists: true,
+      });
+      const result = await createEnrollmentRecord(
+        baseCreateInput({
+          studentId: "student-1",
+          programId: "program-1",
+          batchId: "batch-1",
+        }),
+      );
+      expect(insert).not.toHaveBeenCalled();
+      expect(result.ok).toBe(false);
+    });
+
+    it("(22) allows the same Student to enroll in a different Batch", async () => {
+      const { insert, dupeEq2 } = mockEnrollmentsTable({
+        programId: "program-1",
+        duplicateExists: false,
+      });
+      const result = await createEnrollmentRecord(
+        baseCreateInput({
+          studentId: "student-1",
+          programId: "program-1",
+          batchId: "batch-2",
+        }),
+      );
+      expect(dupeEq2).toHaveBeenCalledWith("batch_id", "batch-2");
+      expect(insert).toHaveBeenCalled();
+      expect(result.ok).toBe(true);
+    });
+
+    it("(23) allows a different Student to enroll in the same Batch", async () => {
+      const { insert, dupeEq1 } = mockEnrollmentsTable({
+        programId: "program-1",
+        duplicateExists: false,
+      });
+      const result = await createEnrollmentRecord(
+        baseCreateInput({
+          studentId: "student-2",
+          programId: "program-1",
+          batchId: "batch-1",
+        }),
+      );
+      expect(dupeEq1).toHaveBeenCalledWith("student_id", "student-2");
+      expect(insert).toHaveBeenCalled();
+      expect(result.ok).toBe(true);
+    });
+
+    // (24) Program/Batch mismatch validation still runs, and still runs
+    // before the duplicate check — an already-covered case
+    // ("rejects server-side when the selected Batch belongs to a different
+    // Program" above) continues to pass unmodified, proving this ordering.
   });
 
   // Manual-acceptance scenario (no tax is currently charged on
@@ -364,17 +511,95 @@ describe("updateEnrollmentStatus", () => {
     vi.clearAllMocks();
   });
 
-  it("updates only the status column, scoped to the given id", async () => {
+  function mockStatusUpdate({ batchId }: { batchId: string | null }) {
+    const currentMaybeSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { batch_id: batchId }, error: null });
+    const currentEq = vi.fn().mockReturnValue({ maybeSingle: currentMaybeSingle });
+    const select = vi.fn().mockReturnValue({ eq: currentEq });
+
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+
+    const from = vi.fn().mockReturnValue({ select, update });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+    return { select, currentEq, update, updateEq };
+  }
+
+  it("updates only the status column, scoped to the given id, for a status that does not require a Batch", async () => {
     const eq = vi.fn().mockResolvedValue({ error: null });
     const update = vi.fn().mockReturnValue({ eq });
     const from = vi.fn().mockReturnValue({ update });
     vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
 
-    const result = await updateEnrollmentStatus("enr-1", "active");
+    const result = await updateEnrollmentStatus("enr-1", "applicant");
 
-    expect(update).toHaveBeenCalledWith({ status: "active" });
+    expect(update).toHaveBeenCalledWith({ status: "applicant" });
     expect(eq).toHaveBeenCalledWith("id", "enr-1");
     expect(result).toEqual({ ok: true, data: null });
+  });
+
+  // Approved business rule (Phase 9 manual-acceptance correction, Sept
+  // 2026): enrolled/active/on_hold/completed require a Batch. Required
+  // tests 8-15 (via createEnrollmentRecord's Batch handling above and the
+  // domain-layer enrollmentStatusRequiresBatch tests) plus the
+  // status-change-specific cases below (12-15, 16).
+  it.each(["enrolled", "active", "on_hold", "completed"])(
+    "(8-11)/(16) rejects changing status to %s when the Enrollment's authoritative batch_id is null",
+    async (status) => {
+      const { update } = mockStatusUpdate({ batchId: null });
+      const result = await updateEnrollmentStatus("enr-1", status as never);
+      expect(update).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        ok: false,
+        error: "A batch must be assigned before this enrollment can use this status.",
+      });
+    },
+  );
+
+  it.each(["enrolled", "active", "on_hold", "completed"])(
+    "(12-15) allows changing status to %s when the Enrollment already has a valid Batch",
+    async (status) => {
+      const { update, updateEq } = mockStatusUpdate({ batchId: "batch-1" });
+      const result = await updateEnrollmentStatus("enr-1", status as never);
+      expect(update).toHaveBeenCalledWith({ status });
+      expect(updateEq).toHaveBeenCalledWith("id", "enr-1");
+      expect(result).toEqual({ ok: true, data: null });
+    },
+  );
+
+  it("re-reads the authoritative batch_id from the database rather than trusting any client-supplied value — this action takes no batchId parameter at all", async () => {
+    const { select, currentEq } = mockStatusUpdate({ batchId: "batch-1" });
+    await updateEnrollmentStatus("enr-1", "active");
+    expect(select).toHaveBeenCalledWith("batch_id");
+    expect(currentEq).toHaveBeenCalledWith("id", "enr-1");
+  });
+
+  it("does not query batch_id at all for a status that does not require a Batch", async () => {
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq });
+    const select = vi.fn();
+    const from = vi.fn().mockReturnValue({ select, update });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+
+    await updateEnrollmentStatus("enr-1", "lead");
+
+    expect(select).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({ status: "lead" });
+  });
+
+  it("surfaces 'Enrollment not found.' when the Enrollment being status-changed no longer exists", async () => {
+    const currentMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const currentEq = vi.fn().mockReturnValue({ maybeSingle: currentMaybeSingle });
+    const select = vi.fn().mockReturnValue({ eq: currentEq });
+    const update = vi.fn();
+    const from = vi.fn().mockReturnValue({ select, update });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+
+    const result = await updateEnrollmentStatus("enr-missing", "active");
+
+    expect(update).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, error: "Enrollment not found." });
   });
 });
 

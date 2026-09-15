@@ -4,7 +4,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DataResult } from "@/lib/data/dashboard";
 import { computeOutstandingFeesPaise } from "@/lib/domain/dashboard-metrics";
 import { sumPaise, toPaise } from "@/lib/domain/money";
-import { computeTotalPayable, type EnrollmentStatus } from "@/lib/domain/enrollments";
+import {
+  computeTotalPayable,
+  enrollmentStatusRequiresBatch,
+  type EnrollmentStatus,
+} from "@/lib/domain/enrollments";
 import type { EnrollmentCreateInput } from "@/lib/validation/enrollments";
 
 function fail<T>(message: string, error: unknown): DataResult<T> {
@@ -435,7 +439,37 @@ export async function createEnrollmentRecord(
           error: "The selected batch does not belong to the selected program.",
         };
       }
+
+      // Approved business rule (Phase 9 manual-acceptance correction, Sept
+      // 2026): a Student may have at most one Enrollment for a given
+      // non-null Batch, regardless of that existing Enrollment's status
+      // (cancelled/withdrawn does not free up the Batch for a fresh
+      // Enrollment — that would be a reinstatement workflow, not in scope
+      // here). Different Batches for the same Student remain unrestricted.
+      // Checked against authoritative data, never decided from anything the
+      // browser sent.
+      const { data: existingEnrollment, error: existingEnrollmentError } = await supabase
+        .from("enrollments")
+        .select("id")
+        .eq("student_id", input.studentId)
+        .eq("batch_id", input.batchId)
+        .limit(1)
+        .maybeSingle();
+      if (existingEnrollmentError) throw existingEnrollmentError;
+      if (existingEnrollment) {
+        return {
+          ok: false,
+          error: "This student already has an enrollment for the selected batch.",
+        };
+      }
     }
+
+    // Enrollment creation has no status input — every new Enrollment starts
+    // at 'lead' (the column's own DB default), a pre-enrollment status that
+    // may legitimately have no Batch. enrollmentStatusRequiresBatch's rule
+    // therefore has no live enforcement point here today; it is applied at
+    // status-change time below (updateEnrollmentStatus), the only place an
+    // Enrollment can actually reach an operational status.
 
     const totalPayable = computeTotalPayable({
       agreedFee: input.agreedFee,
@@ -501,6 +535,30 @@ export async function updateEnrollmentStatus(
 ): Promise<DataResult<null>> {
   try {
     const supabase = await createSupabaseServerClient();
+
+    // Approved business rule (Phase 9 manual-acceptance correction, Sept
+    // 2026): an Enrollment may not move into an operational/student-active
+    // status without a Batch. Re-reads the Enrollment's own authoritative
+    // batch_id here — there is no client-supplied Batch value for this
+    // action to begin with, so this is never a "trust the browser" check.
+    if (enrollmentStatusRequiresBatch(status)) {
+      const { data: current, error: currentError } = await supabase
+        .from("enrollments")
+        .select("batch_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (currentError) throw currentError;
+      if (!current) {
+        return { ok: false, error: "Enrollment not found." };
+      }
+      if (!current.batch_id) {
+        return {
+          ok: false,
+          error: "A batch must be assigned before this enrollment can use this status.",
+        };
+      }
+    }
+
     const { error } = await supabase.from("enrollments").update({ status }).eq("id", id);
     if (error) throw error;
     return { ok: true, data: null };

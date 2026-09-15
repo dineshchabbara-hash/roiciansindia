@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeTotalPayable,
+  enrollmentStatusRequiresBatch,
   isEnrollmentStatus,
   isPaymentPlanType,
 } from "@/lib/domain/enrollments";
@@ -10,7 +11,6 @@ describe("isEnrollmentStatus", () => {
     for (const status of [
       "lead",
       "applicant",
-      "registered",
       "enrolled",
       "active",
       "on_hold",
@@ -22,12 +22,45 @@ describe("isEnrollmentStatus", () => {
     }
   });
 
+  // Manual-acceptance correction (Sept 2026): "Registered" was removed as a
+  // separate stage — Registered and Enrolled are not distinct for this
+  // workflow. It must be rejected exactly like any other invented status.
+  it("rejects the removed 'registered' status", () => {
+    expect(isEnrollmentStatus("registered")).toBe(false);
+  });
+
   it("rejects anything else", () => {
     expect(isEnrollmentStatus("hold")).toBe(false);
     expect(isEnrollmentStatus("")).toBe(false);
     expect(isEnrollmentStatus(null)).toBe(false);
     expect(isEnrollmentStatus(42)).toBe(false);
   });
+});
+
+describe("enrollmentStatusRequiresBatch — approved rule: an Enrollment may not be operational without a Batch", () => {
+  it.each(["lead", "applicant"])(
+    "does not require a Batch for the pre-enrollment status %s",
+    (status) => {
+      expect(enrollmentStatusRequiresBatch(status as never)).toBe(false);
+    },
+  );
+
+  it.each(["enrolled", "active", "on_hold", "completed"])(
+    "requires a Batch for the operational status %s",
+    (status) => {
+      expect(enrollmentStatusRequiresBatch(status as never)).toBe(true);
+    },
+  );
+
+  // Withdrawn/Cancelled are historical/terminal — deliberately excluded
+  // from this rule so their existing batch_id (whatever it is) is never
+  // second-guessed by it.
+  it.each(["withdrawn", "cancelled"])(
+    "does not apply to the terminal status %s",
+    (status) => {
+      expect(enrollmentStatusRequiresBatch(status as never)).toBe(false);
+    },
+  );
 });
 
 describe("isPaymentPlanType", () => {

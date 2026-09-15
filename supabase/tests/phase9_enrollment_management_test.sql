@@ -9,8 +9,11 @@
 --   - financial isolation between two Enrollments' own payments/refunds
 --   - a Program fee change never mutating an already-created Enrollment's
 --     own commercial-terms snapshot
---   - repeat/duplicate Student+Program(+Batch) enrollment being allowed, by
---     design (see enrollments' own table comment)
+--   - repeat/duplicate Student+Program(+Batch) enrollment still being
+--     permitted at the raw DB layer (no DB-level uniqueness constraint
+--     exists on (student_id, batch_id) — the approved application-layer
+--     block on this case lives in lib/data/enrollments.ts instead, see the
+--     probe below for detail)
 -- Run via scripts/test-rls.sh. Ends with ROLLBACK — no trace left
 -- regardless of pass/fail.
 
@@ -128,10 +131,19 @@ begin
 end
 $$;
 
--- Repeat/duplicate enrollment (same Student + Program + Batch) is allowed
--- by design (enrollments' own table comment: "No uniqueness constraint
--- forces one enrollment per student — multiple/repeat enrollments are by
--- design"). No policy in this codebase invents a block for it.
+-- Repeat/duplicate enrollment (same Student + Program + Batch) inserted
+-- directly at the DB layer, bypassing createEnrollmentRecord entirely, is
+-- still allowed today — there is no DB-level uniqueness constraint on
+-- (student_id, batch_id). This is DELIBERATE for this probe: the approved
+-- Phase 9 manual-acceptance business rule (Sept 2026) now blocks this exact
+-- case at the APPLICATION layer (createEnrollmentRecord in
+-- lib/data/enrollments.ts, tested in lib/data/__tests__/enrollments.test.ts)
+-- — "a Student may have only one Enrollment for a given non-null Batch" —
+-- but a DB-level partial unique index for concurrency-safe enforcement was
+-- explicitly deferred pending separate approval (see the Phase 9 report).
+-- This probe therefore documents current DB-layer permissiveness only, not
+-- the approved business rule; it will need revisiting if/when that unique
+-- index is approved and applied.
 --
 -- Uses its own dedicated, unused-elsewhere Student (never Student A/B,
 -- fixture inserted in the top fixtures block above) so both probe rows can

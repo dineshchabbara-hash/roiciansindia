@@ -330,7 +330,6 @@ export type Database = {
           status:
             | "lead"
             | "applicant"
-            | "registered"
             | "enrolled"
             | "active"
             | "on_hold"

@@ -200,6 +200,24 @@ describe("createEnrollmentAction", () => {
     );
   });
 
+  // (25)/(26) A duplicate Student+Batch is rejected by the data layer
+  // (lib/data/__tests__/enrollments.test.ts); this proves the action
+  // surfaces that specific rejection without ever auditing a success —
+  // the same fail-fast wiring already covered generically above
+  // ("surfaces a create failure ... without auditing"), named explicitly
+  // for this scenario per the Phase 9 report's required test list.
+  it("surfaces a duplicate Student+Batch rejection as a visible error, creating no record and auditing nothing", async () => {
+    vi.mocked(createEnrollmentRecord).mockResolvedValue({
+      ok: false,
+      error: "This student already has an enrollment for the selected batch.",
+    });
+    const result = await createEnrollmentAction({}, baseFormData());
+    expect(result.formError).toBe(
+      "This student already has an enrollment for the selected batch.",
+    );
+    expect(writeAuditLog).not.toHaveBeenCalled();
+  });
+
   it("audits create with minimal metadata only — no financial fields, no full Student object", async () => {
     await expect(createEnrollmentAction({}, baseFormData())).rejects.toThrow(
       "REDIRECT_CALLED",
@@ -281,6 +299,33 @@ describe("setEnrollmentStatusAction", () => {
     const result = await setEnrollmentStatusAction("enr-1", {}, formData);
     expect(result.fieldErrors?.status).toBeTruthy();
     expect(updateEnrollmentStatus).not.toHaveBeenCalled();
+  });
+
+  // Manual-acceptance correction (Sept 2026): "registered" was removed —
+  // no longer a selectable status value.
+  it("rejects the removed 'registered' status value", async () => {
+    const formData = new FormData();
+    formData.set("status", "registered");
+    const result = await setEnrollmentStatusAction("enr-1", {}, formData);
+    expect(result.fieldErrors?.status).toBeTruthy();
+    expect(updateEnrollmentStatus).not.toHaveBeenCalled();
+  });
+
+  // (16) An operational status change is rejected server-side when the
+  // Enrollment has no Batch — surfaced here as the visible formError this
+  // action already forwards from the data layer.
+  it("surfaces a batch-required rejection as a visible error, without auditing", async () => {
+    vi.mocked(updateEnrollmentStatus).mockResolvedValue({
+      ok: false,
+      error: "A batch must be assigned before this enrollment can use this status.",
+    });
+    const formData = new FormData();
+    formData.set("status", "active");
+    const result = await setEnrollmentStatusAction("enr-1", {}, formData);
+    expect(result.formError).toBe(
+      "A batch must be assigned before this enrollment can use this status.",
+    );
+    expect(writeAuditLog).not.toHaveBeenCalled();
   });
 
   it("audits the status change with before/after status only", async () => {

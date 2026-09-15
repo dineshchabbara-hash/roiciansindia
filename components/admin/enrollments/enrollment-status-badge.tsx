@@ -7,7 +7,6 @@ const VARIANTS: Record<
 > = {
   lead: "outline",
   applicant: "outline",
-  registered: "secondary",
   enrolled: "secondary",
   active: "success",
   on_hold: "warning",
