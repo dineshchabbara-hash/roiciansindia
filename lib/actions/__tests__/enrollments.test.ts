@@ -328,6 +328,23 @@ describe("setEnrollmentStatusAction", () => {
     expect(writeAuditLog).not.toHaveBeenCalled();
   });
 
+  // (9) A blocked terminal-status reactivation must surface the friendly
+  // error and create no success audit entry.
+  it("surfaces a terminal-reactivation rejection as a visible error, without auditing", async () => {
+    vi.mocked(updateEnrollmentStatus).mockResolvedValue({
+      ok: false,
+      error:
+        "Cancelled or withdrawn enrollments cannot be reactivated through the normal status workflow.",
+    });
+    const formData = new FormData();
+    formData.set("status", "enrolled");
+    const result = await setEnrollmentStatusAction("enr-1", {}, formData);
+    expect(result.formError).toBe(
+      "Cancelled or withdrawn enrollments cannot be reactivated through the normal status workflow.",
+    );
+    expect(writeAuditLog).not.toHaveBeenCalled();
+  });
+
   it("audits the status change with before/after status only", async () => {
     const formData = new FormData();
     formData.set("status", "active");

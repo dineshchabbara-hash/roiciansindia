@@ -9,11 +9,14 @@
 --   - financial isolation between two Enrollments' own payments/refunds
 --   - a Program fee change never mutating an already-created Enrollment's
 --     own commercial-terms snapshot
---   - repeat/duplicate Student+Program(+Batch) enrollment still being
---     permitted at the raw DB layer (no DB-level uniqueness constraint
---     exists on (student_id, batch_id) — the approved application-layer
---     block on this case lives in lib/data/enrollments.ts instead, see the
---     probe below for detail)
+--   - the enrollments_one_per_student_batch partial unique index
+--     (20260101000025): a Student may have at most one Enrollment for a
+--     given non-null Batch, enforced at the raw DB layer regardless of
+--     status (cancelled/withdrawn does not bypass it); different Batches
+--     or a null Batch remain unrestricted
+--   - the enrollments_operational_status_requires_batch CHECK constraint
+--     (20260101000025): enrolled/active/on_hold/completed require a Batch
+--     at the raw DB layer; lead/applicant remain Batch-optional
 -- Run via scripts/test-rls.sh. Ends with ROLLBACK — no trace left
 -- regardless of pass/fail.
 
@@ -30,8 +33,11 @@ insert into auth.users (id, email) values
   ('f1000000-0000-0000-0000-000000000004', 'phase9-trainer-b@validation.local'),
   ('f1000000-0000-0000-0000-000000000005', 'phase9-student-a@validation.local'),
   ('f1000000-0000-0000-0000-000000000006', 'phase9-student-b@validation.local'),
-  -- Used only by the repeat-enrollment-allowed probe further below.
-  ('f1000000-0000-0000-0000-000000000007', 'phase9-student-repeat-probe@validation.local');
+  -- Used only by the Student+Batch uniqueness probes further below.
+  ('f1000000-0000-0000-0000-000000000007', 'phase9-student-repeat-probe@validation.local'),
+  ('f1000000-0000-0000-0000-000000000008', 'phase9-student-uniq-probe2@validation.local'),
+  -- Used only by the operational-status-requires-Batch CHECK probes.
+  ('f1000000-0000-0000-0000-000000000009', 'phase9-student-check-probe@validation.local');
 
 insert into user_roles (auth_user_id, role) values
   ('f1000000-0000-0000-0000-000000000001', 'admin'),
@@ -40,7 +46,9 @@ insert into user_roles (auth_user_id, role) values
   ('f1000000-0000-0000-0000-000000000004', 'trainer'),
   ('f1000000-0000-0000-0000-000000000005', 'student'),
   ('f1000000-0000-0000-0000-000000000006', 'student'),
-  ('f1000000-0000-0000-0000-000000000007', 'student');
+  ('f1000000-0000-0000-0000-000000000007', 'student'),
+  ('f1000000-0000-0000-0000-000000000008', 'student'),
+  ('f1000000-0000-0000-0000-000000000009', 'student');
 
 insert into admins (id, auth_user_id, first_name, last_name, email, role_level) values
   ('f2000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000001', 'Phase9', 'Admin', 'phase9-admin@validation.local', 'admin'),
@@ -53,8 +61,11 @@ insert into trainers (id, auth_user_id, first_name, last_name, email) values
 insert into students (id, auth_user_id, student_code, first_name, last_name, phone) values
   ('f4000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000005', 'PHASE9-STU-A', 'Phase9', 'StudentA', '9990004001'),
   ('f4000000-0000-0000-0000-000000000002', 'f1000000-0000-0000-0000-000000000006', 'PHASE9-STU-B', 'Phase9', 'StudentB', '9990004002'),
-  -- Used only by the repeat-enrollment-allowed probe further below.
-  ('f4000000-0000-0000-0000-000000000003', 'f1000000-0000-0000-0000-000000000007', 'PHASE9-STU-REPEAT', 'Phase9', 'StudentRepeatProbe', '9990004003');
+  -- Used only by the Student+Batch uniqueness probes further below.
+  ('f4000000-0000-0000-0000-000000000003', 'f1000000-0000-0000-0000-000000000007', 'PHASE9-STU-REPEAT', 'Phase9', 'StudentRepeatProbe', '9990004003'),
+  ('f4000000-0000-0000-0000-000000000004', 'f1000000-0000-0000-0000-000000000008', 'PHASE9-STU-UNIQ2', 'Phase9', 'StudentUniqProbe2', '9990004004'),
+  -- Used only by the operational-status-requires-Batch CHECK probes.
+  ('f4000000-0000-0000-0000-000000000005', 'f1000000-0000-0000-0000-000000000009', 'PHASE9-STU-CHECK', 'Phase9', 'StudentCheckProbe', '9990004005');
 
 insert into programs (id, program_code, name, regular_fee, registration_fee, tax_rate_percent, status) values
   ('f5000000-0000-0000-0000-000000000001', 'PHASE9-PROG', 'Phase 9 Test Program', 50000.00, 1000.00, 18.00, 'active'),
@@ -63,10 +74,13 @@ insert into programs (id, program_code, name, regular_fee, registration_fee, tax
 insert into batches (id, program_id, name, start_date, status) values
   ('f6000000-0000-0000-0000-000000000001', 'f5000000-0000-0000-0000-000000000001', 'Phase 9 Test Batch', current_date, 'active'),
   ('f6000000-0000-0000-0000-000000000002', 'f5000000-0000-0000-0000-000000000002', 'Phase 9 Other Batch', current_date, 'active'),
-  -- Dedicated to the repeat-enrollment-allowed probe below only — never
-  -- assigned to any trainer, so it never perturbs trainer_visible_
+  -- Dedicated to the Student+Batch uniqueness probes below only — never
+  -- assigned to any trainer, so none of these ever perturb trainer_visible_
   -- enrollments()'s per-batch count for batch f6...0001.
-  ('f6000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'Phase 9 Repeat-Probe Batch', current_date, 'active');
+  ('f6000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'Phase 9 Uniqueness-Probe Batch A', current_date, 'active'),
+  ('f6000000-0000-0000-0000-000000000004', 'f5000000-0000-0000-0000-000000000001', 'Phase 9 Uniqueness-Probe Batch B', current_date, 'active'),
+  -- Dedicated to the operational-status-requires-Batch CHECK probes below.
+  ('f6000000-0000-0000-0000-000000000005', 'f5000000-0000-0000-0000-000000000001', 'Phase 9 Check-Probe Batch', current_date, 'active');
 
 insert into batch_trainers (batch_id, trainer_id, is_primary) values
   ('f6000000-0000-0000-0000-000000000001', 'f3000000-0000-0000-0000-000000000001', true);
@@ -131,48 +145,233 @@ begin
 end
 $$;
 
--- Repeat/duplicate enrollment (same Student + Program + Batch) inserted
--- directly at the DB layer, bypassing createEnrollmentRecord entirely, is
--- still allowed today — there is no DB-level uniqueness constraint on
--- (student_id, batch_id). This is DELIBERATE for this probe: the approved
--- Phase 9 manual-acceptance business rule (Sept 2026) now blocks this exact
--- case at the APPLICATION layer (createEnrollmentRecord in
--- lib/data/enrollments.ts, tested in lib/data/__tests__/enrollments.test.ts)
--- — "a Student may have only one Enrollment for a given non-null Batch" —
--- but a DB-level partial unique index for concurrency-safe enforcement was
--- explicitly deferred pending separate approval (see the Phase 9 report).
--- This probe therefore documents current DB-layer permissiveness only, not
--- the approved business rule; it will need revisiting if/when that unique
--- index is approved and applied.
+-- Student+Batch database-level uniqueness (20260101000025's partial unique
+-- index enrollments_one_per_student_batch): a Student may have at most one
+-- Enrollment for a given non-null Batch, enforced even against a raw DB
+-- insert that bypasses createEnrollmentRecord's own application-layer
+-- pre-check entirely (tested separately in
+-- lib/data/__tests__/enrollments.test.ts). Approved Phase 9
+-- manual-acceptance business rule (Sept 2026), superseding the earlier
+-- "repeat enrollment is allowed by design" finding for this specific case
+-- — that finding remains true only for DIFFERENT Batches (or a null
+-- Batch), proven further below.
 --
--- Uses its own dedicated, unused-elsewhere Student (never Student A/B,
--- fixture inserted in the top fixtures block above) so both probe rows can
--- be left in place permanently rather than cleaned up mid-test — since
--- 20260101000023, no role (including this test's own admin session) can
--- delete an Enrollment row at all, so a real DELETE here would now be
--- blocked by the very policy this file also verifies, and would silently
--- leave the row anyway. Isolating this to its own Student and its own
--- dedicated batch (f6...0003, not assigned to any trainer) means the
--- leftover rows never perturb any other assertion in this file (Student
--- A/B's own enrollment counts, trainer_visible_enrollments()'s per-batch
--- count, etc.).
-insert into enrollments (student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable) values
-  ('f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000003', 50000.00, 50000.00, 50000.00);
+-- Uses its own dedicated, unused-elsewhere Students/Batches (never Student
+-- A/B or batch f6...0001) so leftover rows never perturb any other
+-- assertion in this file (Student A/B's own enrollment counts,
+-- trainer_visible_enrollments()'s per-batch count, etc.) and so no
+-- role/cleanup DELETE is ever needed — the whole file's own ROLLBACK
+-- removes everything regardless of pass/fail.
 
+-- (17) First Student+Batch Enrollment is allowed.
+insert into enrollments (id, student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable) values
+  ('f7000000-0000-0000-0000-000000000003', 'f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000003', 50000.00, 50000.00, 50000.00);
+
+-- (18)/(19) A second Enrollment for the same Student+Batch is rejected by
+-- the database itself, regardless of the requested status.
+do $$
+begin
+  begin
+    insert into enrollments (student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable)
+    values ('f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000003', 50000.00, 50000.00, 50000.00);
+    raise exception 'FAIL: a second Enrollment for the same Student+Batch was allowed by the database';
+  exception
+    when unique_violation then
+      raise notice 'PASS: a second Enrollment for the same Student+Batch is rejected by enrollments_one_per_student_batch';
+  end;
+end
+$$;
+
+-- (20) Cancelling the existing Enrollment does not free up the Batch for a
+-- new one — no reinstatement exception in the unique index.
+update enrollments set status = 'cancelled' where id = 'f7000000-0000-0000-0000-000000000003';
+
+do $$
+begin
+  begin
+    insert into enrollments (student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable)
+    values ('f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000003', 50000.00, 50000.00, 50000.00);
+    raise exception 'FAIL: a cancelled existing Enrollment should not allow a second Enrollment for the same Student+Batch';
+  exception
+    when unique_violation then
+      raise notice 'PASS: a cancelled existing Enrollment does not bypass the Student+Batch uniqueness constraint';
+  end;
+end
+$$;
+
+-- (21) Withdrawing the existing Enrollment does not free up the Batch
+-- either — same constraint, same non-exception, a different terminal
+-- status than the previous probe.
+update enrollments set status = 'withdrawn' where id = 'f7000000-0000-0000-0000-000000000003';
+
+do $$
+begin
+  begin
+    insert into enrollments (student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable)
+    values ('f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000003', 50000.00, 50000.00, 50000.00);
+    raise exception 'FAIL: a withdrawn existing Enrollment should not allow a second Enrollment for the same Student+Batch';
+  exception
+    when unique_violation then
+      raise notice 'PASS: a withdrawn existing Enrollment does not bypass the Student+Batch uniqueness constraint';
+  end;
+end
+$$;
+
+-- (22) The same Student enrolling in a DIFFERENT Batch remains allowed —
+-- the unique index is scoped to (student_id, batch_id) together, not
+-- student_id alone.
 do $$
 declare
   affected int;
 begin
   with attempt as (
     insert into enrollments (student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable)
-    values ('f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000003', 50000.00, 50000.00, 50000.00)
+    values ('f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000004', 50000.00, 50000.00, 50000.00)
     returning 1
   )
   select count(*) into affected from attempt;
   if affected <> 1 then
-    raise exception 'FAIL: a repeat Student+Program+Batch enrollment should be allowed by design';
+    raise exception 'FAIL: the same Student enrolling in a different Batch should be allowed';
   end if;
-  raise notice 'PASS: a repeat Student+Program+Batch enrollment is allowed, matching the documented design';
+  raise notice 'PASS: the same Student enrolling in a different Batch remains allowed';
+end
+$$;
+
+-- (23) A DIFFERENT Student enrolling in the SAME Batch (f6...0003, already
+-- occupied by Student f4...0003 above) remains allowed — the unique index
+-- is per-Student, not a Batch-capacity limit.
+do $$
+declare
+  affected int;
+begin
+  with attempt as (
+    insert into enrollments (student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable)
+    values ('f4000000-0000-0000-0000-000000000004', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000003', 50000.00, 50000.00, 50000.00)
+    returning 1
+  )
+  select count(*) into affected from attempt;
+  if affected <> 1 then
+    raise exception 'FAIL: a different Student enrolling in the same Batch should be allowed';
+  end if;
+  raise notice 'PASS: a different Student enrolling in the same Batch remains allowed';
+end
+$$;
+
+-- Null-Batch Enrollments (Lead/Applicant) are outside this uniqueness
+-- rule entirely — the index's own WHERE clause excludes batch_id IS NULL,
+-- so the same Student may hold any number of null-Batch rows.
+do $$
+declare
+  affected int;
+begin
+  with attempt as (
+    insert into enrollments (student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable)
+    values ('f4000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001', null, 50000.00, 50000.00, 50000.00)
+    returning 1
+  )
+  select count(*) into affected from attempt;
+  if affected <> 1 then
+    raise exception 'FAIL: a null-Batch Enrollment for a Student who already has Batch-linked Enrollments should still be allowed';
+  end if;
+  raise notice 'PASS: a null Batch is not covered by enrollments_one_per_student_batch — the same Student may hold any number of null-Batch Enrollments';
+end
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Operational-status-requires-Batch database CHECK
+-- (20260101000025's enrollments_operational_status_requires_batch): an
+-- Enrollment may not hold an operational/student-active status (enrolled,
+-- active, on_hold, completed) without a Batch, enforced even against a raw
+-- DB write bypassing lib/data/enrollments.ts's own application-layer check
+-- (tested separately in lib/data/__tests__/enrollments.test.ts).
+-- Lead/Applicant remain Batch-optional; this CHECK does not apply to them.
+
+-- (6) lead + null Batch is allowed (the column's own default status).
+do $$
+declare
+  affected int;
+begin
+  with attempt as (
+    insert into enrollments (student_id, program_id, batch_id, status, regular_fee, agreed_fee, total_payable)
+    values ('f4000000-0000-0000-0000-000000000005', 'f5000000-0000-0000-0000-000000000001', null, 'lead', 50000.00, 50000.00, 50000.00)
+    returning 1
+  )
+  select count(*) into affected from attempt;
+  if affected <> 1 then
+    raise exception 'FAIL: lead + null Batch should be allowed';
+  end if;
+  raise notice 'PASS: lead + null Batch is allowed by enrollments_operational_status_requires_batch';
+end
+$$;
+
+-- (7) applicant + null Batch is allowed.
+do $$
+declare
+  affected int;
+begin
+  with attempt as (
+    insert into enrollments (student_id, program_id, batch_id, status, regular_fee, agreed_fee, total_payable)
+    values ('f4000000-0000-0000-0000-000000000005', 'f5000000-0000-0000-0000-000000000001', null, 'applicant', 50000.00, 50000.00, 50000.00)
+    returning 1
+  )
+  select count(*) into affected from attempt;
+  if affected <> 1 then
+    raise exception 'FAIL: applicant + null Batch should be allowed';
+  end if;
+  raise notice 'PASS: applicant + null Batch is allowed by enrollments_operational_status_requires_batch';
+end
+$$;
+
+-- (8)-(11) enrolled/active/on_hold/completed + null Batch are all rejected
+-- by the database itself.
+do $$
+declare
+  op_status text;
+begin
+  foreach op_status in array array['enrolled', 'active', 'on_hold', 'completed']
+  loop
+    begin
+      execute format(
+        'insert into enrollments (student_id, program_id, batch_id, status, regular_fee, agreed_fee, total_payable)
+         values (%L, %L, null, %L, 50000.00, 50000.00, 50000.00)',
+        'f4000000-0000-0000-0000-000000000005', 'f5000000-0000-0000-0000-000000000001', op_status
+      );
+      raise exception 'FAIL: % + null Batch should be rejected by the database', op_status;
+    exception
+      when check_violation then
+        raise notice 'PASS: % + null Batch is rejected by enrollments_operational_status_requires_batch', op_status;
+    end;
+  end loop;
+end
+$$;
+
+-- (12)-(15) enrolled/active/on_hold/completed + a valid Batch are allowed.
+-- One insert (status='enrolled') followed by UPDATEs through the other
+-- three operational statuses on that SAME row — not four separate INSERTs
+-- — so this stays a clean, isolated probe of the CHECK constraint alone:
+-- reusing this Student+Batch pair for a second INSERT would instead hit
+-- enrollments_one_per_student_batch (tested separately above), and Enrollment
+-- hard-delete is blocked, so a fresh INSERT per status isn't an option here.
+do $$
+declare
+  new_id uuid;
+  op_status text;
+  affected int;
+begin
+  insert into enrollments (student_id, program_id, batch_id, status, regular_fee, agreed_fee, total_payable)
+  values ('f4000000-0000-0000-0000-000000000005', 'f5000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000005', 'enrolled', 50000.00, 50000.00, 50000.00)
+  returning id into new_id;
+  raise notice 'PASS: enrolled + a valid Batch is allowed by enrollments_operational_status_requires_batch';
+
+  foreach op_status in array array['active', 'on_hold', 'completed']
+  loop
+    execute format('update enrollments set status = %L where id = %L', op_status, new_id);
+    get diagnostics affected = row_count;
+    if affected <> 1 then
+      raise exception 'FAIL: % + a valid Batch should be allowed', op_status;
+    end if;
+    raise notice 'PASS: % + a valid Batch is allowed by enrollments_operational_status_requires_batch', op_status;
+  end loop;
 end
 $$;
 

@@ -7,6 +7,7 @@ import { sumPaise, toPaise } from "@/lib/domain/money";
 import {
   computeTotalPayable,
   enrollmentStatusRequiresBatch,
+  isTerminalReactivationBlocked,
   type EnrollmentStatus,
 } from "@/lib/domain/enrollments";
 import type { EnrollmentCreateInput } from "@/lib/validation/enrollments";
@@ -20,6 +21,10 @@ const PAGE_SIZE_DEFAULT = 20;
 
 // Postgres foreign_key_violation.
 const POSTGRES_FOREIGN_KEY_VIOLATION = "23503";
+// Postgres unique_violation — used only as a concurrency backstop for the
+// enrollments_one_per_student_batch partial unique index (a race that slips
+// past the pre-check above). Never a broad catch-all for any 23505.
+const POSTGRES_UNIQUE_VIOLATION = "23505";
 
 // ---------------------------------------------------------------------------
 // List / search / filter / pagination — sourced from enrollment_summary
@@ -514,6 +519,22 @@ export async function createEnrollmentRecord(
           error: "Selected student, program, or batch could not be found.",
         };
       }
+      // Concurrency backstop: two simultaneous requests can both pass the
+      // application-layer duplicate pre-check above before either commits.
+      // The enrollments_one_per_student_batch partial unique index is the
+      // authoritative guard for that race — map its violation to the same
+      // friendly message the pre-check already uses, rather than leaking a
+      // raw Postgres/Supabase error. Scoped to this exact index by name, not
+      // a broad catch-all for any 23505.
+      if (
+        (error as { code?: string }).code === POSTGRES_UNIQUE_VIOLATION &&
+        error.message.includes("enrollments_one_per_student_batch")
+      ) {
+        return {
+          ok: false,
+          error: "This student already has an enrollment for the selected batch.",
+        };
+      }
       throw error;
     }
 
@@ -536,20 +557,31 @@ export async function updateEnrollmentStatus(
   try {
     const supabase = await createSupabaseServerClient();
 
-    // Approved business rule (Phase 9 manual-acceptance correction, Sept
-    // 2026): an Enrollment may not move into an operational/student-active
-    // status without a Batch. Re-reads the Enrollment's own authoritative
-    // batch_id here — there is no client-supplied Batch value for this
-    // action to begin with, so this is never a "trust the browser" check.
+    // Approved business rules (Phase 9 manual-acceptance correction, Sept
+    // 2026), both checked against the Enrollment's own authoritative row —
+    // there is no client-supplied Batch value for this action to begin
+    // with, so neither check is ever a "trust the browser" check:
+    //   1. Withdrawn/Cancelled are terminal for the normal status control —
+    //      moving one back to an operational status is reactivation, not an
+    //      ordinary transition, and is not an approved Phase 9 workflow.
+    //   2. An Enrollment may not move into an operational/student-active
+    //      status without a Batch.
     if (enrollmentStatusRequiresBatch(status)) {
       const { data: current, error: currentError } = await supabase
         .from("enrollments")
-        .select("batch_id")
+        .select("status, batch_id")
         .eq("id", id)
         .maybeSingle();
       if (currentError) throw currentError;
       if (!current) {
         return { ok: false, error: "Enrollment not found." };
+      }
+      if (isTerminalReactivationBlocked(current.status as EnrollmentStatus, status)) {
+        return {
+          ok: false,
+          error:
+            "Cancelled or withdrawn enrollments cannot be reactivated through the normal status workflow.",
+        };
       }
       if (!current.batch_id) {
         return {

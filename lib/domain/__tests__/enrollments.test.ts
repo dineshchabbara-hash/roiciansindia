@@ -4,6 +4,7 @@ import {
   enrollmentStatusRequiresBatch,
   isEnrollmentStatus,
   isPaymentPlanType,
+  isTerminalReactivationBlocked,
 } from "@/lib/domain/enrollments";
 
 describe("isEnrollmentStatus", () => {
@@ -59,6 +60,47 @@ describe("enrollmentStatusRequiresBatch — approved rule: an Enrollment may not
     "does not apply to the terminal status %s",
     (status) => {
       expect(enrollmentStatusRequiresBatch(status as never)).toBe(false);
+    },
+  );
+});
+
+describe("isTerminalReactivationBlocked — approved rule: Cancelled/Withdrawn cannot reactivate through the normal status control", () => {
+  it.each(["withdrawn", "cancelled"])(
+    "blocks %s -> enrolled/active/on_hold/completed",
+    (terminal) => {
+      for (const operational of ["enrolled", "active", "on_hold", "completed"]) {
+        expect(
+          isTerminalReactivationBlocked(terminal as never, operational as never),
+        ).toBe(true);
+      }
+    },
+  );
+
+  // Only the move INTO an operational status is blocked — this does not
+  // invent a full transition state machine. Terminal-to-terminal and
+  // terminal-to-pre-enrollment transitions are untouched by this rule.
+  it.each(["lead", "applicant", "withdrawn", "cancelled"])(
+    "does not block cancelled -> %s",
+    (next) => {
+      expect(isTerminalReactivationBlocked("cancelled", next as never)).toBe(false);
+    },
+  );
+
+  it.each(["enrolled", "active", "on_hold", "completed"])(
+    "does not block a non-terminal current status moving to %s",
+    (operational) => {
+      for (const current of [
+        "lead",
+        "applicant",
+        "enrolled",
+        "active",
+        "on_hold",
+        "completed",
+      ]) {
+        expect(
+          isTerminalReactivationBlocked(current as never, operational as never),
+        ).toBe(false);
+      }
     },
   );
 });
