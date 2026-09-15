@@ -2,7 +2,6 @@ import { EnrollmentForm } from "@/components/admin/enrollments/enrollment-form";
 import { createEnrollmentAction } from "@/lib/actions/enrollments";
 import {
   getBatchOptionsForEnrollment,
-  getCompanyDefaultTaxRatePercent,
   getProgramPricingOptions,
   getStudentOptions,
 } from "@/lib/data/enrollments";
@@ -10,12 +9,11 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function NewEnrollmentPage() {
-  const [studentOptionsResult, programOptionsResult, batchOptionsResult, taxRateResult] =
+  const [studentOptionsResult, programOptionsResult, batchOptionsResult] =
     await Promise.all([
       getStudentOptions(),
       getProgramPricingOptions(),
       getBatchOptionsForEnrollment(),
-      getCompanyDefaultTaxRatePercent(),
     ]);
 
   const firstError = [
@@ -43,7 +41,6 @@ export default async function NewEnrollmentPage() {
           studentOptions={studentOptionsResult.ok ? studentOptionsResult.data : []}
           programOptions={programOptionsResult.ok ? programOptionsResult.data : []}
           batchOptions={batchOptionsResult.ok ? batchOptionsResult.data : []}
-          companyDefaultTaxRatePercent={taxRateResult.ok ? taxRateResult.data : "0"}
         />
       )}
     </div>

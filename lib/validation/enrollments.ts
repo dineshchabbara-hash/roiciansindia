@@ -106,24 +106,26 @@ export const enrollmentCreateSchema = z
       registrationFee = data.registrationFee;
     }
 
-    let taxAmount = "0";
-    if (data.taxAmount) {
-      if (!MONEY_PATTERN.test(data.taxAmount)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: MONEY_ERROR,
-          path: ["taxAmount"],
-        });
-        return z.NEVER;
-      }
-      taxAmount = data.taxAmount;
-    }
+    // No tax is charged on Enrollments under the current approved business
+    // configuration (manual-acceptance correction, Sept 2026). tax_amount is
+    // always forced to "0" here — server-side and unconditional — regardless
+    // of anything the client submits, so a tampered/non-zero browser value
+    // can never reach lib/data/enrollments.ts. This is deliberately NOT a
+    // "validate the client's value, then trust it" check.
+    const taxAmount = "0";
 
-    // discount_reason is not currently a required field anywhere in the
-    // approved requirements or schema (no CHECK constraint, no documented
-    // rule tying it to discount_amount > 0) — see the Phase 9 report. Not
-    // enforced here; inventing that rule would be exactly the kind of
-    // unapproved business rule this phase must avoid.
+    // Discount reason is required whenever a discount is actually applied
+    // (discountAmount > 0); optional/blank otherwise. data.discountReason is
+    // already trimmed and null-if-blank via optionalTrimmed above, so a
+    // whitespace-only submission is indistinguishable from an empty one here.
+    if (Number(discountAmount) > 0 && !data.discountReason) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Please enter a reason for the discount.",
+        path: ["discountReason"],
+      });
+      return z.NEVER;
+    }
 
     let paymentPlanType: (typeof PAYMENT_PLAN_TYPES)[number] | null = null;
     if (data.paymentPlanType) {

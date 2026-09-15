@@ -52,6 +52,12 @@ export function isPaymentPlanType(value: unknown): value is PaymentPlanType {
 // integer paise via lib/domain/money.ts (never JS float arithmetic),
 // matching every other financial computation in this codebase
 // (lib/domain/dashboard-metrics.ts).
+//
+// Current business configuration (manual-acceptance correction, Sept 2026):
+// no tax is charged on Enrollments — tax_amount is always "0" (enforced in
+// lib/validation/enrollments.ts, never client-supplied or auto-calculated
+// from a Program/company tax rate). The formula above still holds; it just
+// always resolves to agreed_fee - discount_amount + registration_fee today.
 
 export function computeTotalPayable(input: {
   agreedFee: string;
@@ -65,41 +71,4 @@ export function computeTotalPayable(input: {
     toPaise(input.registrationFee) +
     toPaise(input.taxAmount);
   return paiseToRupees(totalPaise);
-}
-
-/**
- * The tax rate actually in effect for a Program at Enrollment-creation time:
- * the Program's own tax_rate_percent when set, otherwise
- * company_settings.default_tax_rate_percent — preserving the exact fallback
- * documented on programs.tax_rate_percent ("null means use
- * company_settings.default_tax_rate_percent").
- */
-export function effectiveTaxRatePercent(
-  programTaxRatePercent: string | null,
-  companyDefaultTaxRatePercent: string,
-): number {
-  return programTaxRatePercent !== null
-    ? Number(programTaxRatePercent)
-    : Number(companyDefaultTaxRatePercent);
-}
-
-/**
- * A suggested tax_amount for the create-Enrollment form only — pre-filled,
- * not locked: enrollments.tax_amount is the Enrollment's own editable
- * snapshot field (like agreed_fee/discount_amount/registration_fee), and no
- * approved formula ties it algebraically to the rate the way total_payable
- * is tied to the other four fields. Applied to (agreed fee - discount), the
- * post-discount taxable amount.
- */
-export function suggestTaxAmount(input: {
-  agreedFee: string;
-  discountAmount: string;
-  taxRatePercent: number;
-}): number {
-  const taxableAmountPaise = Math.max(
-    0,
-    toPaise(input.agreedFee) - toPaise(input.discountAmount),
-  );
-  const taxPaise = Math.round((taxableAmountPaise * input.taxRatePercent) / 100);
-  return paiseToRupees(taxPaise);
 }

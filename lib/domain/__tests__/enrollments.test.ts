@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   computeTotalPayable,
-  effectiveTaxRatePercent,
   isEnrollmentStatus,
   isPaymentPlanType,
-  suggestTaxAmount,
 } from "@/lib/domain/enrollments";
 
 describe("isEnrollmentStatus", () => {
@@ -89,43 +87,17 @@ describe("computeTotalPayable — approved formula: agreed_fee - discount_amount
       }),
     ).toBe(25000);
   });
-});
 
-describe("effectiveTaxRatePercent — preserves programs.tax_rate_percent's documented fallback", () => {
-  it("uses the Program's own rate when set", () => {
-    expect(effectiveTaxRatePercent("18", "0")).toBe(18);
-  });
-
-  it("falls back to the company default when the Program's rate is null", () => {
-    expect(effectiveTaxRatePercent(null, "12")).toBe(12);
-  });
-
-  it("uses the Program's rate even when it is explicitly 0, not the company default", () => {
-    expect(effectiveTaxRatePercent("0", "18")).toBe(0);
-  });
-});
-
-describe("suggestTaxAmount", () => {
-  it("applies the rate to the post-discount taxable amount", () => {
-    // (50000 - 5000) * 18% = 8100
+  // Manual-acceptance scenario (no tax is currently charged on
+  // enrollments): 50000.50 - 5000.00 + 500.50 + 0.00 = 45501.00.
+  it("computes the manual-acceptance scenario exactly with tax_amount = 0", () => {
     expect(
-      suggestTaxAmount({
-        agreedFee: "50000",
-        discountAmount: "5000",
-        taxRatePercent: 18,
+      computeTotalPayable({
+        agreedFee: "50000.50",
+        discountAmount: "5000.00",
+        registrationFee: "500.50",
+        taxAmount: "0",
       }),
-    ).toBe(8100);
-  });
-
-  it("never produces a negative taxable base even if discount exceeds agreed fee", () => {
-    expect(
-      suggestTaxAmount({ agreedFee: "1000", discountAmount: "5000", taxRatePercent: 18 }),
-    ).toBe(0);
-  });
-
-  it("returns 0 for a 0% rate", () => {
-    expect(
-      suggestTaxAmount({ agreedFee: "50000", discountAmount: "0", taxRatePercent: 0 }),
-    ).toBe(0);
+    ).toBe(45501.0);
   });
 });

@@ -11,6 +11,14 @@ import {
   getEnrollmentFinancialSummary,
   getEnrollmentProfile,
 } from "@/lib/data/enrollments";
+import { PAYMENT_PLAN_TYPES } from "@/lib/domain/enrollments";
+
+// Same friendly display text as components/admin/enrollments/enrollment-form.tsx
+// — the raw DB value (full/installments) is unchanged, only the label shown.
+const PAYMENT_PLAN_LABELS: Record<(typeof PAYMENT_PLAN_TYPES)[number], string> = {
+  full: "Full payment",
+  installments: "Installments",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -146,8 +154,15 @@ export default async function EnrollmentProfilePage({
             <p className="font-medium">{formatDecimalAsINR(enrollment.totalPayable)}</p>
           </div>
           <div>
-            <p className="text-muted-foreground text-xs">Payment plan</p>
-            <p>{enrollment.paymentPlanType ?? "—"}</p>
+            <p className="text-muted-foreground text-xs">Payment preference</p>
+            <p>
+              {enrollment.paymentPlanType &&
+              enrollment.paymentPlanType in PAYMENT_PLAN_LABELS
+                ? PAYMENT_PLAN_LABELS[
+                    enrollment.paymentPlanType as (typeof PAYMENT_PLAN_TYPES)[number]
+                  ]
+                : "—"}
+            </p>
           </div>
           <div>
             <p className="text-muted-foreground text-xs">Source</p>

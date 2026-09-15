@@ -227,23 +227,6 @@ export async function getBatchOptionsForEnrollment(): Promise<DataResult<BatchOp
   }
 }
 
-export async function getCompanyDefaultTaxRatePercent(): Promise<DataResult<string>> {
-  try {
-    const supabase = await createSupabaseServerClient();
-    // company_settings is a singleton table (exactly one row ever exists,
-    // enforced at the application/seed level) — no need to filter by id.
-    const { data, error } = await supabase
-      .from("company_settings")
-      .select("default_tax_rate_percent")
-      .limit(1)
-      .maybeSingle();
-    if (error) throw error;
-    return { ok: true, data: data?.default_tax_rate_percent ?? "0" };
-  } catch (error) {
-    return fail("Could not load the company tax settings.", error);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Profile (core row) — queried directly from `enrollments` (Admin RLS),
 // joined to student/program/batch for display names only. Unlike the list,

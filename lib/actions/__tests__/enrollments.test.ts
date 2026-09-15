@@ -155,6 +155,51 @@ describe("createEnrollmentAction", () => {
     expect(writeAuditLog).not.toHaveBeenCalled();
   });
 
+  it("rejects a positive discount amount with a blank discount reason, never creating a record or auditing", async () => {
+    const result = await createEnrollmentAction(
+      {},
+      baseFormData({ discountAmount: "5000", discountReason: "" }),
+    );
+    expect(result.fieldErrors?.discountReason).toContain(
+      "Please enter a reason for the discount.",
+    );
+    expect(createEnrollmentRecord).not.toHaveBeenCalled();
+    expect(writeAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("rejects a positive discount amount with a whitespace-only discount reason, never creating a record or auditing", async () => {
+    const result = await createEnrollmentAction(
+      {},
+      baseFormData({ discountAmount: "5000", discountReason: "   " }),
+    );
+    expect(result.fieldErrors?.discountReason).toContain(
+      "Please enter a reason for the discount.",
+    );
+    expect(createEnrollmentRecord).not.toHaveBeenCalled();
+    expect(writeAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("creates a record when a positive discount amount has a valid discount reason", async () => {
+    await expect(
+      createEnrollmentAction(
+        {},
+        baseFormData({ discountAmount: "5000", discountReason: "Early Bird" }),
+      ),
+    ).rejects.toThrow("REDIRECT_CALLED");
+    expect(createEnrollmentRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ discountAmount: "5000", discountReason: "Early Bird" }),
+    );
+  });
+
+  it('forces tax_amount to "0" even when the submitted form data carries a non-zero value — the server never trusts a browser-supplied tax', async () => {
+    await expect(
+      createEnrollmentAction({}, baseFormData({ taxAmount: "9999" })),
+    ).rejects.toThrow("REDIRECT_CALLED");
+    expect(createEnrollmentRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ taxAmount: "0" }),
+    );
+  });
+
   it("audits create with minimal metadata only — no financial fields, no full Student object", async () => {
     await expect(createEnrollmentAction({}, baseFormData())).rejects.toThrow(
       "REDIRECT_CALLED",

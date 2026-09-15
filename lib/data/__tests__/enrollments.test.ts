@@ -213,6 +213,42 @@ describe("createEnrollmentRecord", () => {
     });
   });
 
+  // Manual-acceptance scenario (no tax is currently charged on
+  // enrollments): agreed=50000.50, discount=5000.00, reason="Early Bird",
+  // registration=500.50, tax=0.00 -> total_payable = 45501.00.
+  it("computes the manual-acceptance scenario exactly (tax_amount forced to 0 by validation upstream)", async () => {
+    const insertSingle = vi.fn().mockResolvedValue({
+      data: { id: "enr-1", enrollment_code: "ENR-000001" },
+      error: null,
+    });
+    const insertSelect = vi.fn().mockReturnValue({ single: insertSingle });
+    const insert = vi.fn().mockReturnValue({ select: insertSelect });
+    const from = vi.fn().mockReturnValue({ insert });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue({ from } as never);
+
+    const result = await createEnrollmentRecord(
+      baseCreateInput({
+        batchId: null,
+        agreedFee: "50000.50",
+        discountAmount: "5000.00",
+        discountReason: "Early Bird",
+        registrationFee: "500.50",
+        taxAmount: "0",
+        paymentPlanType: "installments",
+      }),
+    );
+
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        discount_reason: "Early Bird",
+        tax_amount: "0",
+        total_payable: "45501.00",
+        payment_plan_type: "installments",
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
   it("skips the Batch/Program cross-check entirely when no Batch is selected", async () => {
     const insertSingle = vi.fn().mockResolvedValue({
       data: { id: "enr-1", enrollment_code: "ENR-000001" },

@@ -4,11 +4,19 @@ import { Fragment, useActionState, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { PAYMENT_PLAN_TYPES, suggestTaxAmount } from "@/lib/domain/enrollments";
+import { PAYMENT_PLAN_TYPES } from "@/lib/domain/enrollments";
 import type { EnrollmentFormState } from "@/lib/actions/enrollments";
 import type { ProgramPricingOption, BatchOption } from "@/lib/data/enrollments";
 
 const initialState: EnrollmentFormState = {};
+
+// Friendly display text for the raw DB values — the <option value> stays the
+// stored value (full/installments); only the label shown to the Admin
+// changes. No new values, no schema change.
+const PAYMENT_PLAN_LABELS: Record<(typeof PAYMENT_PLAN_TYPES)[number], string> = {
+  full: "Full payment",
+  installments: "Installments",
+};
 
 function FieldError({ errors }: { errors?: string[] }) {
   if (!errors || errors.length === 0) return null;
@@ -20,7 +28,6 @@ export function EnrollmentForm({
   studentOptions,
   programOptions,
   batchOptions,
-  companyDefaultTaxRatePercent,
 }: {
   action: (
     prevState: EnrollmentFormState,
@@ -34,7 +41,6 @@ export function EnrollmentForm({
   }>;
   programOptions: ProgramPricingOption[];
   batchOptions: BatchOption[];
-  companyDefaultTaxRatePercent: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
 
@@ -54,8 +60,6 @@ export function EnrollmentForm({
   const [discountAmount, setDiscountAmount] = useState(
     state.submittedValues?.discountAmount ?? "",
   );
-  const [taxAmountTouched, setTaxAmountTouched] = useState(false);
-  const [taxAmount, setTaxAmount] = useState(state.submittedValues?.taxAmount ?? "");
 
   const selectedProgram = useMemo(
     () => programOptions.find((p) => p.id === selectedProgramId) ?? null,
@@ -77,24 +81,6 @@ export function EnrollmentForm({
     if (program && !agreedFee) {
       setAgreedFee(program.regularFee);
     }
-  }
-
-  function recomputeSuggestedTax(nextAgreedFee: string, nextDiscountAmount: string) {
-    if (taxAmountTouched || !selectedProgram) return;
-    const rate =
-      selectedProgram.taxRatePercent !== null
-        ? Number(selectedProgram.taxRatePercent)
-        : Number(companyDefaultTaxRatePercent);
-    if (!nextAgreedFee || Number.isNaN(Number(nextAgreedFee))) return;
-    setTaxAmount(
-      String(
-        suggestTaxAmount({
-          agreedFee: nextAgreedFee,
-          discountAmount: nextDiscountAmount || "0",
-          taxRatePercent: rate,
-        }),
-      ),
-    );
   }
 
   const value = (field: keyof NonNullable<EnrollmentFormState["submittedValues"]>) =>
@@ -205,10 +191,7 @@ export function EnrollmentForm({
               inputMode="decimal"
               required
               value={agreedFee}
-              onChange={(e) => {
-                setAgreedFee(e.target.value);
-                recomputeSuggestedTax(e.target.value, discountAmount);
-              }}
+              onChange={(e) => setAgreedFee(e.target.value)}
               aria-invalid={!!state.fieldErrors?.agreedFee}
             />
             <FieldError errors={state.fieldErrors?.agreedFee} />
@@ -223,21 +206,23 @@ export function EnrollmentForm({
               name="discountAmount"
               inputMode="decimal"
               value={discountAmount}
-              onChange={(e) => {
-                setDiscountAmount(e.target.value);
-                recomputeSuggestedTax(agreedFee, e.target.value);
-              }}
+              onChange={(e) => setDiscountAmount(e.target.value)}
               aria-invalid={!!state.fieldErrors?.discountAmount}
             />
             <FieldError errors={state.fieldErrors?.discountAmount} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="discountReason">Discount reason (optional)</Label>
+            <Label htmlFor="discountReason">Discount reason</Label>
             <Input
               id="discountReason"
               name="discountReason"
               defaultValue={value("discountReason") ?? undefined}
+              aria-invalid={!!state.fieldErrors?.discountReason}
             />
+            <p className="text-muted-foreground text-xs">
+              Required when a discount is applied.
+            </p>
+            <FieldError errors={state.fieldErrors?.discountReason} />
           </div>
         </div>
 
@@ -256,29 +241,24 @@ export function EnrollmentForm({
             <FieldError errors={state.fieldErrors?.registrationFee} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="taxAmount">Tax amount (optional)</Label>
+            <Label htmlFor="taxAmount">Tax amount</Label>
             <Input
               id="taxAmount"
               name="taxAmount"
               inputMode="decimal"
-              value={taxAmount}
-              onChange={(e) => {
-                setTaxAmountTouched(true);
-                setTaxAmount(e.target.value);
-              }}
+              value="0.00"
+              disabled
               aria-invalid={!!state.fieldErrors?.taxAmount}
             />
             <p className="text-muted-foreground text-xs">
-              Suggested from the{" "}
-              {selectedProgram?.taxRatePercent !== null ? "Program's" : "company default"}{" "}
-              tax rate — editable.
+              No tax is currently charged on enrollments.
             </p>
             <FieldError errors={state.fieldErrors?.taxAmount} />
           </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="paymentPlanType">Payment plan (optional)</Label>
+          <Label htmlFor="paymentPlanType">Payment preference (optional)</Label>
           <select
             id="paymentPlanType"
             name="paymentPlanType"
@@ -288,10 +268,13 @@ export function EnrollmentForm({
             <option value="">—</option>
             {PAYMENT_PLAN_TYPES.map((type) => (
               <option key={type} value={type}>
-                {type}
+                {PAYMENT_PLAN_LABELS[type]}
               </option>
             ))}
           </select>
+          <p className="text-muted-foreground text-xs">
+            Installment amounts and due dates will be configured separately.
+          </p>
           <FieldError errors={state.fieldErrors?.paymentPlanType} />
         </div>
 
