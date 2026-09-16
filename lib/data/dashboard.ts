@@ -55,11 +55,14 @@ export type DashboardMetrics = {
   totalTrainers: number;
   activePrograms: number;
   activeBatches: number;
-  // Literally status = 'active' — a specific lifecycle stage, distinct from
-  // 'enrolled'/'on_hold'/'completed'. Named for exactly what it counts
-  // (Phase 9 manual-acceptance correction, Sept 2026 — the prior label
-  // "Active Enrollments" read as "currently enrolled", which this is not).
-  enrollmentsInActiveStatus: number;
+  // Count of Enrollment records (not distinct Students) whose status is
+  // one of CONFIRMED_ENROLLMENT_STATUSES (enrolled/active/on_hold/
+  // completed) — a Student with two qualifying Enrollments in different
+  // Batches contributes two to this count. Approved business rule, Phase 9
+  // manual-acceptance amendment, Sept 2026 (supersedes the prior
+  // "Enrollments in Active Status" label, which counted only the literal
+  // status='active' rows and read as ambiguous).
+  confirmedEnrollmentsCount: number;
   revenueCollectedPaise: number;
   // Confirmed Enrollments only (enrolled/active/on_hold/completed) — see
   // CONFIRMED_ENROLLMENT_STATUSES. Excludes Lead/Applicant (not yet a
@@ -79,7 +82,6 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
       totalTrainers,
       activePrograms,
       activeBatches,
-      enrollmentsInActiveStatus,
       paidPayments,
       enrollmentTotals,
       processedRefunds,
@@ -98,16 +100,17 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
         .from("batches")
         .select("*", { count: "exact", head: true })
         .eq("status", "active"),
-      supabase
-        .from("enrollments")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "active"),
       // One fetch of paid payments, reused below for both revenue and the
       // confirmed-unpaid-fees computation — no need to hit `payments` twice.
       supabase
         .from("payments")
         .select("enrollment_id, total_amount")
         .eq("status", "paid"),
+      // One fetch of every Enrollment's id/status/total_payable, reused below
+      // for both the Confirmed Enrollments count and the Confirmed Unpaid
+      // Fees balance — no separate status='active' count query, so there is
+      // no second, independently-filtered read of `enrollments` that could
+      // ever disagree with the balance figure.
       supabase.from("enrollments").select("id, total_payable, status"),
       supabase
         .from("payment_refunds")
@@ -121,7 +124,6 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
       totalTrainers,
       activePrograms,
       activeBatches,
-      enrollmentsInActiveStatus,
       paidPayments,
       enrollmentTotals,
       processedRefunds,
@@ -158,7 +160,7 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
         totalTrainers: totalTrainers.count ?? 0,
         activePrograms: activePrograms.count ?? 0,
         activeBatches: activeBatches.count ?? 0,
-        enrollmentsInActiveStatus: enrollmentsInActiveStatus.count ?? 0,
+        confirmedEnrollmentsCount: confirmedEnrollments.length,
         revenueCollectedPaise: computeRevenueCollectedPaise(paidPayments.data ?? []),
         confirmedUnpaidFeesPaise: totalOutstandingPaise,
       },

@@ -240,10 +240,8 @@ describe("getDashboardMetrics — status-scoped counts and Confirmed Unpaid Fees
       amount: string;
       payment: { enrollment_id: string } | null;
     }>,
-    activeEnrollmentCount = 0,
   } = {}) {
     let studentsCalls = 0;
-    let enrollmentsCalls = 0;
     const from = vi.fn((table: string) => {
       switch (table) {
         case "students":
@@ -256,10 +254,7 @@ describe("getDashboardMetrics — status-scoped counts and Confirmed Unpaid Fees
         case "batches":
           return makeQuery({ count: 5, error: null });
         case "enrollments":
-          enrollmentsCalls += 1;
-          return enrollmentsCalls === 1
-            ? makeQuery({ count: activeEnrollmentCount, error: null })
-            : makeQuery({ data: enrollmentRows, error: null });
+          return makeQuery({ data: enrollmentRows, error: null });
         case "payments":
           return makeQuery({ data: paidPaymentRows, error: null });
         case "payment_refunds":
@@ -272,15 +267,52 @@ describe("getDashboardMetrics — status-scoped counts and Confirmed Unpaid Fees
     return { from };
   }
 
-  it("(18) enrollmentsInActiveStatus reports the literal status='active' count, distinct from 'enrolled'", async () => {
-    // Two 'enrolled' rows exist in the fixture (via ENROLLMENT_ROWS'
-    // enr-enrolled) but the active-status count query itself reports 0 —
-    // proving the figure is not silently redefined to mean "enrolled".
-    mockQueries({ activeEnrollmentCount: 0 });
+  it("(1)-(4) Confirmed Enrollments counts Enrolled, Active, On Hold and Completed records", async () => {
+    // ENROLLMENT_ROWS has exactly one row per status; enr-enrolled,
+    // enr-active, enr-on-hold and enr-completed are the 4 that must count.
+    mockQueries();
     const result = await getDashboardMetrics();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.enrollmentsInActiveStatus).toBe(0);
+    expect(result.data.confirmedEnrollmentsCount).toBe(4);
+  });
+
+  it("(5)-(8) Confirmed Enrollments excludes Lead, Applicant, Cancelled and Withdrawn records", async () => {
+    // If any of the 4 excluded statuses leaked in, the count below (8 total
+    // rows in the fixture) would read 8 instead of the correct 4.
+    mockQueries();
+    const result = await getDashboardMetrics();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.confirmedEnrollmentsCount).toBe(4);
+    expect(result.data.confirmedEnrollmentsCount).not.toBe(ENROLLMENT_ROWS.length);
+  });
+
+  it("(9) multiple valid Enrollments for the same Student count separately, not once per Student", async () => {
+    mockQueries({
+      enrollmentRows: [
+        { id: "enr-student-a-batch-1", total_payable: "40000.00", status: "enrolled" },
+        { id: "enr-student-a-batch-2", total_payable: "60000.00", status: "active" },
+      ],
+    });
+    const result = await getDashboardMetrics();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Both rows belong to the same Student (different Batches) in this
+    // scenario, and both are qualifying statuses — the count must be 2, not
+    // 1 (i.e. it counts Enrollments, never distinct Students).
+    expect(result.data.confirmedEnrollmentsCount).toBe(2);
+  });
+
+  it("(10) each Enrollment is counted only once — the confirmed count derives from the same single enrollments read used for the balance, not a second/duplicated query", async () => {
+    const { from } = mockQueries();
+    const result = await getDashboardMetrics();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.confirmedEnrollmentsCount).toBe(4);
+    // Exactly one query against `enrollments` — proves there is no separate
+    // status='active' count query that could double-count or disagree.
+    expect(from.mock.calls.filter(([table]) => table === "enrollments")).toHaveLength(1);
   });
 
   it("confirmedUnpaidFeesPaise excludes Lead/Applicant/Cancelled/Withdrawn, matching the classification summary", async () => {

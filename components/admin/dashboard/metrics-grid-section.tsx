@@ -38,8 +38,8 @@ export async function MetricsGridSection() {
       <MetricCard label="Active Programs" value={m.activePrograms} icon={BookOpen} />
       <MetricCard label="Active Batches" value={m.activeBatches} icon={CalendarDays} />
       <MetricCard
-        label="Enrollments in Active Status"
-        value={m.enrollmentsInActiveStatus}
+        label="Confirmed Enrollments"
+        value={m.confirmedEnrollmentsCount}
         icon={ClipboardList}
       />
       <MetricCard
