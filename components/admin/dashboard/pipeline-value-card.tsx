@@ -6,22 +6,23 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { formatPaiseAsINR } from "@/lib/domain/money";
-import type { OutstandingFeesSummary } from "@/lib/data/dashboard";
 
-export function OutstandingFeesCard({
-  data,
+export function PipelineValueCard({
+  pipelineValuePaise,
+  pipelineEnrollmentCount,
   error,
 }: {
-  data?: OutstandingFeesSummary;
+  pipelineValuePaise?: number;
+  pipelineEnrollmentCount?: number;
   error?: string;
 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Outstanding Fees</CardTitle>
+        <CardTitle>Potential Pipeline Value</CardTitle>
         <CardDescription>
-          Total payable minus paid payments plus processed refunds, across every
-          enrollment.
+          Indicative fees associated with leads and applicants. Not confirmed revenue or
+          outstanding debt.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -32,11 +33,11 @@ export function OutstandingFeesCard({
         ) : (
           <div className="flex items-baseline gap-3">
             <span className="text-2xl font-bold">
-              {formatPaiseAsINR(data?.totalOutstandingPaise ?? 0)}
+              {formatPaiseAsINR(pipelineValuePaise ?? 0)}
             </span>
             <span className="text-muted-foreground text-sm">
-              across {data?.enrollmentsWithBalance ?? 0} enrollment
-              {data?.enrollmentsWithBalance === 1 ? "" : "s"}
+              across {pipelineEnrollmentCount ?? 0} lead/applicant record
+              {pipelineEnrollmentCount === 1 ? "" : "s"}
             </span>
           </div>
         )}

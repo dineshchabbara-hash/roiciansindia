@@ -38,8 +38,8 @@ export async function MetricsGridSection() {
       <MetricCard label="Active Programs" value={m.activePrograms} icon={BookOpen} />
       <MetricCard label="Active Batches" value={m.activeBatches} icon={CalendarDays} />
       <MetricCard
-        label="Active Enrollments"
-        value={m.activeEnrollments}
+        label="Enrollments in Active Status"
+        value={m.enrollmentsInActiveStatus}
         icon={ClipboardList}
       />
       <MetricCard
@@ -48,8 +48,8 @@ export async function MetricsGridSection() {
         icon={IndianRupee}
       />
       <MetricCard
-        label="Outstanding Fees"
-        value={formatPaiseAsINR(m.outstandingFeesPaise)}
+        label="Confirmed Unpaid Fees"
+        value={formatPaiseAsINR(m.confirmedUnpaidFeesPaise)}
         icon={Wallet}
       />
     </div>

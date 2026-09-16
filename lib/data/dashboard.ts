@@ -5,7 +5,12 @@ import { sumPaise } from "@/lib/domain/money";
 import {
   computeRevenueCollectedPaise,
   computeOutstandingFeesPaise,
+  sumTotalPayablePaise,
+  PIPELINE_ENROLLMENT_STATUSES,
+  CONFIRMED_ENROLLMENT_STATUSES,
+  CANCELLED_OR_WITHDRAWN_ENROLLMENT_STATUSES,
 } from "@/lib/domain/dashboard-metrics";
+import type { EnrollmentStatus } from "@/lib/domain/enrollments";
 
 /**
  * Admin dashboard data-access layer. Every exported async function here is
@@ -50,9 +55,18 @@ export type DashboardMetrics = {
   totalTrainers: number;
   activePrograms: number;
   activeBatches: number;
-  activeEnrollments: number;
+  // Literally status = 'active' — a specific lifecycle stage, distinct from
+  // 'enrolled'/'on_hold'/'completed'. Named for exactly what it counts
+  // (Phase 9 manual-acceptance correction, Sept 2026 — the prior label
+  // "Active Enrollments" read as "currently enrolled", which this is not).
+  enrollmentsInActiveStatus: number;
   revenueCollectedPaise: number;
-  outstandingFeesPaise: number;
+  // Confirmed Enrollments only (enrolled/active/on_hold/completed) — see
+  // CONFIRMED_ENROLLMENT_STATUSES. Excludes Lead/Applicant (not yet a
+  // confirmed commercial relationship) and Cancelled/Withdrawn (financially
+  // unresolved, tracked separately — see
+  // getEnrollmentFinancialClassificationSummary below).
+  confirmedUnpaidFeesPaise: number;
 };
 
 export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics>> {
@@ -65,7 +79,7 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
       totalTrainers,
       activePrograms,
       activeBatches,
-      activeEnrollments,
+      enrollmentsInActiveStatus,
       paidPayments,
       enrollmentTotals,
       processedRefunds,
@@ -89,12 +103,12 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
         .select("*", { count: "exact", head: true })
         .eq("status", "active"),
       // One fetch of paid payments, reused below for both revenue and the
-      // outstanding-balance computation — no need to hit `payments` twice.
+      // confirmed-unpaid-fees computation — no need to hit `payments` twice.
       supabase
         .from("payments")
         .select("enrollment_id, total_amount")
         .eq("status", "paid"),
-      supabase.from("enrollments").select("id, total_payable"),
+      supabase.from("enrollments").select("id, total_payable, status"),
       supabase
         .from("payment_refunds")
         .select("amount, payment:payments(enrollment_id)")
@@ -107,7 +121,7 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
       totalTrainers,
       activePrograms,
       activeBatches,
-      activeEnrollments,
+      enrollmentsInActiveStatus,
       paidPayments,
       enrollmentTotals,
       processedRefunds,
@@ -120,8 +134,18 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
       return payment ? [{ enrollment_id: payment.enrollment_id, amount: r.amount }] : [];
     });
 
+    // Root cause of the pre-fix misleading figure: this used to feed EVERY
+    // enrollment (any status) into computeOutstandingFeesPaise, so quoted
+    // fees for Lead/Applicant and the original fee on Cancelled/Withdrawn
+    // records all counted as if they were real receivables. Only Confirmed
+    // Enrollments (see CONFIRMED_ENROLLMENT_STATUSES) go into this figure.
+    const confirmedEnrollments = (enrollmentTotals.data ?? []).filter((e) =>
+      (CONFIRMED_ENROLLMENT_STATUSES as readonly string[]).includes(
+        e.status as EnrollmentStatus,
+      ),
+    );
     const { totalOutstandingPaise } = computeOutstandingFeesPaise(
-      enrollmentTotals.data ?? [],
+      confirmedEnrollments,
       paidPayments.data ?? [],
       refundRows,
     );
@@ -134,9 +158,9 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
         totalTrainers: totalTrainers.count ?? 0,
         activePrograms: activePrograms.count ?? 0,
         activeBatches: activeBatches.count ?? 0,
-        activeEnrollments: activeEnrollments.count ?? 0,
+        enrollmentsInActiveStatus: enrollmentsInActiveStatus.count ?? 0,
         revenueCollectedPaise: computeRevenueCollectedPaise(paidPayments.data ?? []),
-        outstandingFeesPaise: totalOutstandingPaise,
+        confirmedUnpaidFeesPaise: totalOutstandingPaise,
       },
     };
   } catch (error) {
@@ -145,21 +169,42 @@ export async function getDashboardMetrics(): Promise<DataResult<DashboardMetrics
 }
 
 // ---------------------------------------------------------------------------
-// Outstanding fees summary (richer breakdown than the single metric card)
+// Enrollment financial classification (richer breakdown than the compact
+// metric-grid figures) — the single source every dashboard card reads from,
+// so Pipeline/Confirmed/Cancelled-or-Withdrawn are never redefined
+// per-card. See lib/domain/dashboard-metrics.ts's classification constants
+// for the approved status groupings and the Phase 9 report for why the
+// prior single "Outstanding Fees" figure was misleading.
 
-export type OutstandingFeesSummary = {
-  totalOutstandingPaise: number;
-  enrollmentsWithBalance: number;
+export type EnrollmentFinancialClassificationSummary = {
+  // Section A — Potential Pipeline Value: raw sum of Lead/Applicant
+  // Enrollments' own total_payable snapshots. Indicative only, never a
+  // receivable — no payments/refunds involved.
+  pipelineValuePaise: number;
+  pipelineEnrollmentCount: number;
+  // Section B — Confirmed Unpaid Fees: the authoritative per-enrollment
+  // balance formula (computeOutstandingFeesPaise, unchanged), applied only
+  // to Confirmed Enrollments (enrolled/active/on_hold/completed).
+  confirmedUnpaidFeesPaise: number;
+  confirmedEnrollmentsWithBalance: number;
+  // Section C — Cancelled/Withdrawn: count plus the original recorded fee
+  // total (raw total_payable sum, same as Pipeline — explicitly NOT a
+  // balance, receivable, loss, refund-due, or written-off debt). Any
+  // payments already recorded against these Enrollments still contribute
+  // to Revenue Collected and payment history unchanged — this figure does
+  // not touch payments at all.
+  cancelledOrWithdrawnCount: number;
+  cancelledOrWithdrawnOriginalFeePaise: number;
 };
 
-export async function getOutstandingFeesSummary(): Promise<
-  DataResult<OutstandingFeesSummary>
+export async function getEnrollmentFinancialClassificationSummary(): Promise<
+  DataResult<EnrollmentFinancialClassificationSummary>
 > {
   try {
     const supabase = await createSupabaseServerClient();
 
     const [enrollments, paidPayments, processedRefunds] = await Promise.all([
-      supabase.from("enrollments").select("id, total_payable"),
+      supabase.from("enrollments").select("id, total_payable, status"),
       supabase
         .from("payments")
         .select("enrollment_id, total_amount")
@@ -179,15 +224,41 @@ export async function getOutstandingFeesSummary(): Promise<
       return payment ? [{ enrollment_id: payment.enrollment_id, amount: r.amount }] : [];
     });
 
+    const allEnrollments = enrollments.data ?? [];
+    const isStatusIn = (statuses: readonly string[]) => (e: { status: string }) =>
+      statuses.includes(e.status);
+
+    const pipelineEnrollments = allEnrollments.filter(
+      isStatusIn(PIPELINE_ENROLLMENT_STATUSES),
+    );
+    const confirmedEnrollments = allEnrollments.filter(
+      isStatusIn(CONFIRMED_ENROLLMENT_STATUSES),
+    );
+    const cancelledOrWithdrawnEnrollments = allEnrollments.filter(
+      isStatusIn(CANCELLED_OR_WITHDRAWN_ENROLLMENT_STATUSES),
+    );
+
     const { totalOutstandingPaise, enrollmentsWithBalance } = computeOutstandingFeesPaise(
-      enrollments.data ?? [],
+      confirmedEnrollments,
       paidPayments.data ?? [],
       refundRows,
     );
 
-    return { ok: true, data: { totalOutstandingPaise, enrollmentsWithBalance } };
+    return {
+      ok: true,
+      data: {
+        pipelineValuePaise: sumTotalPayablePaise(pipelineEnrollments),
+        pipelineEnrollmentCount: pipelineEnrollments.length,
+        confirmedUnpaidFeesPaise: totalOutstandingPaise,
+        confirmedEnrollmentsWithBalance: enrollmentsWithBalance,
+        cancelledOrWithdrawnCount: cancelledOrWithdrawnEnrollments.length,
+        cancelledOrWithdrawnOriginalFeePaise: sumTotalPayablePaise(
+          cancelledOrWithdrawnEnrollments,
+        ),
+      },
+    };
   } catch (error) {
-    return fail("outstanding fees summary", error);
+    return fail("enrollment financial classification summary", error);
   }
 }
 

@@ -5,11 +5,12 @@ import { MetricsGridSection } from "@/components/admin/dashboard/metrics-grid-se
 import { RecentEnrollmentsSection } from "@/components/admin/dashboard/recent-enrollments-section";
 import { RecentPaymentsSection } from "@/components/admin/dashboard/recent-payments-section";
 import { UpcomingClassesSection } from "@/components/admin/dashboard/upcoming-classes-section";
-import { OutstandingFeesSection } from "@/components/admin/dashboard/outstanding-fees-section";
+import { EnrollmentFinancialClassificationSection } from "@/components/admin/dashboard/enrollment-financial-classification-section";
 import { QuickActions } from "@/components/admin/dashboard/quick-actions";
 import {
   MetricsGridSkeleton,
   ListCardSkeleton,
+  FinancialClassificationSkeleton,
 } from "@/components/admin/dashboard/card-skeleton";
 
 export const dynamic = "force-dynamic";
@@ -38,8 +39,8 @@ export default async function AdminDashboard() {
         <MetricsGridSection />
       </Suspense>
 
-      <Suspense fallback={<ListCardSkeleton title="outstanding fees" />}>
-        <OutstandingFeesSection />
+      <Suspense fallback={<FinancialClassificationSkeleton />}>
+        <EnrollmentFinancialClassificationSection />
       </Suspense>
 
       <QuickActions />

@@ -2,7 +2,79 @@ import { describe, expect, it } from "vitest";
 import {
   computeRevenueCollectedPaise,
   computeOutstandingFeesPaise,
+  sumTotalPayablePaise,
+  PIPELINE_ENROLLMENT_STATUSES,
+  CONFIRMED_ENROLLMENT_STATUSES,
+  CANCELLED_OR_WITHDRAWN_ENROLLMENT_STATUSES,
 } from "@/lib/domain/dashboard-metrics";
+
+// Manual-acceptance correction (Sept 2026): the centralized dashboard
+// financial classification — every card that buckets Enrollments by status
+// for a financial figure must use these three sets, so no card can
+// independently redefine "pipeline" / "confirmed" / "cancelled or
+// withdrawn" and no Enrollment can land in more than one bucket.
+describe("Enrollment financial classification (dashboard)", () => {
+  it("PIPELINE_ENROLLMENT_STATUSES is exactly lead + applicant", () => {
+    expect([...PIPELINE_ENROLLMENT_STATUSES].sort()).toEqual(
+      ["applicant", "lead"].sort(),
+    );
+  });
+
+  it("CONFIRMED_ENROLLMENT_STATUSES is exactly enrolled/active/on_hold/completed", () => {
+    expect([...CONFIRMED_ENROLLMENT_STATUSES].sort()).toEqual(
+      ["active", "completed", "enrolled", "on_hold"].sort(),
+    );
+  });
+
+  it("CANCELLED_OR_WITHDRAWN_ENROLLMENT_STATUSES is exactly cancelled + withdrawn", () => {
+    expect([...CANCELLED_OR_WITHDRAWN_ENROLLMENT_STATUSES].sort()).toEqual(
+      ["cancelled", "withdrawn"].sort(),
+    );
+  });
+
+  // The three sets must partition the 8 approved statuses with no overlap
+  // and no gap — otherwise an Enrollment could be double-counted or
+  // silently excluded from every dashboard financial bucket.
+  it("the three sets are mutually exclusive and together cover all 8 approved statuses", () => {
+    const all = [
+      ...PIPELINE_ENROLLMENT_STATUSES,
+      ...CONFIRMED_ENROLLMENT_STATUSES,
+      ...CANCELLED_OR_WITHDRAWN_ENROLLMENT_STATUSES,
+    ];
+    expect(new Set(all).size).toBe(all.length); // no duplicates across sets
+    expect([...all].sort()).toEqual(
+      [
+        "lead",
+        "applicant",
+        "enrolled",
+        "active",
+        "on_hold",
+        "completed",
+        "withdrawn",
+        "cancelled",
+      ].sort(),
+    );
+  });
+});
+
+describe("sumTotalPayablePaise — raw snapshot sum, no payments/refunds involved", () => {
+  it("sums the given total_payable values exactly", () => {
+    expect(
+      sumTotalPayablePaise([{ total_payable: "50000.50" }, { total_payable: "500.50" }]),
+    ).toBe(5050100);
+  });
+
+  it("preserves paise precision for fractional rupee amounts", () => {
+    // A classic float trap: 0.1 + 0.2 !== 0.3 in raw JS arithmetic.
+    expect(
+      sumTotalPayablePaise([{ total_payable: "0.10" }, { total_payable: "0.20" }]),
+    ).toBe(30);
+  });
+
+  it("returns 0 for no enrollments", () => {
+    expect(sumTotalPayablePaise([])).toBe(0);
+  });
+});
 
 describe("computeRevenueCollectedPaise", () => {
   it("sums only the amounts it's given (caller already filtered to status=paid)", () => {
