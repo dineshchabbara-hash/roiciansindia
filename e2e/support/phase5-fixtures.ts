@@ -137,7 +137,19 @@ export async function cleanupOrphanedPhase5FixtureUsers(): Promise<void> {
     u.email?.endsWith(`@${PHASE5_E2E_EMAIL_DOMAIN}`),
   );
   for (const orphan of orphans) {
-    await supabase.auth.admin.deleteUser(orphan.id).catch(() => {});
+    // Best-effort: one orphan failing to delete must never stop the sweep
+    // for the rest. Previously swallowed silently, which made it
+    // impossible to tell "nothing to clean up" apart from "cleanup is
+    // failing every time" — now reports a sanitized category only (the
+    // error's constructor name, e.g. "AuthApiError"), never the orphan's
+    // email, an id, or the error's own message (which could otherwise
+    // embed identifying detail).
+    await supabase.auth.admin.deleteUser(orphan.id).catch((error: unknown) => {
+      console.error(
+        "[phase5 e2e] cleanupOrphanedPhase5FixtureUsers: failed to delete an orphaned fixture user —",
+        error instanceof Error ? error.constructor.name : typeof error,
+      );
+    });
   }
 }
 
