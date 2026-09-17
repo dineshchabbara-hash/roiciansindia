@@ -128,6 +128,30 @@ async function logAuthCookies(page: Page, label: string) {
   );
 }
 
+/**
+ * Confirms a login produced a genuinely authenticated, persisted session —
+ * not just a URL that briefly reads `/admin`. A Server Action's redirect()
+ * can update the browser's URL before the destination route's own
+ * server-side auth check (and the browser's cookie jar) have actually
+ * settled, so a bare `toHaveURL(/\/admin$/)` can pass even on a run where
+ * the session never persists (see this file's git history for the full
+ * investigation of that exact failure mode). Waits for the Dashboard's own
+ * heading to actually render — Playwright's auto-retrying `toBeVisible()`,
+ * not a one-shot URL match — then asserts at least one `sb-*` auth cookie
+ * is present. Presence only, via a boolean `.some()` check — never a
+ * cookie value, and nothing is logged here (see logAuthCookies for the
+ * separate, purely-informational metadata dump).
+ */
+async function assertAuthenticatedAsAdmin(page: Page) {
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  const cookies = await page.context().cookies();
+  expect(
+    cookies.some((c) => c.name.startsWith("sb-")),
+    "expected a persisted sb-* auth cookie after a successful Admin/Super Admin login",
+  ).toBe(true);
+}
+
 /** Every test body only ever runs after a successful beforeAll (skipSuite
  *  and setup failures both stop the suite before any test executes), so
  *  `fixtures` is always assigned here at runtime — this just gives a clear
@@ -174,7 +198,7 @@ const CANONICAL = {
 test.describe("Role-based access to Admin Student Management", () => {
   test("Admin is allowed to manage students", async ({ page }) => {
     await loginAsAdmin(page);
-    await expect(page).toHaveURL(/\/admin$/);
+    await assertAuthenticatedAsAdmin(page);
     await logAuthCookies(page, "after login, before goto /admin/students");
     await page.goto("/admin/students");
     await logAuthCookies(page, "after goto /admin/students");
@@ -193,6 +217,7 @@ test.describe("Role-based access to Admin Student Management", () => {
   test("Super Admin is allowed to manage students", async ({ page }) => {
     const { superAdmin } = getFixtures();
     await login(page, "/login/admin", superAdmin.email, superAdmin.password);
+    await assertAuthenticatedAsAdmin(page);
     await logAuthCookies(page, "after login, before goto /admin/students");
     await page.goto("/admin/students");
     await logAuthCookies(page, "after goto /admin/students");
