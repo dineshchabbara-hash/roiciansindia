@@ -261,6 +261,76 @@ test.describe("Role-based access to Admin Student Management", () => {
   });
 });
 
+test.describe("Admin authentication-state reuse (proof of concept)", () => {
+  // Narrow experiment only: does one genuine Admin login's storageState
+  // authenticate a second, independent BrowserContext? Uses the file's
+  // existing beforeAll/afterAll account lifecycle and existing
+  // login/assertAuthenticatedAsAdmin helpers — nothing new introduced
+  // beyond this single test. Not a fixture, not shared across other
+  // tests, not a suite-wide change.
+  test("AUTH_STATE_POC_reuses_admin_session", async ({ browser }) => {
+    let originalContext: Awaited<ReturnType<typeof browser.newContext>> | undefined;
+    let reusedContext: Awaited<ReturnType<typeof browser.newContext>> | undefined;
+
+    try {
+      const originalPage = await test.step("Original Admin login", async () => {
+        originalContext = await browser.newContext();
+        const page = await originalContext.newPage();
+        // Exactly one genuine sign-in: loginAsAdmin() fills the real
+        // login form with the existing temporary Admin fixture
+        // credentials (obtained internally via getFixtures(), populated
+        // by this file's existing beforeAll) and, via
+        // assertAuthenticatedAsAdmin(), waits for the real Dashboard
+        // heading to render and confirms a persisted sb-* auth cookie —
+        // covering "wait for the Dashboard" and "confirm the cookie" as
+        // proven, already-used checks rather than new ones.
+        await loginAsAdmin(page);
+        return page;
+      });
+
+      const capturedState = await test.step("Authentication-state capture", async () => {
+        // In-memory only — no `path` argument, so nothing is ever written
+        // to disk. `originalPage` is unused after this point but kept
+        // open (closed in `finally` below) since it owns the context
+        // storageState() is called on.
+        void originalPage;
+        return originalContext!.storageState();
+      });
+
+      const reusedPage = await test.step("Reused-session navigation", async () => {
+        // A completely separate context/page, seeded only with the
+        // captured state — no second login performed here.
+        reusedContext = await browser.newContext({ storageState: capturedState });
+        const page = await reusedContext.newPage();
+        await page.goto("/admin/students");
+        return page;
+      });
+
+      await test.step("Authenticated Student Management verification", async () => {
+        // Assertions drawn directly from app/admin/students/page.tsx:
+        // the real <h1>Students</h1> heading (line 50), the real "Add
+        // Student" link (line 56), and the real failure path — a
+        // role="alert" paragraph (lines 78-81) rendered only when the
+        // page's own server-side searchStudents() call did not succeed.
+        // No endpoint or heading invented; a login redirect, a
+        // permission error, or a failed data fetch each fail one of
+        // these checks concretely, not just "the URL changed".
+        await expect(reusedPage).toHaveURL(/\/admin\/students$/);
+        await expect(
+          reusedPage.getByRole("heading", { name: "Students", level: 1 }),
+        ).toBeVisible();
+        await expect(reusedPage.getByRole("alert")).toHaveCount(0);
+        await expect(reusedPage.getByRole("link", { name: "Add Student" })).toBeVisible();
+      });
+    } finally {
+      // Both contexts are closed here regardless of outcome above —
+      // errors from close() are intentionally not swallowed.
+      await originalContext?.close();
+      await reusedContext?.close();
+    }
+  });
+});
+
 test.describe("Add Student page: hydration and the country selector", () => {
   test("loads without a server/client hydration mismatch", async ({ page }) => {
     // Playwright's webServer runs a production build, where React's
