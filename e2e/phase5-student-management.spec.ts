@@ -167,6 +167,16 @@ function getFixtures(): Phase5Fixtures {
 async function loginAsAdmin(page: Page) {
   const { admin } = getFixtures();
   await login(page, "/login/admin", admin.email, admin.password);
+  // login()'s click() only waits for whatever browser-level effect it
+  // itself triggers — it does not wait for the Server Action's own async
+  // work (the sign-in round trip, the role lookup, then redirect()) to
+  // settle, since that's a client-router-driven transition rather than a
+  // traditional link/form navigation Playwright's action-waiting tracks.
+  // Without this, every caller below risks navigating to its own target
+  // page before the session actually exists yet — landing on an
+  // unauthenticated request that bounces to /login/admin, exactly the
+  // failure this line prevents for all of them at once.
+  await assertAuthenticatedAsAdmin(page);
 }
 
 function tag(name: string): string {
@@ -197,8 +207,9 @@ const CANONICAL = {
 
 test.describe("Role-based access to Admin Student Management", () => {
   test("Admin is allowed to manage students", async ({ page }) => {
+    // loginAsAdmin() already asserts a genuinely authenticated session
+    // (see its own comment) — no need to repeat that check here.
     await loginAsAdmin(page);
-    await assertAuthenticatedAsAdmin(page);
     await logAuthCookies(page, "after login, before goto /admin/students");
     await page.goto("/admin/students");
     await logAuthCookies(page, "after goto /admin/students");
