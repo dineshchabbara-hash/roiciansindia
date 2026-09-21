@@ -255,8 +255,19 @@ test.describe("Role-based access to Admin Student Management", () => {
     // call succeeded (app/admin/students/page.tsx) — a heading-only check
     // cannot distinguish real data loading from a failed query rendering
     // its role="alert" error paragraph alongside the same static heading.
-    // This is the one place that failure would actually be visible.
-    await expect(page.getByRole("alert")).toHaveCount(0);
+    //
+    // A bare `getByRole("alert")).toHaveCount(0)` can never pass on ANY
+    // page of this app: Next.js's own App Router injects a hidden
+    // accessibility "route announcer" directly into document.body on every
+    // route, with role="alert" hardcoded and no text on first load
+    // (node_modules/next/dist/client/components/app-router-announcer.js)
+    // — confirmed by inspecting that installed source. Filtering to alerts
+    // that actually have text isolates this page's own error paragraph
+    // (always a real, non-empty sentence) from that always-present, always-
+    // empty announcer. The visible <table> is the positive proof real
+    // student rows loaded, not just that the query didn't error.
+    await expect(page.getByRole("alert").filter({ hasText: /.+/ })).toHaveCount(0);
+    await expect(page.getByRole("table")).toBeVisible();
     // A second, independent proof the real Student Management page (not an
     // error boundary or empty shell) rendered — the "Add Student" action is
     // only present on this page's actual content.
@@ -272,7 +283,8 @@ test.describe("Role-based access to Admin Student Management", () => {
     await logAuthCookies(page, "after goto /admin/students");
     await expect(page).toHaveURL(/\/admin\/students$/);
     await expect(page.getByRole("heading", { name: "Students", level: 1 })).toBeVisible();
-    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(page.getByRole("alert").filter({ hasText: /.+/ })).toHaveCount(0);
+    await expect(page.getByRole("table")).toBeVisible();
     await expect(page.getByRole("link", { name: "Add Student" })).toBeVisible();
   });
 
@@ -312,17 +324,22 @@ test.describe("Admin authentication-state reuse (proof of concept)", () => {
   // never part of Phase 5's or Phase 9's required acceptance criteria — it
   // only ever tested whether storageState reuse works, a possible future
   // test-speed optimization, not required application behavior. Its
-  // repeated failure at the role="alert" assertion below surfaced a real
-  // question this experiment was never designed to answer on its own:
-  // whether admin.md Student Management data-loading can fail at all,
-  // reused session or not. That question is now covered directly by the
-  // strengthened, non-experimental "Admin is allowed to manage students"
-  // and "Super Admin is allowed to manage students" tests above (both now
-  // assert `getByRole("alert")).toHaveCount(0)`), which will surface the
-  // same failure — if it is real — on any normal run of this file, with
-  // ordinary Playwright output and no special capture needed. Skipped
-  // rather than deleted so the reused-session mechanism itself remains
-  // available to revisit later; not skipped merely because it was failing.
+  // repeated failure at the role="alert" assertion below turned out to be
+  // a defect in the assertion itself, not in session reuse or data
+  // loading: Next.js's App Router injects a hidden accessibility "route
+  // announcer" into document.body on every page, with role="alert"
+  // hardcoded and no text on first load
+  // (node_modules/next/dist/client/components/app-router-announcer.js) —
+  // a bare `getByRole("alert")).toHaveCount(0)` could never pass on any
+  // page of this app, reused session or not. Confirmed from a Windows
+  // trace showing real student rows rendered alongside the (empty, always-
+  // present) announcer. "Admin is allowed to manage students" and "Super
+  // Admin is allowed to manage students" now use the corrected assertion
+  // (filter to alerts with real text, plus a positive check for the
+  // rendered table) and are the actual, required coverage for this
+  // behavior. Skipped rather than deleted so the reused-session mechanism
+  // itself remains available to revisit later; not skipped merely because
+  // it was failing.
   test.skip("AUTH_STATE_POC_reuses_admin_session", async ({ browser }) => {
     let originalContext: Awaited<ReturnType<typeof browser.newContext>> | undefined;
     let reusedContext: Awaited<ReturnType<typeof browser.newContext>> | undefined;
@@ -374,7 +391,10 @@ test.describe("Admin authentication-state reuse (proof of concept)", () => {
         await expect(
           reusedPage.getByRole("heading", { name: "Students", level: 1 }),
         ).toBeVisible();
-        await expect(reusedPage.getByRole("alert")).toHaveCount(0);
+        await expect(reusedPage.getByRole("alert").filter({ hasText: /.+/ })).toHaveCount(
+          0,
+        );
+        await expect(reusedPage.getByRole("table")).toBeVisible();
         await expect(reusedPage.getByRole("link", { name: "Add Student" })).toBeVisible();
       });
     } finally {
