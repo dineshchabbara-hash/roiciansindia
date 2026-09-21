@@ -1,8 +1,5 @@
 import "server-only";
 
-import { appendFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DataResult } from "@/lib/data/dashboard";
@@ -24,51 +21,6 @@ const STUDENT_DOCUMENTS_BUCKET = "student-documents";
 function fail<T>(message: string, error: unknown): DataResult<T> {
   console.error(`[students data] ${message}:`, error);
   return { ok: false, error: message };
-}
-
-const PHASE5_E2E_ERROR_LOG_PATH = join(tmpdir(), "phase5-e2e-searchStudents-error.log");
-
-function redactPotentialSecrets(text: string): string {
-  return text
-    .replace(
-      /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
-      "[REDACTED-JWT]",
-    )
-    .replace(/(postgres(?:ql)?:\/\/[^:\s]+:)[^@\s]+(@)/gi, "$1[REDACTED]$2")
-    .replace(/(Bearer\s+)\S+/gi, "$1[REDACTED]")
-    .replace(/((?:api|anon|service_role)[-_]?key["':=\s]+)\S{20,}/gi, "$1[REDACTED]");
-}
-
-// TEMP-DIAGNOSTIC(phase5-e2e): opt-in only (PHASE5_E2E_DEBUG_AUTH=1), never
-// fires in normal operation — reuses the same flag already used for this
-// investigation elsewhere (lib/auth/session.ts, lib/supabase/server.ts,
-// lib/supabase/middleware.ts). Writes straight to a local file from this
-// process, independent of whether/how Playwright relays webServer stdout to
-// the terminal. Captures only a bounded, redacted `code`/`message` pair —
-// never the raw error object, a stack trace, `details`/`hint`, or anything
-// resembling a credential/token/connection string. Any failure here is
-// swallowed silently and never changes the real error path below. Safe to
-// delete once the root cause is confirmed from real output.
-function captureDiagnosticError(scope: string, error: unknown): void {
-  if (process.env.PHASE5_E2E_DEBUG_AUTH !== "1") return;
-  try {
-    const raw =
-      error && typeof error === "object" ? (error as Record<string, unknown>) : null;
-    const code = raw && typeof raw.code === "string" ? raw.code : "unknown";
-    const rawMessage =
-      raw && typeof raw.message === "string"
-        ? raw.message
-        : error instanceof Error
-          ? error.message
-          : String(error);
-    const message = redactPotentialSecrets(rawMessage).slice(0, 300);
-    appendFileSync(
-      PHASE5_E2E_ERROR_LOG_PATH,
-      `${new Date().toISOString()} [${scope}] code=${code} message=${message}\n`,
-    );
-  } catch {
-    // Best-effort diagnostic only — must never affect the real error path.
-  }
 }
 
 const PAGE_SIZE_DEFAULT = 20;
@@ -180,7 +132,6 @@ export async function searchStudents(params: StudentSearchParams): Promise<
       },
     };
   } catch (error) {
-    captureDiagnosticError("searchStudents", error);
     return fail("Could not load the student list.", error);
   }
 }
