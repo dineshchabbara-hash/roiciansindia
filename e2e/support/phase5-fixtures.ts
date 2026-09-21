@@ -121,6 +121,199 @@ async function createFixtureUser(role: RoleKind): Promise<Phase5TestUser> {
   return { authUserId, email, password };
 }
 
+const PHASE5_E2E_ACCOUNT_PATTERN =
+  /^phase5-e2e-(admin|super_admin|trainer|student)-[0-9a-z]+@phase5-e2e\.internal\.test$/;
+const PHASE5_ORPHAN_LIST_PAGE_SIZE = 1000;
+const PHASE5_ORPHAN_MAX_LIST_PAGES = 20;
+
+// Tables/columns that reference an admins/trainers profile row via its own
+// primary key (NOT auth_user_id — see admins.id/trainers.id in
+// supabase/migrations/20260101000004_identity_tables.sql:102-114/127-137).
+// A profile referenced here is real work, not a disposable fixture leftover
+// — it is left alone entirely rather than force-deleted.
+const ADMIN_DEPENDENT_CHECKS: { table: string; column: string }[] = [
+  { table: "payments", column: "created_by" },
+  { table: "payment_refunds", column: "initiated_by" },
+  { table: "student_notes", column: "created_by" },
+];
+const TRAINER_DEPENDENT_CHECKS: { table: string; column: string }[] = [
+  { table: "assignment_submissions", column: "reviewed_by" },
+  { table: "assignments", column: "trainer_id" },
+  { table: "batch_trainers", column: "trainer_id" },
+  { table: "class_sessions", column: "trainer_id" },
+];
+
+export type Phase5CleanupReport = {
+  identified: number;
+  blockedByDependents: number;
+  profileDeleteFailed: number;
+  attempted: number;
+  succeeded: number;
+  apiErrors: number;
+  rejected: number;
+};
+
+/**
+ * Deletes auth users from `candidateAuthUserIds`, but only after verifying
+ * each one is actually safe to remove — shared by cleanupOrphanedPhase5FixtureUsers
+ * and tearDownPhase5Fixtures so this safety logic exists exactly once.
+ *
+ * admins.auth_user_id / trainers.auth_user_id reference auth.users(id) ON
+ * DELETE RESTRICT (supabase/migrations/20260101000004_identity_tables.sql:104,129)
+ * — NOT cascading, despite this file's prior assumption — so a profile row
+ * must be deleted before its auth user, or the auth-user delete is rejected
+ * and (since the Supabase Admin API returns API errors through a resolved
+ * `{ data, error }` rather than a rejection) that rejection-shaped failure
+ * looks identical to success unless `error` is checked explicitly. No
+ * network calls here run concurrently, and no call is raced against a
+ * timeout — every step is a single sequential, error-checked operation.
+ */
+async function deleteAuthUsersWithProfileSafety(
+  supabase: ReturnType<typeof adminClient>,
+  candidateAuthUserIds: string[],
+): Promise<Phase5CleanupReport> {
+  if (candidateAuthUserIds.length === 0) {
+    return {
+      identified: 0,
+      blockedByDependents: 0,
+      profileDeleteFailed: 0,
+      attempted: 0,
+      succeeded: 0,
+      apiErrors: 0,
+      rejected: 0,
+    };
+  }
+
+  const { data: adminRows, error: adminLookupError } = await supabase
+    .from("admins")
+    .select("id, auth_user_id")
+    .in("auth_user_id", candidateAuthUserIds);
+  if (adminLookupError) {
+    throw new Error(
+      `Cleanup: could not look up admin profiles: ${adminLookupError.message}`,
+    );
+  }
+  const { data: trainerRows, error: trainerLookupError } = await supabase
+    .from("trainers")
+    .select("id, auth_user_id")
+    .in("auth_user_id", candidateAuthUserIds);
+  if (trainerLookupError) {
+    throw new Error(
+      `Cleanup: could not look up trainer profiles: ${trainerLookupError.message}`,
+    );
+  }
+
+  const adminIdByAuthUserId = new Map(
+    (adminRows ?? []).map((r) => [r.auth_user_id as string, r.id as string]),
+  );
+  const trainerIdByAuthUserId = new Map(
+    (trainerRows ?? []).map((r) => [r.auth_user_id as string, r.id as string]),
+  );
+  const adminIds = [...adminIdByAuthUserId.values()];
+  const trainerIds = [...trainerIdByAuthUserId.values()];
+
+  // Precisely attribute which specific profile ids are actually referenced
+  // — a single unrelated payment must not block every other candidate.
+  const blockedAdminIds = new Set<string>();
+  for (const { table, column } of ADMIN_DEPENDENT_CHECKS) {
+    if (adminIds.length === 0) break;
+    const { data, error } = await supabase
+      .from(table)
+      .select(column)
+      .in(column, adminIds);
+    if (error) {
+      throw new Error(
+        `Cleanup: could not check ${table}.${column} dependents: ${error.message}`,
+      );
+    }
+    for (const row of data ?? []) {
+      const referencedId = (row as unknown as Record<string, string>)[column];
+      if (referencedId) blockedAdminIds.add(referencedId);
+    }
+  }
+  const blockedTrainerIds = new Set<string>();
+  for (const { table, column } of TRAINER_DEPENDENT_CHECKS) {
+    if (trainerIds.length === 0) break;
+    const { data, error } = await supabase
+      .from(table)
+      .select(column)
+      .in(column, trainerIds);
+    if (error) {
+      throw new Error(
+        `Cleanup: could not check ${table}.${column} dependents: ${error.message}`,
+      );
+    }
+    for (const row of data ?? []) {
+      const referencedId = (row as unknown as Record<string, string>)[column];
+      if (referencedId) blockedTrainerIds.add(referencedId);
+    }
+  }
+
+  const eligibleAuthUserIds = candidateAuthUserIds.filter((authUserId) => {
+    const adminId = adminIdByAuthUserId.get(authUserId);
+    if (adminId && blockedAdminIds.has(adminId)) return false;
+    const trainerId = trainerIdByAuthUserId.get(authUserId);
+    if (trainerId && blockedTrainerIds.has(trainerId)) return false;
+    return true;
+  });
+  const blockedByDependents = candidateAuthUserIds.length - eligibleAuthUserIds.length;
+
+  const eligibleAdminAuthUserIds = eligibleAuthUserIds.filter((id) =>
+    adminIdByAuthUserId.has(id),
+  );
+  const eligibleTrainerAuthUserIds = eligibleAuthUserIds.filter((id) =>
+    trainerIdByAuthUserId.has(id),
+  );
+
+  let adminProfileDeleteFailed = false;
+  if (eligibleAdminAuthUserIds.length > 0) {
+    const { error } = await supabase
+      .from("admins")
+      .delete()
+      .in("auth_user_id", eligibleAdminAuthUserIds);
+    adminProfileDeleteFailed = !!error;
+  }
+  let trainerProfileDeleteFailed = false;
+  if (eligibleTrainerAuthUserIds.length > 0) {
+    const { error } = await supabase
+      .from("trainers")
+      .delete()
+      .in("auth_user_id", eligibleTrainerAuthUserIds);
+    trainerProfileDeleteFailed = !!error;
+  }
+
+  // Never delete an auth user if its prerequisite profile deletion failed.
+  const readyForAuthDelete = eligibleAuthUserIds.filter((authUserId) => {
+    if (adminIdByAuthUserId.has(authUserId) && adminProfileDeleteFailed) return false;
+    if (trainerIdByAuthUserId.has(authUserId) && trainerProfileDeleteFailed) return false;
+    return true;
+  });
+  const profileDeleteFailed = eligibleAuthUserIds.length - readyForAuthDelete.length;
+
+  let succeeded = 0;
+  let apiErrors = 0;
+  let rejected = 0;
+  for (const authUserId of readyForAuthDelete) {
+    try {
+      const { error } = await supabase.auth.admin.deleteUser(authUserId);
+      if (error) apiErrors += 1;
+      else succeeded += 1;
+    } catch {
+      rejected += 1;
+    }
+  }
+
+  return {
+    identified: candidateAuthUserIds.length,
+    blockedByDependents,
+    profileDeleteFailed,
+    attempted: readyForAuthDelete.length,
+    succeeded,
+    apiErrors,
+    rejected,
+  };
+}
+
 /**
  * Deletes any leftover fixture auth accounts from a previous run that
  * didn't get to its own tearDownPhase5Fixtures (e.g. a crashed run) — makes
@@ -129,16 +322,41 @@ async function createFixtureUser(role: RoleKind): Promise<Phase5TestUser> {
  */
 export async function cleanupOrphanedPhase5FixtureUsers(): Promise<void> {
   const supabase = adminClient();
-  const { data, error } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-  if (error) {
-    throw new Error(`Cleanup: could not list auth users: ${error.message}`);
+
+  const orphanIds: string[] = [];
+  let page = 1;
+  let incompleteListing = false;
+  while (true) {
+    if (page > PHASE5_ORPHAN_MAX_LIST_PAGES) {
+      incompleteListing = true;
+      break;
+    }
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: PHASE5_ORPHAN_LIST_PAGE_SIZE,
+    });
+    if (error) {
+      throw new Error(
+        `Cleanup: could not list auth users (page ${page}): ${error.message}`,
+      );
+    }
+    orphanIds.push(
+      ...data.users
+        .filter((u) => u.email && PHASE5_E2E_ACCOUNT_PATTERN.test(u.email))
+        .map((u) => u.id),
+    );
+    if (data.users.length < PHASE5_ORPHAN_LIST_PAGE_SIZE) break;
+    page += 1;
   }
-  const orphans = data.users.filter((u) =>
-    u.email?.endsWith(`@${PHASE5_E2E_EMAIL_DOMAIN}`),
+
+  const report = await deleteAuthUsersWithProfileSafety(supabase, orphanIds);
+  console.warn(
+    `[phase5 e2e] cleanupOrphanedPhase5FixtureUsers: identified=${report.identified} ` +
+      `blockedByDependents=${report.blockedByDependents} profileDeleteFailed=${report.profileDeleteFailed} ` +
+      `attempted=${report.attempted} succeeded=${report.succeeded} apiErrors=${report.apiErrors} ` +
+      `rejected=${report.rejected} remainingBacklog=${report.identified - report.succeeded}` +
+      (incompleteListing ? " incompleteListing=true" : ""),
   );
-  for (const orphan of orphans) {
-    await supabase.auth.admin.deleteUser(orphan.id).catch(() => {});
-  }
 }
 
 export async function setUpPhase5Fixtures(): Promise<Phase5Fixtures> {
@@ -153,14 +371,19 @@ export async function setUpPhase5Fixtures(): Promise<Phase5Fixtures> {
 
 export async function tearDownPhase5Fixtures(fixtures: Phase5Fixtures): Promise<void> {
   const supabase = adminClient();
-  const users = Object.values(fixtures);
+  const authUserIds = Object.values(fixtures).map((u) => u.authUserId);
 
-  for (const user of users) {
-    // Deleting the auth user cascades to user_roles/admins/trainers via
-    // their auth_user_id foreign keys (see 20260101000004_identity_tables.sql
-    // and 20260101000014_rls_policies.sql) — no separate profile-row delete
-    // needed for the fixtures themselves.
-    await supabase.auth.admin.deleteUser(user.authUserId).catch(() => {});
+  // user_roles.auth_user_id does cascade, but admins/trainers do not (see
+  // deleteAuthUsersWithProfileSafety above) — this run's own admin/trainer
+  // profile rows must be deleted before their auth users too.
+  const report = await deleteAuthUsersWithProfileSafety(supabase, authUserIds);
+  if (report.succeeded < report.identified) {
+    console.warn(
+      `[phase5 e2e] tearDownPhase5Fixtures: identified=${report.identified} ` +
+        `blockedByDependents=${report.blockedByDependents} profileDeleteFailed=${report.profileDeleteFailed} ` +
+        `attempted=${report.attempted} succeeded=${report.succeeded} apiErrors=${report.apiErrors} ` +
+        `rejected=${report.rejected} (non-fatal; picked up by next run's orphan sweep)`,
+    );
   }
 }
 
