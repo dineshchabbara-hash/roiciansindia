@@ -50,11 +50,42 @@ test.skip(
 
 let fixtures: Phase5Fixtures | undefined;
 
+// TEMP-DIAGNOSTIC(phase5-e2e): investigating a beforeAll timeout — times each
+// setup step individually so a timed-out run shows which step was in flight
+// (its START line is written before the step is awaited, so it's already
+// emitted even if this step never reaches SUCCESS/FAILURE). Logs only a
+// label and an elapsed-ms count, never the operation's result or error
+// contents — the original error is rethrown unchanged. Safe to delete once
+// the root cause is confirmed from real timing output.
+async function timedSetupStep<T>(label: string, operation: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  console.log(`[phase5-setup-timing] START ${label}`);
+  try {
+    const result = await operation();
+    console.log(`[phase5-setup-timing] SUCCESS ${label} (${Date.now() - start}ms)`);
+    return result;
+  } catch (error) {
+    console.log(`[phase5-setup-timing] FAILURE ${label} (${Date.now() - start}ms)`);
+    throw error;
+  }
+}
+
 test.beforeAll(async () => {
   if (skipSuite) return;
-  await cleanupOrphanedPhase5FixtureUsers();
-  await cleanupPhase5SyntheticStudents();
-  fixtures = await setUpPhase5Fixtures();
+  const overallStart = Date.now();
+  try {
+    await timedSetupStep(
+      "cleanupOrphanedPhase5FixtureUsers",
+      cleanupOrphanedPhase5FixtureUsers,
+    );
+    await timedSetupStep(
+      "cleanupPhase5SyntheticStudents",
+      cleanupPhase5SyntheticStudents,
+    );
+    fixtures = await timedSetupStep("setUpPhase5Fixtures", setUpPhase5Fixtures);
+  } finally {
+    console.log(`[phase5-setup-timing] TOTAL beforeAll (${Date.now() - overallStart}ms)`);
+  }
 });
 
 test.afterAll(async () => {
