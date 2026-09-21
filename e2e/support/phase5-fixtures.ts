@@ -126,6 +126,12 @@ const PHASE5_E2E_ACCOUNT_PATTERN =
 const PHASE5_ORPHAN_LIST_PAGE_SIZE = 1000;
 const PHASE5_ORPHAN_MAX_LIST_PAGES = 20;
 
+// Deletion of the accumulated orphan backlog is opt-in only — no config in
+// this repo sets this, so an ordinary `beforeAll` run only ever identifies
+// and reports the backlog, never deletes it, unless a human deliberately
+// sets this for that invocation.
+const PHASE5_ORPHAN_DELETE_GATE_ENV_VAR = "PHASE5_E2E_ALLOW_ORPHAN_DELETE";
+
 // Tables/columns that reference an admins/trainers profile row via its own
 // primary key (NOT auth_user_id — see admins.id/trainers.id in
 // supabase/migrations/20260101000004_identity_tables.sql:102-114/127-137).
@@ -347,6 +353,20 @@ export async function cleanupOrphanedPhase5FixtureUsers(): Promise<void> {
     );
     if (data.users.length < PHASE5_ORPHAN_LIST_PAGE_SIZE) break;
     page += 1;
+  }
+
+  // Safety gate: identification above is read-only, but
+  // deleteAuthUsersWithProfileSafety below deletes admin/trainer profile
+  // rows as part of its own sequence — so it must not be called at all
+  // unless deletion is explicitly enabled, not merely have its final
+  // auth-user delete skipped.
+  if (process.env[PHASE5_ORPHAN_DELETE_GATE_ENV_VAR] !== "1") {
+    console.warn(
+      `[phase5 e2e] cleanupOrphanedPhase5FixtureUsers: identified=${orphanIds.length} ` +
+        `deletionDisabled=true (set ${PHASE5_ORPHAN_DELETE_GATE_ENV_VAR}=1 to enable)` +
+        (incompleteListing ? " incompleteListing=true" : ""),
+    );
+    return;
   }
 
   const report = await deleteAuthUsersWithProfileSafety(supabase, orphanIds);

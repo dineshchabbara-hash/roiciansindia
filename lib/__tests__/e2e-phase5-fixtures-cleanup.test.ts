@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Regression coverage for the Phase 5 test-account cleanup defect: deleting
@@ -144,7 +144,24 @@ beforeEach(() => {
   warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
+const ORPHAN_DELETE_GATE_ENV_VAR = "PHASE5_E2E_ALLOW_ORPHAN_DELETE";
+
 describe("cleanupOrphanedPhase5FixtureUsers", () => {
+  // These tests exercise the deletion logic itself, so the gate is enabled
+  // for all of them — its own absent/disabled/enabled behavior is covered
+  // separately below.
+  const originalGateValue = process.env[ORPHAN_DELETE_GATE_ENV_VAR];
+  beforeEach(() => {
+    process.env[ORPHAN_DELETE_GATE_ENV_VAR] = "1";
+  });
+  afterEach(() => {
+    if (originalGateValue === undefined) {
+      delete process.env[ORPHAN_DELETE_GATE_ENV_VAR];
+    } else {
+      process.env[ORPHAN_DELETE_GATE_ENV_VAR] = originalGateValue;
+    }
+  });
+
   it("deletes the admin profile before the auth user", async () => {
     const calls: string[] = [];
     mockCreateClientOnce(calls, {
@@ -294,6 +311,89 @@ describe("cleanupOrphanedPhase5FixtureUsers", () => {
     expect(report).not.toContain(ADMIN_A.id);
     expect(report).not.toContain(succeedsUser.id);
     expect(report).not.toContain(failsUser.id);
+  });
+});
+
+describe("cleanupOrphanedPhase5FixtureUsers — deletion safety gate", () => {
+  const originalGateValue = process.env[ORPHAN_DELETE_GATE_ENV_VAR];
+  afterEach(() => {
+    if (originalGateValue === undefined) {
+      delete process.env[ORPHAN_DELETE_GATE_ENV_VAR];
+    } else {
+      process.env[ORPHAN_DELETE_GATE_ENV_VAR] = originalGateValue;
+    }
+  });
+
+  it("deletes nothing when the gate env var is absent", async () => {
+    delete process.env[ORPHAN_DELETE_GATE_ENV_VAR];
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {
+      authUsers: [ADMIN_A],
+      adminRows: [{ id: "admin-profile-1", auth_user_id: ADMIN_A.id }],
+    });
+
+    await cleanupOrphanedPhase5FixtureUsers();
+
+    expect(calls).not.toContain("delete:admins(1)");
+    expect(calls).not.toContain(`deleteUser:${ADMIN_A.id}`);
+    const report = warnSpy.mock.calls[0]?.[0] as string;
+    expect(report).toContain("identified=1");
+    expect(report).toContain("deletionDisabled=true");
+  });
+
+  it("deletes nothing when the gate env var is explicitly disabled", async () => {
+    process.env[ORPHAN_DELETE_GATE_ENV_VAR] = "0";
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {
+      authUsers: [ADMIN_A, TRAINER_A],
+      adminRows: [{ id: "admin-profile-1", auth_user_id: ADMIN_A.id }],
+      trainerRows: [{ id: "trainer-profile-1", auth_user_id: TRAINER_A.id }],
+    });
+
+    await cleanupOrphanedPhase5FixtureUsers();
+
+    expect(calls).not.toContain("delete:admins(1)");
+    expect(calls).not.toContain("delete:trainers(1)");
+    expect(calls).not.toContain(`deleteUser:${ADMIN_A.id}`);
+    expect(calls).not.toContain(`deleteUser:${TRAINER_A.id}`);
+    const report = warnSpy.mock.calls[0]?.[0] as string;
+    expect(report).toContain("identified=2");
+    expect(report).toContain("deletionDisabled=true");
+  });
+
+  it("invokes the existing safety checks and deletion logic once the gate is explicitly enabled", async () => {
+    process.env[ORPHAN_DELETE_GATE_ENV_VAR] = "1";
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {
+      authUsers: [ADMIN_A],
+      adminRows: [{ id: "admin-profile-1", auth_user_id: ADMIN_A.id }],
+    });
+
+    await cleanupOrphanedPhase5FixtureUsers();
+
+    const adminDeleteIndex = calls.indexOf("delete:admins(1)");
+    const authDeleteIndex = calls.indexOf(`deleteUser:${ADMIN_A.id}`);
+    expect(adminDeleteIndex).toBeGreaterThanOrEqual(0);
+    expect(authDeleteIndex).toBeGreaterThan(adminDeleteIndex);
+    const report = warnSpy.mock.calls[0]?.[0] as string;
+    expect(report).toContain("succeeded=1");
+    expect(report).not.toContain("deletionDisabled");
+  });
+
+  it("still never selects an unrelated account once the gate is enabled", async () => {
+    process.env[ORPHAN_DELETE_GATE_ENV_VAR] = "1";
+    const calls: string[] = [];
+    const unrelated = {
+      id: "auth-unrelated-gate",
+      email: "someone@phase5-e2e.internal.test",
+    };
+    mockCreateClientOnce(calls, { authUsers: [unrelated] });
+
+    await cleanupOrphanedPhase5FixtureUsers();
+
+    expect(calls).not.toContain(`deleteUser:${unrelated.id}`);
+    const report = warnSpy.mock.calls[0]?.[0] as string;
+    expect(report).toContain("identified=0");
   });
 });
 
