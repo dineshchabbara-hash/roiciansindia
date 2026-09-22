@@ -105,10 +105,22 @@ async function login(page: Page, path: string, email: string, password: string) 
  * assertAuthenticatedAsAdmin: waits for the real Dashboard heading (not a
  * one-shot URL match) and confirms a persisted sb-* auth cookie, so a
  * session that never actually settled can't slip through as "logged in".
+ *
+ * `headingTimeoutMs` (Phase 9 dashboard-login-wait correction): optional,
+ * defaults to `undefined` so every existing caller keeps Playwright's own
+ * default 5000ms assertion timeout for the Dashboard-heading check exactly
+ * as before — only a caller that explicitly passes a value gets a
+ * different one. Added after a dashboard-test login failure whose trace
+ * showed the sign-in POST alone taking ~2.9s of that 5s budget before the
+ * heavier, multi-section /admin dashboard route even started rendering —
+ * a login/render-timing margin issue, not an authentication failure or an
+ * application defect (see the Phase 9 login-failure investigation).
  */
-async function assertAuthenticatedAsAdmin(page: Page) {
+async function assertAuthenticatedAsAdmin(page: Page, headingTimeoutMs?: number) {
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible(
+    headingTimeoutMs !== undefined ? { timeout: headingTimeoutMs } : undefined,
+  );
   const cookies = await page.context().cookies();
   expect(
     cookies.some((c) => c.name.startsWith("sb-")),
@@ -116,9 +128,13 @@ async function assertAuthenticatedAsAdmin(page: Page) {
   ).toBe(true);
 }
 
-async function loginAsAdmin(page: Page, identity: Phase9LoginIdentity) {
+async function loginAsAdmin(
+  page: Page,
+  identity: Phase9LoginIdentity,
+  headingTimeoutMs?: number,
+) {
   await login(page, "/login/admin", identity.email, identity.password);
-  await assertAuthenticatedAsAdmin(page);
+  await assertAuthenticatedAsAdmin(page, headingTimeoutMs);
 }
 
 /**
@@ -628,7 +644,12 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
     }
     const KNOWN_FEE_RUPEES = 10000;
 
-    await loginAsAdmin(page, admin);
+    // Scoped to only this call site (Phase 9 dashboard-login-wait
+    // correction) — the Enrollment-list and Workflow tests' own
+    // loginAsAdmin() calls are untouched and keep the default 5000ms
+    // Dashboard-heading wait. See assertAuthenticatedAsAdmin's own comment
+    // for why this test specifically needs more headroom.
+    await loginAsAdmin(page, admin, 15_000);
 
     const before =
       await test.step("Capture Pipeline Value and Confirmed Unpaid Fees before creating anything", async () => {
