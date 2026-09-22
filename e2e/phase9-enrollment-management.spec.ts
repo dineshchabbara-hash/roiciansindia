@@ -410,6 +410,21 @@ test.describe("Admin enrollment record-changing workflow", () => {
   test("create, assign a batch, move through the status lifecycle to a terminal status, and reject a duplicate — each on this test's own isolated synthetic student/enrollment", async ({
     page,
   }) => {
+    // Provisional per-test allowance (Phase 9 workflow-timeout correction),
+    // scoped to only this one test — every other test in this file keeps
+    // Playwright's default 30s overall timeout untouched. This test alone
+    // performs ~6-7 real page navigations/reloads and 5 real Server Action
+    // round-trips (login, create, batch-assign, 2 status changes, a
+    // duplicate-create attempt) against a production build talking to a
+    // real remote Supabase project, all sharing one overall clock — a prior
+    // Windows run hit "Test timeout of 30000ms exceeded" during the last
+    // step. 90s is a provisional allowance to let the existing workflow and
+    // its existing assertions run to completion without that shared clock
+    // interrupting them first — NOT a measured performance requirement, and
+    // a pass here is not evidence the application meets any performance
+    // target.
+    test.setTimeout(90_000);
+
     if (!admin) throw new Error("beforeAll did not create the Admin login identity.");
     const existing = await findExistingProgramWithBatch();
     if (!existing) {
