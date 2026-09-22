@@ -265,6 +265,27 @@ describe("deletePhase9LoginIdentity", () => {
     );
     void calls;
   });
+
+  it("never issues an explicit user_roles delete — deleting the auth user is relied on to cascade it", async () => {
+    // Verified directly against the migration, not assumed:
+    // user_roles.auth_user_id references auth.users(id) ON DELETE CASCADE
+    // (supabase/migrations/20260101000004_identity_tables.sql:6) — unlike
+    // admins/trainers.auth_user_id, which are ON DELETE RESTRICT and DO
+    // need the explicit profile-delete-before-auth-delete ordering already
+    // covered above. A future accidental "helpfully" added explicit
+    // user_roles delete would be redundant at best; this pins the current,
+    // correct, cascade-only behavior for every role shape.
+    for (const identity of [ADMIN_IDENTITY, TRAINER_IDENTITY, STUDENT_LOGIN_IDENTITY]) {
+      const calls: string[] = [];
+      mockCreateClientOnce(calls, {});
+
+      const result = await deletePhase9LoginIdentity(identity);
+
+      expect(result).toEqual({ ok: true });
+      expect(calls).not.toContain("delete:user_roles");
+      expect(calls).not.toContain("select:user_roles");
+    }
+  });
 });
 
 describe("deletePhase9SyntheticStudentIfSafe", () => {

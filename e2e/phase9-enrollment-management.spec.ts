@@ -47,6 +47,17 @@ import {
  * and the phase9-e2e.internal.test email domain, and is deleted by this
  * suite's own teardown — the pre-existing real students/enrollments are
  * only ever read, never modified or deleted.
+ *
+ * Cleanup-failure visibility note (Phase 9 first-test cleanup-safety
+ * correction): the "Enrollment list" describe block's afterAll below
+ * fails the hook itself (via `expect`) when its temporary Admin identity
+ * fails to delete, rather than only logging it — a console.error alone
+ * could let a run report PASS while a temporary Admin/admins row was left
+ * behind. The other three describe blocks in this file (the record-
+ * changing workflow, the dashboard-delta test, and the authorization
+ * checks) still use the original console.error-only pattern; correcting
+ * those was out of scope for that narrowly-approved correction and is
+ * unchanged here.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -135,14 +146,40 @@ test.describe("Enrollment list: real data, search, filter, pagination", () => {
   test.beforeAll(async () => {
     if (skipSuite) return;
     admin = await createPhase9LoginIdentity("admin", "list");
+    if (admin) {
+      // Printed so a human can capture the exact identifiers for a
+      // post-run, exact-id (never prefix/pattern-based) verification query
+      // if cleanup below ever reports a failure — no secret (password) is
+      // ever logged, only the id/email this run itself generated.
+      console.log(
+        `[phase9 e2e] list-test fixture created: authUserId=${admin.authUserId} email=${admin.email}`,
+      );
+    }
   });
 
+  // Corrected (Phase 9 first-test cleanup-safety correction): a cleanup
+  // failure used to be only a console.error, which could produce a
+  // misleading PASS while the temporary Admin identity (and its admins
+  // profile row) remained in the dev project. This now fails the afterAll
+  // hook itself via `expect`, which Playwright reports as its own distinct
+  // failure — separate from, and never overwriting, the test body's own
+  // PASS/FAIL — so a test failure and a cleanup failure occurring together
+  // both stay visible in the report. Scoped to this one describe block
+  // only; the other three describe blocks in this file still use the
+  // original console.error-only pattern and are unchanged by this
+  // correction (see this file's own top-of-file note for why).
   test.afterAll(async () => {
     if (skipSuite || !admin) return;
     const result = await deletePhase9LoginIdentity(admin);
-    if (!result.ok) {
-      console.error(`[phase9 e2e] list-test admin cleanup failed: ${result.reason}`);
-    }
+    expect(
+      result.ok,
+      `Temporary Admin login identity cleanup failed for this run ` +
+        `(authUserId=${admin.authUserId}, email=${admin.email}): ${result.reason}. ` +
+        `This identity (and, if not yet reached, its admins profile row) may still ` +
+        `exist in the dev project. Do NOT attempt automatic recovery or broaden ` +
+        `deletion to any other record — verify by exact id only, and remove it ` +
+        `manually only after separate approval.`,
+    ).toBe(true);
   });
 
   test("Admin can view the Enrollment list with genuine, correctly related data", async ({
