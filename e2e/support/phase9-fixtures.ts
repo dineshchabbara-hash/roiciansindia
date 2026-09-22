@@ -42,6 +42,32 @@ function generatePassword(): string {
   return randomBytes(18).toString("base64url");
 }
 
+/**
+ * Runs one Supabase call and normalizes BOTH ways it can fail into the same
+ * `{ error }` shape: a resolved `{ data, error }` with a real error (the
+ * Admin API's usual failure mode — never assumed to mean success just
+ * because the promise resolved), and a rejected promise (a genuine network
+ * failure/timeout). Every Supabase call in this module — creation included,
+ * not just the safe-delete functions below — routes through this so neither
+ * failure mode can throw past this module uncaught: a rejected promise
+ * during createPhase9LoginIdentity would otherwise propagate as a raw,
+ * unrecoverable rejection instead of the Phase9PartialLoginIdentityError
+ * callers rely on to recover an already-created auth user's id.
+ */
+async function safely<T = unknown>(
+  operation: () => PromiseLike<{ data?: T | null; error: { message: string } | null }>,
+): Promise<{ data: T | null; error: { message: string } | null }> {
+  try {
+    const result = await operation();
+    return { data: result.data ?? null, error: result.error };
+  } catch (err) {
+    return {
+      data: null,
+      error: { message: err instanceof Error ? err.message : String(err) },
+    };
+  }
+}
+
 export const PHASE9_E2E_EMAIL_DOMAIN = "phase9-e2e.internal.test";
 export const PHASE9_E2E_STUDENT_PREFIX = "Phase9E2E";
 
@@ -67,6 +93,28 @@ export type Phase9LoginIdentity = {
 };
 
 /**
+ * Thrown by createPhase9LoginIdentity when the auth user itself was
+ * successfully created but a LATER step in the same sequence (role
+ * assignment, or the admin/trainer profile row) fails. Carries whatever
+ * was actually created (`partial`) so the caller can still recover it — a
+ * plain `throw new Error(...)` here would otherwise lose the auth user's
+ * id entirely, and a caller storing this function's return value only on
+ * success (the natural pattern) would never learn there is now an
+ * orphaned, profile-less auth user in the dev project to clean up. Never
+ * thrown for a failure in the very first step (auth.admin.createUser
+ * itself) — nothing exists yet to recover in that case, so a plain Error
+ * is correct there.
+ */
+export class Phase9PartialLoginIdentityError extends Error {
+  partial: Phase9LoginIdentity;
+  constructor(message: string, partial: Phase9LoginIdentity) {
+    super(message);
+    this.name = "Phase9PartialLoginIdentityError";
+    this.partial = partial;
+  }
+}
+
+/**
  * Creates one throwaway login identity. `tag` distinguishes concurrent
  * identities within the same run (e.g. "list", "workflow", "dashboard") so
  * every test's Admin fixture is a wholly independent account — no test ever
@@ -81,50 +129,78 @@ export async function createPhase9LoginIdentity(
   const email = `phase9-e2e-${role}-${tag}-${RUN_ID}@${PHASE9_E2E_EMAIL_DOMAIN}`;
   const password = generatePassword();
 
-  const { data, error } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (error || !data.user) {
+  // Routed through safely() like every other call in this module (see its
+  // own doc comment) — a rejected createUser request is handled the same
+  // way as one that resolves with { error }, rather than throwing an
+  // uncaught rejection past this function.
+  const { data, error } = await safely<{ user: { id: string } | null }>(() =>
+    supabase.auth.admin.createUser({ email, password, email_confirm: true }),
+  );
+  if (error || !data?.user) {
+    // Nothing was created (or we cannot tell) — a plain Error is correct
+    // here, never Phase9PartialLoginIdentityError: there is no auth user
+    // id to recover.
     throw new Error(`Failed to create ${role} login identity: ${error?.message}`);
   }
   const authUserId = data.user.id;
 
-  const { error: roleError } = await supabase
-    .from("user_roles")
-    .insert({ auth_user_id: authUserId, role });
+  // Tracked from this point on: the auth user already exists in the dev
+  // project, so every failure branch below throws a
+  // Phase9PartialLoginIdentityError carrying this (updated as each step
+  // succeeds) rather than a plain Error, so the caller can still recover
+  // and clean up exactly what was actually created.
+  let partial: Phase9LoginIdentity = {
+    authUserId,
+    email,
+    password,
+    role,
+    hasAdminProfile: false,
+    hasTrainerProfile: false,
+  };
+
+  const { error: roleError } = await safely(() =>
+    supabase.from("user_roles").insert({ auth_user_id: authUserId, role }),
+  );
   if (roleError) {
-    throw new Error(
-      `Failed to assign role ${role} to login identity: ${roleError.message}`,
+    throw new Phase9PartialLoginIdentityError(
+      `Failed to assign role ${role} to login identity (auth user WAS already created): ${roleError.message}`,
+      partial,
     );
   }
 
-  let hasAdminProfile = false;
-  let hasTrainerProfile = false;
   if (role === "admin") {
-    const { error: profileError } = await supabase.from("admins").insert({
-      auth_user_id: authUserId,
-      first_name: PHASE9_E2E_STUDENT_PREFIX,
-      last_name: "Admin",
-      email,
-      role_level: "admin",
-    });
+    const { error: profileError } = await safely(() =>
+      supabase.from("admins").insert({
+        auth_user_id: authUserId,
+        first_name: PHASE9_E2E_STUDENT_PREFIX,
+        last_name: "Admin",
+        email,
+        role_level: "admin",
+      }),
+    );
     if (profileError) {
-      throw new Error(`Failed to create admin profile: ${profileError.message}`);
+      throw new Phase9PartialLoginIdentityError(
+        `Failed to create admin profile (auth user + user_roles WERE already created): ${profileError.message}`,
+        partial,
+      );
     }
-    hasAdminProfile = true;
+    partial = { ...partial, hasAdminProfile: true };
   } else if (role === "trainer") {
-    const { error: profileError } = await supabase.from("trainers").insert({
-      auth_user_id: authUserId,
-      first_name: PHASE9_E2E_STUDENT_PREFIX,
-      last_name: "Trainer",
-      email,
-    });
+    const { error: profileError } = await safely(() =>
+      supabase.from("trainers").insert({
+        auth_user_id: authUserId,
+        first_name: PHASE9_E2E_STUDENT_PREFIX,
+        last_name: "Trainer",
+        email,
+      }),
+    );
     if (profileError) {
-      throw new Error(`Failed to create trainer profile: ${profileError.message}`);
+      throw new Phase9PartialLoginIdentityError(
+        `Failed to create trainer profile (auth user + user_roles WERE already created): ${profileError.message}`,
+        partial,
+      );
     }
-    hasTrainerProfile = true;
+    partial = { ...partial, hasTrainerProfile: true };
   }
   // Student role deliberately gets no `students` row here — this identity
   // is only ever used for the authorization-blocked check (can a Student
@@ -132,34 +208,10 @@ export async function createPhase9LoginIdentity(
   // Enrollment-subject students are a completely separate kind of fixture,
   // see createPhase9SyntheticStudent below.
 
-  return { authUserId, email, password, role, hasAdminProfile, hasTrainerProfile };
+  return partial;
 }
 
 export type Phase9DeleteResult = { ok: boolean; reason?: string };
-
-/**
- * Runs one Supabase call and normalizes BOTH ways it can fail into the same
- * `{ error }` shape: a resolved `{ data, error }` with a real error (the
- * Admin API's usual failure mode — never assumed to mean success just
- * because the promise resolved), and a rejected promise (a genuine network
- * failure/timeout). Every safe-delete function below routes its Supabase
- * calls through this so neither failure mode can throw past this module and
- * abort a caller's afterAll partway through (e.g. skipping a later,
- * unrelated cleanup step because an earlier one rejected).
- */
-async function safely<T = unknown>(
-  operation: () => PromiseLike<{ data?: T | null; error: { message: string } | null }>,
-): Promise<{ data: T | null; error: { message: string } | null }> {
-  try {
-    const result = await operation();
-    return { data: result.data ?? null, error: result.error };
-  } catch (err) {
-    return {
-      data: null,
-      error: { message: err instanceof Error ? err.message : String(err) },
-    };
-  }
-}
 
 /**
  * Deletes exactly one known login identity. Unlike Phase 5's

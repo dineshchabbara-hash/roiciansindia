@@ -27,9 +27,11 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = "mock-service-role-key";
 
 const { createClient } = await import("@supabase/supabase-js");
 const {
+  createPhase9LoginIdentity,
   deletePhase9LoginIdentity,
   deletePhase9SyntheticStudentIfSafe,
   deletePhase9SyntheticEnrollmentIfSafe,
+  Phase9PartialLoginIdentityError,
 } = await import("@/e2e/support/phase9-fixtures");
 
 type Row = Record<string, unknown>;
@@ -37,17 +39,26 @@ type ApiError = { message: string } | null;
 type QueryOutcome = { data: Row[] | null; error: ApiError } | "reject";
 type MutateOutcome = { error: ApiError } | "reject";
 
+type CreateUserOutcome = { userId: string; error: ApiError } | "reject";
+
+const MOCK_CREATED_AUTH_USER_ID = "generated-auth-user-1";
+
 type FakeConfig = {
   /** keyed by table name — controls what a `.select(...)` chain resolves to */
   selectOutcomes?: Partial<Record<string, QueryOutcome>>;
   /** keyed by table name — controls what a `.delete(...)` chain resolves to */
   deleteOutcomes?: Partial<Record<string, MutateOutcome>>;
+  /** keyed by table name — controls what an `.insert(...)` chain resolves to */
+  insertOutcomes?: Partial<Record<string, MutateOutcome>>;
   deleteUserOutcome?: MutateOutcome;
+  /** controls auth.admin.createUser — defaults to a successful, fixed-id creation */
+  createUserOutcome?: CreateUserOutcome;
 };
 
 type TableBuilder = {
   select(cols?: string): TableBuilder;
   delete(): TableBuilder;
+  insert(row: Row): TableBuilder;
   eq(col: string, val: unknown): TableBuilder;
   limit(n: number): TableBuilder;
   then<TResult1, TResult2 = never>(
@@ -66,7 +77,7 @@ function makeTableBuilder(
   calls: string[],
   config: FakeConfig,
 ): TableBuilder {
-  let mode: "select" | "delete" = "select";
+  let mode: "select" | "delete" | "insert" = "select";
   const builder: TableBuilder = {
     select() {
       mode = "select";
@@ -76,6 +87,11 @@ function makeTableBuilder(
     delete() {
       mode = "delete";
       calls.push(`delete:${table}`);
+      return builder;
+    },
+    insert() {
+      mode = "insert";
+      calls.push(`insert:${table}`);
       return builder;
     },
     eq(col) {
@@ -100,7 +116,9 @@ function makeTableBuilder(
         }
         resolved = outcome;
       } else {
-        const outcome: MutateOutcome = config.deleteOutcomes?.[table] ?? { error: null };
+        const outcomeMap =
+          mode === "delete" ? config.deleteOutcomes : config.insertOutcomes;
+        const outcome: MutateOutcome = outcomeMap?.[table] ?? { error: null };
         if (outcome === "reject") {
           return Promise.reject(new Error(`simulated network failure (${table})`)).then(
             onfulfilled,
@@ -129,6 +147,20 @@ function createFakeSupabase(calls: string[], config: FakeConfig) {
             data: outcome.error ? { user: null } : { user: { id } },
             error: outcome.error,
           };
+        }),
+        createUser: vi.fn(async (attrs: { email: string }) => {
+          calls.push(`createUser:${attrs.email}`);
+          const outcome = config.createUserOutcome ?? {
+            userId: MOCK_CREATED_AUTH_USER_ID,
+            error: null,
+          };
+          if (outcome === "reject") {
+            throw new Error("simulated network failure (createUser)");
+          }
+          if (outcome.error) {
+            return { data: { user: null }, error: outcome.error };
+          }
+          return { data: { user: { id: outcome.userId } }, error: null };
         }),
       },
     },
@@ -169,6 +201,161 @@ const STUDENT_LOGIN_IDENTITY = {
   hasTrainerProfile: false,
 };
 
+describe("createPhase9LoginIdentity", () => {
+  it("creates a fully-formed Admin identity when every step succeeds", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {});
+
+    const identity = await createPhase9LoginIdentity("admin", "list");
+
+    expect(identity).toEqual({
+      authUserId: MOCK_CREATED_AUTH_USER_ID,
+      email: expect.any(String),
+      password: expect.any(String),
+      role: "admin",
+      hasAdminProfile: true,
+      hasTrainerProfile: false,
+    });
+    expect(calls).toContain("insert:user_roles");
+    expect(calls).toContain("insert:admins");
+  });
+
+  it("creates a fully-formed Trainer identity when every step succeeds", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {});
+
+    const identity = await createPhase9LoginIdentity("trainer", "authz-trainer");
+
+    expect(identity.hasTrainerProfile).toBe(true);
+    expect(identity.hasAdminProfile).toBe(false);
+    expect(calls).toContain("insert:trainers");
+    expect(calls).not.toContain("insert:admins");
+  });
+
+  it("creates a Student identity with no profile row attempted", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {});
+
+    const identity = await createPhase9LoginIdentity("student", "authz-student");
+
+    expect(identity).toEqual({
+      authUserId: MOCK_CREATED_AUTH_USER_ID,
+      email: expect.any(String),
+      password: expect.any(String),
+      role: "student",
+      hasAdminProfile: false,
+      hasTrainerProfile: false,
+    });
+    expect(calls).not.toContain("insert:admins");
+    expect(calls).not.toContain("insert:trainers");
+  });
+
+  it("throws a plain Error, never a partial-identity error, when auth.admin.createUser itself fails — nothing exists to recover", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {
+      createUserOutcome: { userId: "", error: { message: "createUser failed" } },
+    });
+
+    await expect(createPhase9LoginIdentity("admin", "list")).rejects.not.toBeInstanceOf(
+      Phase9PartialLoginIdentityError,
+    );
+    expect(calls).not.toContain("insert:user_roles");
+  });
+
+  it("throws a plain Error, not a thrown-away rejection, when the createUser request itself is rejected (network failure)", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, { createUserOutcome: "reject" });
+
+    await expect(createPhase9LoginIdentity("admin", "list")).rejects.not.toBeInstanceOf(
+      Phase9PartialLoginIdentityError,
+    );
+    expect(calls).not.toContain("insert:user_roles");
+  });
+
+  it("throws Phase9PartialLoginIdentityError carrying the created auth user id when user_roles assignment fails", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {
+      insertOutcomes: { user_roles: { error: { message: "role insert failed" } } },
+    });
+
+    let caught: unknown;
+    try {
+      await createPhase9LoginIdentity("admin", "list");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Phase9PartialLoginIdentityError);
+    const partial = (caught as InstanceType<typeof Phase9PartialLoginIdentityError>)
+      .partial;
+    expect(partial.authUserId).toBe(MOCK_CREATED_AUTH_USER_ID);
+    expect(partial.hasAdminProfile).toBe(false);
+    expect(partial.hasTrainerProfile).toBe(false);
+  });
+
+  it("throws Phase9PartialLoginIdentityError with hasAdminProfile:false when the admin profile insert fails after user_roles succeeds", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {
+      insertOutcomes: { admins: { error: { message: "admin profile insert failed" } } },
+    });
+
+    let caught: unknown;
+    try {
+      await createPhase9LoginIdentity("admin", "list");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Phase9PartialLoginIdentityError);
+    const partial = (caught as InstanceType<typeof Phase9PartialLoginIdentityError>)
+      .partial;
+    expect(partial.authUserId).toBe(MOCK_CREATED_AUTH_USER_ID);
+    expect(partial.hasAdminProfile).toBe(false);
+    void calls;
+  });
+
+  it("throws Phase9PartialLoginIdentityError with hasTrainerProfile:false when the trainer profile insert fails after user_roles succeeds", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {
+      insertOutcomes: {
+        trainers: { error: { message: "trainer profile insert failed" } },
+      },
+    });
+
+    let caught: unknown;
+    try {
+      await createPhase9LoginIdentity("trainer", "authz-trainer");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Phase9PartialLoginIdentityError);
+    const partial = (caught as InstanceType<typeof Phase9PartialLoginIdentityError>)
+      .partial;
+    expect(partial.authUserId).toBe(MOCK_CREATED_AUTH_USER_ID);
+    expect(partial.hasTrainerProfile).toBe(false);
+    void calls;
+  });
+
+  it("reports the partial identity (not a thrown-away plain Error) when the user_roles insert request is rejected (network failure)", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, { insertOutcomes: { user_roles: "reject" } });
+
+    let caught: unknown;
+    try {
+      await createPhase9LoginIdentity("admin", "list");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Phase9PartialLoginIdentityError);
+    const partial = (caught as InstanceType<typeof Phase9PartialLoginIdentityError>)
+      .partial;
+    expect(partial.authUserId).toBe(MOCK_CREATED_AUTH_USER_ID);
+    void calls;
+  });
+});
+
 describe("deletePhase9LoginIdentity", () => {
   it("deletes the admin profile before the auth user", async () => {
     const calls: string[] = [];
@@ -206,6 +393,25 @@ describe("deletePhase9LoginIdentity", () => {
     expect(calls).not.toContain("delete:admins");
     expect(calls).not.toContain("delete:trainers");
     expect(calls).toContain(`deleteUser:${STUDENT_LOGIN_IDENTITY.authUserId}`);
+  });
+
+  it("deletes only the auth user for a partial (profile-less) Admin identity — the exact shape a recovered Phase9PartialLoginIdentityError.partial has when the admins insert never succeeded", async () => {
+    const calls: string[] = [];
+    mockCreateClientOnce(calls, {});
+    const partialAdmin = {
+      authUserId: "auth-admin-partial",
+      email: "phase9-e2e-admin-partial@phase9-e2e.internal.test",
+      password: "x",
+      role: "admin" as const,
+      hasAdminProfile: false,
+      hasTrainerProfile: false,
+    };
+
+    const result = await deletePhase9LoginIdentity(partialAdmin);
+
+    expect(result).toEqual({ ok: true });
+    expect(calls).not.toContain("delete:admins");
+    expect(calls).toContain(`deleteUser:${partialAdmin.authUserId}`);
   });
 
   it("never deletes the auth user when the admin profile delete fails", async () => {

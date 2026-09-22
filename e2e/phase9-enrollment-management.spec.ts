@@ -12,7 +12,10 @@ import {
   deletePhase9SyntheticStudentIfSafe,
   deletePhase9SyntheticEnrollmentIfSafe,
   findExistingProgramWithBatch,
+  Phase9PartialLoginIdentityError,
   type Phase9LoginIdentity,
+  type Phase9RoleKind,
+  type Phase9DeleteResult,
 } from "./support/phase9-fixtures";
 
 /**
@@ -48,16 +51,35 @@ import {
  * suite's own teardown — the pre-existing real students/enrollments are
  * only ever read, never modified or deleted.
  *
- * Cleanup-failure visibility note (Phase 9 first-test cleanup-safety
- * correction): the "Enrollment list" describe block's afterAll below
- * fails the hook itself (via `expect`) when its temporary Admin identity
- * fails to delete, rather than only logging it — a console.error alone
- * could let a run report PASS while a temporary Admin/admins row was left
- * behind. The other three describe blocks in this file (the record-
- * changing workflow, the dashboard-delta test, and the authorization
- * checks) still use the original console.error-only pattern; correcting
- * those was out of scope for that narrowly-approved correction and is
- * unchanged here.
+ * Cleanup-failure visibility (Phase 9 cleanup-safety corrections, applied
+ * across every describe block below, not just the first): every afterAll
+ * fails the hook itself (via `expect`) when a temporary record fails to
+ * delete, rather than only logging it — a console.error alone could let a
+ * run report PASS while a temporary record was left behind. A hook failure
+ * is reported by Playwright as its own distinct failure, separate from —
+ * never overwriting — the test body's own PASS/FAIL, so a test failure and
+ * a cleanup failure occurring together both stay visible in the report.
+ *
+ * Partial setup-failure recovery: createPhase9LoginIdentity's own steps
+ * (auth user -> user_roles -> admins/trainers profile) can fail partway
+ * through, after the auth user already exists. Every beforeAll below that
+ * calls it catches Phase9PartialLoginIdentityError and stores its
+ * `.partial` identity in the same outer variable afterAll reads, BEFORE
+ * rethrowing to still fail setup — so afterAll (which Playwright still
+ * runs even when beforeAll threw) can still find and clean up exactly what
+ * was actually created, rather than silently orphaning it because the
+ * outer variable was never assigned.
+ *
+ * Test isolation (Checkpoint 9 of the cleanup-safety-correction task):
+ * the Trainer/Student/anonymous authorization checks were originally one
+ * describe block sharing a single beforeAll that created BOTH a Trainer
+ * and a Student identity — selecting only "Trainer is blocked" via -g
+ * still ran that shared beforeAll in full, creating an unused Student
+ * identity (and burning part of its login budget) for no reason. Each
+ * authorization check is now its OWN describe block with its OWN
+ * beforeAll/afterAll, creating only the one identity it actually needs
+ * (or, for the anonymous check, no identity at all) — selecting any one
+ * of the three now creates and destroys only what that one test uses.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -97,6 +119,60 @@ async function assertAuthenticatedAsAdmin(page: Page) {
 async function loginAsAdmin(page: Page, identity: Phase9LoginIdentity) {
   await login(page, "/login/admin", identity.email, identity.password);
   await assertAuthenticatedAsAdmin(page);
+}
+
+/**
+ * Creates one login identity for use in a beforeAll, storing whatever was
+ * actually created — even a PARTIAL identity from a failed setup — into
+ * the caller's own outer variable via `assign` before rethrowing, so a
+ * later afterAll (which Playwright still runs even when beforeAll threw)
+ * can still find and clean it up. Without this, a failure partway through
+ * createPhase9LoginIdentity (e.g. the auth user was created but its
+ * admins/trainers profile insert failed) would leave the outer variable
+ * unset, and afterAll's own `if (!identity) return;` guard would then
+ * silently skip cleanup of an auth user that genuinely exists in the dev
+ * project.
+ */
+async function createTrackedLoginIdentity(
+  role: Phase9RoleKind,
+  tag: string,
+  assign: (identity: Phase9LoginIdentity) => void,
+): Promise<void> {
+  try {
+    assign(await createPhase9LoginIdentity(role, tag));
+  } catch (err) {
+    if (err instanceof Phase9PartialLoginIdentityError) {
+      assign(err.partial);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Runs every cleanup step regardless of an earlier step's own outcome
+ * (never short-circuits), collects every failure's own message, and fails
+ * the afterAll hook with all of them together — so a run with more than
+ * one failed cleanup step reports every one of them, not just the first.
+ */
+async function runCleanupSteps(
+  steps: Array<{ label: string; run: () => Promise<Phase9DeleteResult> }>,
+): Promise<void> {
+  const failures: string[] = [];
+  for (const step of steps) {
+    const result = await step.run();
+    if (!result.ok) {
+      failures.push(`${step.label}: ${result.reason}`);
+    }
+  }
+  expect(
+    failures,
+    failures.length > 0
+      ? `One or more temporary records failed to clean up. These may still exist in ` +
+          `the dev project — do NOT attempt automatic recovery or broaden deletion to ` +
+          `any other record; verify by exact id only, and remove manually only after ` +
+          `separate approval:\n${failures.join("\n")}`
+      : undefined,
+  ).toEqual([]);
 }
 
 function parseWholeRupeeAmount(text: string): number {
@@ -291,31 +367,44 @@ test.describe("Admin enrollment record-changing workflow", () => {
 
   test.beforeAll(async () => {
     if (skipSuite) return;
-    admin = await createPhase9LoginIdentity("admin", "workflow");
+    await createTrackedLoginIdentity("admin", "workflow", (identity) => {
+      admin = identity;
+    });
+    // Printed so a human can capture the exact identifiers for a post-run,
+    // exact-id verification query if cleanup ever reports a failure — no
+    // secret (password) is ever logged.
+    console.log(
+      `[phase9 e2e] workflow-test admin fixture created: authUserId=${admin?.authUserId} email=${admin?.email}`,
+    );
   });
 
   test.afterAll(async () => {
     if (skipSuite) return;
-    if (enrollmentId) {
-      const result = await deletePhase9SyntheticEnrollmentIfSafe(enrollmentId);
-      if (!result.ok) {
-        console.error(
-          `[phase9 e2e] workflow enrollment cleanup failed: ${result.reason}`,
-        );
-      }
-    }
-    if (studentId) {
-      const result = await deletePhase9SyntheticStudentIfSafe(studentId);
-      if (!result.ok) {
-        console.error(`[phase9 e2e] workflow student cleanup failed: ${result.reason}`);
-      }
-    }
-    if (admin) {
-      const result = await deletePhase9LoginIdentity(admin);
-      if (!result.ok) {
-        console.error(`[phase9 e2e] workflow admin cleanup failed: ${result.reason}`);
-      }
-    }
+    // Every step below always runs, regardless of an earlier step's own
+    // outcome — enrollment before student before admin (respecting the
+    // enrollments.student_id / admins.auth_user_id dependency order), and
+    // every failure is collected rather than only the first.
+    await runCleanupSteps([
+      {
+        label: `enrollment (id=${enrollmentId ?? "none"})`,
+        run: () =>
+          enrollmentId
+            ? deletePhase9SyntheticEnrollmentIfSafe(enrollmentId)
+            : Promise.resolve({ ok: true }),
+      },
+      {
+        label: `student (id=${studentId ?? "none"})`,
+        run: () =>
+          studentId
+            ? deletePhase9SyntheticStudentIfSafe(studentId)
+            : Promise.resolve({ ok: true }),
+      },
+      {
+        label: `admin login identity (authUserId=${admin?.authUserId ?? "none"}, email=${admin?.email ?? "none"})`,
+        run: () =>
+          admin ? deletePhase9LoginIdentity(admin) : Promise.resolve({ ok: true }),
+      },
+    ]);
   });
 
   test("create, assign a batch, move through the status lifecycle to a terminal status, and reject a duplicate — each on this test's own isolated synthetic student/enrollment", async ({
@@ -336,6 +425,9 @@ test.describe("Admin enrollment record-changing workflow", () => {
     await test.step("Creation: correct relationships, independently-calculated total payable, persists after reload", async () => {
       const student = await createPhase9SyntheticStudent("Workflow");
       studentId = student.id;
+      console.log(
+        `[phase9 e2e] workflow-test synthetic student created: id=${studentId}`,
+      );
 
       await page.goto("/admin/enrollments/new");
       await page.locator("#studentId").selectOption(student.id);
@@ -349,6 +441,9 @@ test.describe("Admin enrollment record-changing workflow", () => {
 
       await expect(page).toHaveURL(/\/admin\/enrollments\/[0-9a-f-]+$/);
       enrollmentId = page.url().split("/").pop()!;
+      console.log(
+        `[phase9 e2e] workflow-test synthetic enrollment created: id=${enrollmentId}`,
+      );
 
       // Independently calculated here, not copied from the domain formula's
       // own file — computeTotalPayable = agreedFee - discountAmount +
@@ -448,6 +543,23 @@ test.describe("Admin enrollment record-changing workflow", () => {
 // actor changes the dev project's Enrollments between the "before" and
 // "after" reads — test.describe.configure({ mode: "serial" }) at the top of
 // this file at least prevents this suite's OWN other tests from racing it.
+//
+// IRREDUCIBLE within test-code-only changes (re-confirmed, Phase 9
+// remaining-five-tests review): the Pipeline Value / Confirmed Unpaid Fees
+// figures read here are project-wide aggregates computed from EVERY
+// Enrollment in the dev project (lib/data/dashboard.ts), not a value
+// scoped to this test's own synthetic Enrollment. If any other actor
+// (a human, another process) creates/changes/removes an Enrollment in the
+// same dev project in the exact window between this test's "before" and
+// "after" reads, the delta assertions below can fail (or, in principle,
+// coincidentally still pass) for a reason unrelated to this test's own
+// correctness. There is no test-code-only fix for this — a true fix would
+// need either an aggregate scoped to this test's own tagged records
+// (an application change, out of scope here) or exclusive access to the
+// dev project during the run (an operational control, not a code change).
+// Reported as a known limitation; running this specific test should be a
+// deliberate, separately considered decision — ideally in an otherwise-
+// idle window — not treated as equivalent in risk to the other four.
 
 test.describe("Dashboard financial classification reflects a known delta", () => {
   let admin: Phase9LoginIdentity | undefined;
@@ -456,31 +568,37 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
 
   test.beforeAll(async () => {
     if (skipSuite) return;
-    admin = await createPhase9LoginIdentity("admin", "dashboard");
+    await createTrackedLoginIdentity("admin", "dashboard", (identity) => {
+      admin = identity;
+    });
+    console.log(
+      `[phase9 e2e] dashboard-test admin fixture created: authUserId=${admin?.authUserId} email=${admin?.email}`,
+    );
   });
 
   test.afterAll(async () => {
     if (skipSuite) return;
-    if (enrollmentId) {
-      const result = await deletePhase9SyntheticEnrollmentIfSafe(enrollmentId);
-      if (!result.ok) {
-        console.error(
-          `[phase9 e2e] dashboard enrollment cleanup failed: ${result.reason}`,
-        );
-      }
-    }
-    if (studentId) {
-      const result = await deletePhase9SyntheticStudentIfSafe(studentId);
-      if (!result.ok) {
-        console.error(`[phase9 e2e] dashboard student cleanup failed: ${result.reason}`);
-      }
-    }
-    if (admin) {
-      const result = await deletePhase9LoginIdentity(admin);
-      if (!result.ok) {
-        console.error(`[phase9 e2e] dashboard admin cleanup failed: ${result.reason}`);
-      }
-    }
+    await runCleanupSteps([
+      {
+        label: `enrollment (id=${enrollmentId ?? "none"})`,
+        run: () =>
+          enrollmentId
+            ? deletePhase9SyntheticEnrollmentIfSafe(enrollmentId)
+            : Promise.resolve({ ok: true }),
+      },
+      {
+        label: `student (id=${studentId ?? "none"})`,
+        run: () =>
+          studentId
+            ? deletePhase9SyntheticStudentIfSafe(studentId)
+            : Promise.resolve({ ok: true }),
+      },
+      {
+        label: `admin login identity (authUserId=${admin?.authUserId ?? "none"}, email=${admin?.email ?? "none"})`,
+        run: () =>
+          admin ? deletePhase9LoginIdentity(admin) : Promise.resolve({ ok: true }),
+      },
+    ]);
   });
 
   test("a zero-payment Lead moves Pipeline Value, then an Enrolled status moves it to Confirmed Unpaid Fees, by exactly its own fee", async ({
@@ -536,6 +654,9 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
     await test.step("Create a zero-payment Lead enrollment with a known fee", async () => {
       const student = await createPhase9SyntheticStudent("Dashboard");
       studentId = student.id;
+      console.log(
+        `[phase9 e2e] dashboard-test synthetic student created: id=${studentId}`,
+      );
 
       await page.goto("/admin/enrollments/new");
       await page.locator("#studentId").selectOption(student.id);
@@ -545,6 +666,9 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
       await page.getByRole("button", { name: "Create enrollment" }).click();
       await expect(page).toHaveURL(/\/admin\/enrollments\/[0-9a-f-]+$/);
       enrollmentId = page.url().split("/").pop()!;
+      console.log(
+        `[phase9 e2e] dashboard-test synthetic enrollment created: id=${enrollmentId}`,
+      );
       // No discount/registration fee/tax here, so total_payable === the
       // agreed fee exactly: formatDecimalAsINR(10000.00) === "₹10,000.00".
       await expect(
@@ -632,33 +756,42 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
 // ---------------------------------------------------------------------------
 // (G) Authorization — non-admin roles and anonymous users are blocked from
 // Enrollment Management, verified by actual server-side redirect (full page
-// navigation), never by the presence/absence of a UI button alone. Creates
-// its own Trainer and Student login identities only — no synthetic
-// student/enrollment records at all, minimizing this scenario's footprint.
+// navigation), never by the presence/absence of a UI button alone.
+//
+// Each of the three checks below is its OWN describe block with its OWN
+// beforeAll/afterAll (Phase 9 cleanup-safety correction, test-isolation
+// fix): they used to share one describe block and one beforeAll that
+// created BOTH a Trainer and a Student identity together, so selecting
+// only "Trainer is blocked" via -g still created an unused Student
+// identity (and consumed part of its login budget) for no reason. Now,
+// selecting any one of the three creates and destroys only what that one
+// test actually uses — the anonymous check creates no identity at all.
 
-test.describe("Role-based access to Admin Enrollment Management", () => {
+test.describe("Trainer authorization: Enrollment Management", () => {
   let trainer: Phase9LoginIdentity | undefined;
-  let student: Phase9LoginIdentity | undefined;
 
   test.beforeAll(async () => {
     if (skipSuite) return;
-    [trainer, student] = await Promise.all([
-      createPhase9LoginIdentity("trainer", "authz"),
-      createPhase9LoginIdentity("student", "authz"),
-    ]);
+    await createTrackedLoginIdentity("trainer", "authz-trainer", (identity) => {
+      trainer = identity;
+    });
+    console.log(
+      `[phase9 e2e] trainer-authz fixture created: authUserId=${trainer?.authUserId} email=${trainer?.email}`,
+    );
   });
 
   test.afterAll(async () => {
-    if (skipSuite) return;
-    for (const identity of [trainer, student]) {
-      if (!identity) continue;
-      const result = await deletePhase9LoginIdentity(identity);
-      if (!result.ok) {
-        console.error(
-          `[phase9 e2e] authz ${identity.role} cleanup failed: ${result.reason}`,
-        );
-      }
-    }
+    if (skipSuite || !trainer) return;
+    const result = await deletePhase9LoginIdentity(trainer);
+    expect(
+      result.ok,
+      `Temporary Trainer login identity cleanup failed for this run ` +
+        `(authUserId=${trainer.authUserId}, email=${trainer.email}): ${result.reason}. ` +
+        `This identity (and, if not yet reached, its trainers profile row) may still ` +
+        `exist in the dev project. Do NOT attempt automatic recovery or broaden ` +
+        `deletion to any other record — verify by exact id only, and remove it ` +
+        `manually only after separate approval.`,
+    ).toBe(true);
   });
 
   test("Trainer is blocked from Enrollment Management", async ({ page }) => {
@@ -669,6 +802,34 @@ test.describe("Role-based access to Admin Enrollment Management", () => {
     await page.goto("/admin/enrollments/new");
     await expect(page).not.toHaveURL(/\/admin\/enrollments\/new/);
   });
+});
+
+test.describe("Student authorization: Enrollment Management", () => {
+  let student: Phase9LoginIdentity | undefined;
+
+  test.beforeAll(async () => {
+    if (skipSuite) return;
+    await createTrackedLoginIdentity("student", "authz-student", (identity) => {
+      student = identity;
+    });
+    console.log(
+      `[phase9 e2e] student-authz fixture created: authUserId=${student?.authUserId} email=${student?.email}`,
+    );
+  });
+
+  test.afterAll(async () => {
+    if (skipSuite || !student) return;
+    const result = await deletePhase9LoginIdentity(student);
+    expect(
+      result.ok,
+      `Temporary Student login identity cleanup failed for this run ` +
+        `(authUserId=${student.authUserId}, email=${student.email}): ${result.reason}. ` +
+        `This identity may still exist in the dev project (Student identities have no ` +
+        `profile row to worry about — see createPhase9LoginIdentity). Do NOT attempt ` +
+        `automatic recovery or broaden deletion to any other record — verify by exact ` +
+        `id only, and remove it manually only after separate approval.`,
+    ).toBe(true);
+  });
 
   test("Student is blocked from Enrollment Management", async ({ page }) => {
     if (!student) throw new Error("beforeAll did not create the Student login identity.");
@@ -678,7 +839,12 @@ test.describe("Role-based access to Admin Enrollment Management", () => {
     await page.goto("/admin/enrollments/new");
     await expect(page).not.toHaveURL(/\/admin\/enrollments\/new/);
   });
+});
 
+// No beforeAll/afterAll at all — this check needs no authentication
+// fixture whatsoever (an anonymous, cookie-cleared browser context), so
+// none is created.
+test.describe("Anonymous authorization: Enrollment Management", () => {
   test("anonymous is blocked from Enrollment Management", async ({ page, context }) => {
     await context.clearCookies();
     await page.goto("/admin/enrollments");
