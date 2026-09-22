@@ -208,6 +208,21 @@ function parseWholeRupeeAmount(text: string): number {
  * (app/admin/page.tsx) — this waits for the real title text (not the
  * FinancialClassificationSkeleton fallback) before returning, so a caller's
  * immediately-following `.innerText()` read can never race the skeleton.
+ *
+ * confirmedCard's title text alone is NOT sufficient to identify it
+ * (Phase 9 dashboard-locator correction): components/admin/dashboard/
+ * metrics-grid-section.tsx renders its own, entirely separate MetricCard
+ * tile also labeled exactly "Confirmed Unpaid Fees" (sourced from
+ * getDashboardMetrics(), not getEnrollmentFinancialClassificationSummary())
+ * in the same page's top metrics grid — both are real `data-slot="card"`
+ * elements (MetricCard uses the same shared Card component), so filtering
+ * on the title alone matched two cards and failed Playwright's strict-mode
+ * check. Disambiguated with a second, chained `.filter()` on the
+ * classification card's own CardDescription text, which is unique to it —
+ * components/admin/dashboard/metric-card.tsx renders no description at
+ * all, so it can never match this second filter. "Potential Pipeline
+ * Value" has no such collision anywhere in the dashboard components
+ * (verified) and is left as a single title-only filter.
  */
 async function readFinancialClassificationCards(page: Page): Promise<{
   pipelineCard: ReturnType<Page["locator"]>;
@@ -218,7 +233,13 @@ async function readFinancialClassificationCards(page: Page): Promise<{
     .filter({ has: page.getByText("Potential Pipeline Value", { exact: true }) });
   const confirmedCard = page
     .locator('[data-slot="card"]')
-    .filter({ has: page.getByText("Confirmed Unpaid Fees", { exact: true }) });
+    .filter({ has: page.getByText("Confirmed Unpaid Fees", { exact: true }) })
+    .filter({
+      has: page.getByText(
+        "Unpaid balances for confirmed enrollments, based on recorded fees, payments and processed refunds. Excludes leads, applicants and records awaiting cancellation/withdrawal settlement.",
+        { exact: true },
+      ),
+    });
   await expect(pipelineCard).toBeVisible();
   await expect(confirmedCard).toBeVisible();
   return { pipelineCard, confirmedCard };
