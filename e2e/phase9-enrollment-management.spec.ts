@@ -197,6 +197,20 @@ function parseWholeRupeeAmount(text: string): number {
 }
 
 /**
+ * Matches ONLY the "across N ... record(s)"/"across N enrollment(s)" count
+ * span inside a financial-classification card (Phase 9 dashboard-locator
+ * correction). `.text-muted-foreground` alone is ambiguous within a card:
+ * CardDescription (components/ui/card.tsx) renders with that exact class
+ * too, so `.locator(".text-muted-foreground")` matched both the card's own
+ * description paragraph AND this count span, hitting Playwright's
+ * strict-mode check. Anchoring on the count span's own actual text (it is
+ * the only text in the card that starts with "across ") disambiguates by
+ * content instead of by incidental shared styling, and needs no knowledge
+ * of either element's class names at all.
+ */
+const COUNT_TEXT_PATTERN = /^across \d+/;
+
+/**
  * Locates the Pipeline Value / Confirmed Unpaid Fees cards on the (already
  * navigated-to) /admin dashboard. CardTitle (components/ui/card.tsx) renders
  * a plain div, not a real heading element, so there is no ARIA heading role
@@ -682,7 +696,7 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
           await pipelineCard.locator(".text-2xl").innerText(),
         );
         const pipelineCountText = await pipelineCard
-          .locator(".text-muted-foreground")
+          .getByText(COUNT_TEXT_PATTERN)
           .innerText();
         const pipelineCount = parseInt(
           pipelineCountText.match(/across (\d+)/)?.[1] ?? "0",
@@ -693,7 +707,7 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
           await confirmedCard.locator(".text-2xl").innerText(),
         );
         const confirmedCountText = await confirmedCard
-          .locator(".text-muted-foreground")
+          .getByText(COUNT_TEXT_PATTERN)
           .innerText();
         const confirmedCount = parseInt(
           confirmedCountText.match(/across (\d+)/)?.[1] ?? "0",
@@ -744,7 +758,7 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
         await pipelineCard.locator(".text-2xl").innerText(),
       );
       const pipelineCountText = await pipelineCard
-        .locator(".text-muted-foreground")
+        .getByText(COUNT_TEXT_PATTERN)
         .innerText();
       const pipelineCount = parseInt(
         pipelineCountText.match(/across (\d+)/)?.[1] ?? "0",
@@ -781,7 +795,7 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
         await pipelineCard.locator(".text-2xl").innerText(),
       );
       const pipelineCountText = await pipelineCard
-        .locator(".text-muted-foreground")
+        .getByText(COUNT_TEXT_PATTERN)
         .innerText();
       const pipelineCount = parseInt(
         pipelineCountText.match(/across (\d+)/)?.[1] ?? "0",
@@ -794,7 +808,7 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
         await confirmedCard.locator(".text-2xl").innerText(),
       );
       const confirmedCountText = await confirmedCard
-        .locator(".text-muted-foreground")
+        .getByText(COUNT_TEXT_PATTERN)
         .innerText();
       const confirmedCount = parseInt(
         confirmedCountText.match(/across (\d+)/)?.[1] ?? "0",
