@@ -742,11 +742,19 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
       );
       // No discount/registration fee/tax here, so total_payable === the
       // agreed fee exactly: formatDecimalAsINR(10000.00) === "₹10,000.00".
-      await expect(
-        page.getByText(`₹${KNOWN_FEE_RUPEES.toLocaleString("en-IN")}.00`, {
-          exact: true,
-        }),
-      ).toBeVisible();
+      // Scoped to the Total payable field specifically (Phase 9 dashboard-
+      // locator correction): Regular fee and Agreed fee were both filled
+      // with this same value above, and with zero discount/registration/
+      // tax, Regular fee, Agreed fee, and Total payable all render this
+      // identical string on the enrollment detail page
+      // (app/admin/enrollments/[id]/page.tsx) — a page-wide getByText
+      // matched more than one of them. The label and its value render as
+      // direct sibling <p> tags with nothing between them, so the CSS
+      // adjacent-sibling combinator selects only the Total payable row's
+      // own value, never Regular fee's or Agreed fee's.
+      await expect(page.locator('p:text-is("Total payable") + p')).toHaveText(
+        `₹${KNOWN_FEE_RUPEES.toLocaleString("en-IN")}.00`,
+      );
     });
 
     await test.step("Pipeline Value/count increase by exactly this Enrollment's fee while it is a Lead", async () => {
