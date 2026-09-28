@@ -679,6 +679,14 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
     }
     const KNOWN_FEE_RUPEES = 10000;
 
+    // Scoped to only this test (same Phase 9 correction already applied to
+    // the Workflow test above, ~line 477): this test now does two full
+    // navigations plus enrollment creation, two dashboard reads, and — as
+    // of the status-persistence correction — two additional reload/verify
+    // round trips, comfortably exceeding Playwright's default 30s per-test
+    // budget on a real browser. No other test's timeout is affected.
+    test.setTimeout(90_000);
+
     // Scoped to only this call site (Phase 9 dashboard-login-wait
     // correction) — the Enrollment-list and Workflow tests' own
     // loginAsAdmin() calls are untouched and keep the default 5000ms
