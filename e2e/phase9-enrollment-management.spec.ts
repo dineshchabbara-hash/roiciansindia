@@ -734,6 +734,16 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
       await page.locator("#programId").selectOption(existing.programId);
       await page.locator("#regularFee").fill(`${KNOWN_FEE_RUPEES}.00`);
       await page.locator("#agreedFee").fill(`${KNOWN_FEE_RUPEES}.00`);
+      // Registration fee (components/admin/enrollments/enrollment-form.tsx)
+      // is an *uncontrolled* input whose defaultValue is re-synced by React
+      // on every render to the selected Program's own real registrationFee
+      // once a Program is chosen (the field is never marked "dirty" if left
+      // untouched, so that re-synced defaultValue also becomes its live
+      // value). Left unfilled, this test's chosen Program can silently
+      // inject its own non-zero registration fee into total_payable, so it
+      // is explicitly zeroed here rather than relying on it staying blank —
+      // this is what actually makes the fee "known" (zero offsets).
+      await page.locator("#registrationFee").fill("0.00");
       await page.getByRole("button", { name: "Create enrollment" }).click();
       await expect(page).toHaveURL(/\/admin\/enrollments\/[0-9a-f-]+$/);
       enrollmentId = page.url().split("/").pop()!;
@@ -742,19 +752,27 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
       );
       // No discount/registration fee/tax here, so total_payable === the
       // agreed fee exactly: formatDecimalAsINR(10000.00) === "₹10,000.00".
-      // Scoped to the Total payable field specifically (Phase 9 dashboard-
-      // locator correction): Regular fee and Agreed fee were both filled
-      // with this same value above, and with zero discount/registration/
-      // tax, Regular fee, Agreed fee, and Total payable all render this
-      // identical string on the enrollment detail page
-      // (app/admin/enrollments/[id]/page.tsx) — a page-wide getByText
-      // matched more than one of them. The label and its value render as
-      // direct sibling <p> tags with nothing between them, so the CSS
-      // adjacent-sibling combinator selects only the Total payable row's
-      // own value, never Regular fee's or Agreed fee's.
-      await expect(page.locator('p:text-is("Total payable") + p')).toHaveText(
-        `₹${KNOWN_FEE_RUPEES.toLocaleString("en-IN")}.00`,
-      );
+      // Scoped to the Commercial Terms card specifically (Phase 9 dashboard-
+      // locator correction): the enrollment detail page
+      // (app/admin/enrollments/[id]/page.tsx) renders "Total payable" twice
+      // — once in this Commercial Terms card, and again, independently, in
+      // EnrollmentFinancialSummaryCard's own "Financial Position" card
+      // (components/admin/enrollments/enrollment-financial-summary-card.tsx)
+      // further down the same page — both as an identical direct-sibling
+      // <p>Total payable</p><p>…</p> pair, so a page-wide
+      // `p:text-is("Total payable") + p` matches both. Scoping to the
+      // Commercial Terms card's own [data-slot="card"] root first (same
+      // card-root-plus-unique-title pattern as
+      // readFinancialClassificationCards above) selects only this card's
+      // row; within it, Regular fee and Agreed fee share this same rendered
+      // value, so the adjacent-sibling combinator is still needed to pick
+      // out the Total payable row specifically.
+      const commercialTermsCard = page
+        .locator('[data-slot="card"]')
+        .filter({ has: page.getByText("Commercial Terms", { exact: true }) });
+      await expect(
+        commercialTermsCard.locator('p:text-is("Total payable") + p'),
+      ).toHaveText(`₹${KNOWN_FEE_RUPEES.toLocaleString("en-IN")}.00`);
     });
 
     await test.step("Pipeline Value/count increase by exactly this Enrollment's fee while it is a Lead", async () => {
