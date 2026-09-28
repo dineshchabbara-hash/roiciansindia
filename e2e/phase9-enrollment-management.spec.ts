@@ -810,6 +810,21 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
       await page.locator('select[name="status"]').selectOption("enrolled");
       await page.getByRole("button", { name: "Update status" }).click();
       await expect(page.getByText("Saved")).toBeVisible();
+
+      // Diagnostic hardening (Phase 9 — status-verification diagnostic):
+      // the "Saved" banner above only proves the Server Action returned
+      // success, not that the write is visible to a later, independent
+      // request. Same reload-and-verify pattern already relied on by the
+      // workflow test's own "Status lifecycle" step (this file, ~line 546).
+      // If a future run fails here, the status genuinely did not persist/
+      // read back as "enrolled" — a real application-level cause. If this
+      // passes but the very next step's Pipeline Value assertion still
+      // fails, that points instead at the dashboard's own read/
+      // classification behavior (or the already-documented shared-dev-
+      // project risk noted above this describe block), not at this status
+      // change itself.
+      await page.reload();
+      await expect(page.locator('select[name="status"]')).toHaveValue("enrolled");
     });
 
     await test.step("Pipeline Value/count return to baseline; Confirmed Unpaid Fees/count increase by exactly this Enrollment's outstanding balance", async () => {
