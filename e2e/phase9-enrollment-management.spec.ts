@@ -803,26 +803,50 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
 
     await test.step("Assign a batch and move to Enrolled", async () => {
       await page.goto(`/admin/enrollments/${enrollmentId}`);
+
+      // Root cause of the status-persistence failure (Phase 9 status-
+      // persistence correction): EnrollmentStatusControl and
+      // EnrollmentBatchAssignmentControl (components/admin/enrollments/)
+      // are both rendered together on this page while the enrollment is
+      // still Lead/Applicant, and each renders its own bare, identical
+      // "Saved" span on success. The page-wide `page.getByText("Saved")`
+      // previously used below for the STATUS action could therefore be
+      // satisfied by the BATCH form's own still-mounted "Saved" banner
+      // even when the status change's own Server Action returned a
+      // formError instead of success — masking a real failure instead of
+      // catching it. Scoping each "Saved" check to its own <form> (each
+      // control renders exactly one, containing its own select/button/
+      // Saved-or-error text) makes each assertion provable only by that
+      // control's own outcome.
+      const batchForm = page
+        .locator("form")
+        .filter({ has: page.locator('select[name="batchId"]') });
+      const statusForm = page
+        .locator("form")
+        .filter({ has: page.locator('select[name="status"]') });
+
       await page.locator('select[name="batchId"]').selectOption(existing.batchId);
       await page.getByRole("button", { name: "Assign batch" }).click();
-      await expect(page.getByText("Saved")).toBeVisible();
+      await expect(batchForm.getByText("Saved")).toBeVisible();
+
+      // Same reload-and-verify pattern already used by the workflow test's
+      // own "Batch assignment ... persists after reload" step (this file,
+      // ~line 528): read the freshly-assigned batch back from an
+      // independent request before relying on it below — the status
+      // change requires a batch already on file
+      // (enrollmentStatusRequiresBatch in lib/domain/enrollments.ts).
+      await page.reload();
+      await expect(page.locator('select[name="batchId"]')).toHaveValue(existing.batchId);
 
       await page.locator('select[name="status"]').selectOption("enrolled");
       await page.getByRole("button", { name: "Update status" }).click();
-      await expect(page.getByText("Saved")).toBeVisible();
+      await expect(statusForm.getByText("Saved")).toBeVisible();
 
       // Diagnostic hardening (Phase 9 — status-verification diagnostic):
       // the "Saved" banner above only proves the Server Action returned
       // success, not that the write is visible to a later, independent
       // request. Same reload-and-verify pattern already relied on by the
       // workflow test's own "Status lifecycle" step (this file, ~line 546).
-      // If a future run fails here, the status genuinely did not persist/
-      // read back as "enrolled" — a real application-level cause. If this
-      // passes but the very next step's Pipeline Value assertion still
-      // fails, that points instead at the dashboard's own read/
-      // classification behavior (or the already-documented shared-dev-
-      // project risk noted above this describe block), not at this status
-      // change itself.
       await page.reload();
       await expect(page.locator('select[name="status"]')).toHaveValue("enrolled");
     });
