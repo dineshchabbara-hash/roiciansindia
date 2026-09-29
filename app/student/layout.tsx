@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { canAccessRouteGroup, roleHomePath } from "@/lib/domain/rbac";
+import { StudentShell } from "@/components/student/student-shell";
 
 // See app/admin/layout.tsx for why this is forced dynamic.
 export const dynamic = "force-dynamic";
@@ -15,5 +16,5 @@ export default async function StudentLayout({ children }: { children: React.Reac
     redirect(roleHomePath(user.role));
   }
 
-  return children;
+  return <StudentShell user={user}>{children}</StudentShell>;
 }
