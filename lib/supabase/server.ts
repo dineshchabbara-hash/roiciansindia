@@ -26,7 +26,20 @@ export async function createSupabaseServerClient() {
             for (const { name, value, options } of cookiesToSet) {
               cookieStore.set(name, value, options);
             }
-          } catch {
+          } catch (error) {
+            // TEMP-DIAGNOSTIC(phase5-e2e): opt-in only (PHASE5_E2E_DEBUG_AUTH=1),
+            // never fires in normal operation — matching notes in
+            // lib/auth/session.ts / lib/supabase/middleware.ts. Logs a fixed
+            // message plus only the error's constructor name (e.g. "Error",
+            // "TypeError") as a non-sensitive category — never the message,
+            // a stack trace, or any cookie name/value. Safe to delete once
+            // the root cause is confirmed from real output.
+            if (process.env.PHASE5_E2E_DEBUG_AUTH === "1") {
+              console.error(
+                "[phase5-e2e][createSupabaseServerClient setAll] cookieStore.set threw",
+                error instanceof Error ? error.constructor.name : typeof error,
+              );
+            }
             // Called from a Server Component that can't set cookies (no
             // active response, e.g. during static rendering). Session
             // refresh for that request is handled by middleware instead —

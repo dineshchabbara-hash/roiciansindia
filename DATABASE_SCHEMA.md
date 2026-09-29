@@ -218,10 +218,12 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
 - `enrollment_code text unique not null`
 - `student_id uuid not null references students(id) on delete restrict`
 - `program_id uuid not null references programs(id) on delete restrict`
-- `batch_id uuid references batches(id) on delete set null` — nullable to support a
-  "registered, not yet batch-assigned" state
+- `batch_id uuid references batches(id) on delete set null` — nullable to support
+  pre-Batch-assignment stages (Lead/Applicant); operational statuses (Enrolled/
+  Active/On Hold/Completed) require a Batch, enforced at the application layer
+  (see 20260101000024)
 - `enrollment_date date not null default current_date`
-- `status text not null default 'lead' check (status in ('lead','applicant','registered','enrolled','active','on_hold','completed','withdrawn','cancelled'))`
+- `status text not null default 'lead' check (status in ('lead','applicant','enrolled','active','on_hold','completed','withdrawn','cancelled'))` — 'registered' removed by 20260101000024 (Phase 9 manual-acceptance correction: Registered and Enrolled are not separate stages)
 - `regular_fee numeric(12,2) not null` — snapshot from program at enrollment time
 - `agreed_fee numeric(12,2) not null` — after any negotiation
 - `discount_amount numeric(12,2) not null default 0`

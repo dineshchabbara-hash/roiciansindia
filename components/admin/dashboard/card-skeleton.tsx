@@ -18,6 +18,25 @@ export function MetricsGridSkeleton() {
   );
 }
 
+export function FinancialClassificationSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3" aria-hidden="true">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="mt-2 h-4 w-full" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-8 w-32" />
+          </CardContent>
+        </Card>
+      ))}
+      <span className="sr-only">Loading enrollment financial classification…</span>
+    </div>
+  );
+}
+
 export function ListCardSkeleton({ title }: { title: string }) {
   return (
     <Card aria-hidden="true">
