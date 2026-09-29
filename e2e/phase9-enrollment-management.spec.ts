@@ -812,51 +812,45 @@ test.describe("Dashboard financial classification reflects a known delta", () =>
     await test.step("Assign a batch and move to Enrolled", async () => {
       await page.goto(`/admin/enrollments/${enrollmentId}`);
 
-      // Root cause of the status-persistence failure (Phase 9 status-
-      // persistence correction): EnrollmentStatusControl and
+      // Durable-state verification (Phase 9 batch/status test-flow
+      // robustness correction): EnrollmentStatusControl and
       // EnrollmentBatchAssignmentControl (components/admin/enrollments/)
-      // are both rendered together on this page while the enrollment is
-      // still Lead/Applicant, and each renders its own bare, identical
-      // "Saved" span on success. The page-wide `page.getByText("Saved")`
-      // previously used below for the STATUS action could therefore be
-      // satisfied by the BATCH form's own still-mounted "Saved" banner
-      // even when the status change's own Server Action returned a
-      // formError instead of success — masking a real failure instead of
-      // catching it. Scoping each "Saved" check to its own <form> (each
-      // control renders exactly one, containing its own select/button/
-      // Saved-or-error text) makes each assertion provable only by that
-      // control's own outcome.
-      const batchForm = page
+      // each render their own transient success/error text, which is not
+      // proof of persistence — it only reflects what the Server Action's
+      // response said, not what a later, independent request reads back.
+      // Below, each write's own submit button (found via its own <form>,
+      // which contains exactly one) is used only to detect that the
+      // in-flight action has settled (isPending cleared, so navigating
+      // away next doesn't race the mutation) — never as proof of success.
+      // The actual proof is the reload immediately after: a fresh request
+      // reading the corresponding <select>'s real persisted value, the
+      // same reload-and-verify pattern already used by the workflow test's
+      // "Batch assignment ... persists after reload" and "Status
+      // lifecycle" steps (this file, ~line 528 and ~line 546).
+      const batchSelect = page.locator('select[name="batchId"]');
+      const batchButton = page
         .locator("form")
-        .filter({ has: page.locator('select[name="batchId"]') });
-      const statusForm = page
+        .filter({ has: batchSelect })
+        .getByRole("button");
+      const statusSelect = page.locator('select[name="status"]');
+      const statusButton = page
         .locator("form")
-        .filter({ has: page.locator('select[name="status"]') });
+        .filter({ has: statusSelect })
+        .getByRole("button");
 
-      await page.locator('select[name="batchId"]').selectOption(existing.batchId);
-      await page.getByRole("button", { name: "Assign batch" }).click();
-      await expect(batchForm.getByText("Saved")).toBeVisible();
+      await batchSelect.selectOption(existing.batchId);
+      await batchButton.click();
+      await expect(batchButton).toBeEnabled();
 
-      // Same reload-and-verify pattern already used by the workflow test's
-      // own "Batch assignment ... persists after reload" step (this file,
-      // ~line 528): read the freshly-assigned batch back from an
-      // independent request before relying on it below — the status
-      // change requires a batch already on file
-      // (enrollmentStatusRequiresBatch in lib/domain/enrollments.ts).
       await page.reload();
-      await expect(page.locator('select[name="batchId"]')).toHaveValue(existing.batchId);
+      await expect(batchSelect).toHaveValue(existing.batchId);
 
-      await page.locator('select[name="status"]').selectOption("enrolled");
-      await page.getByRole("button", { name: "Update status" }).click();
-      await expect(statusForm.getByText("Saved")).toBeVisible();
+      await statusSelect.selectOption("enrolled");
+      await statusButton.click();
+      await expect(statusButton).toBeEnabled();
 
-      // Diagnostic hardening (Phase 9 — status-verification diagnostic):
-      // the "Saved" banner above only proves the Server Action returned
-      // success, not that the write is visible to a later, independent
-      // request. Same reload-and-verify pattern already relied on by the
-      // workflow test's own "Status lifecycle" step (this file, ~line 546).
       await page.reload();
-      await expect(page.locator('select[name="status"]')).toHaveValue("enrolled");
+      await expect(statusSelect).toHaveValue("enrolled");
     });
 
     await test.step("Pipeline Value/count return to baseline; Confirmed Unpaid Fees/count increase by exactly this Enrollment's outstanding balance", async () => {
