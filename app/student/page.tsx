@@ -1,13 +1,140 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUserContext } from "@/lib/auth/session";
-import { PortalPlaceholderShell } from "@/components/public/portal-placeholder-shell";
+import { getMyStudentProfile, getMyEnrollments } from "@/lib/data/student-portal";
+import { StudentEnrollmentCard } from "@/components/student/student-enrollment-card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { formatPaiseAsINR } from "@/lib/domain/money";
 
 export const dynamic = "force-dynamic";
 
+// Phase 10 scope (IMPLEMENTATION_PLAN.md): identity, current programs/
+// batches, and payment status using Phase 9 data. Upcoming classes and
+// attendance are explicitly placeholders until Phase 12/13 build the
+// underlying features — shown here as inert, clearly-labeled cards, never
+// as a clickable nav item to a page that doesn't exist yet (see the Phase
+// 10 report). Announcements (also listed under FR-40) has no backing data
+// model anywhere in this codebase yet, so it is omitted rather than
+// fabricated — also noted in the report.
 export default async function StudentHome() {
   const user = await getCurrentUserContext();
   if (!user) {
     redirect("/login/student");
   }
-  return <PortalPlaceholderShell portalName="Student Portal" user={user} />;
+
+  const [profileResult, enrollmentsResult] = await Promise.all([
+    getMyStudentProfile(),
+    getMyEnrollments(),
+  ]);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold">
+          Welcome{profileResult.ok ? `, ${profileResult.data.firstName}` : ""}
+        </h1>
+        {profileResult.ok && (
+          <p className="text-muted-foreground text-sm">
+            {profileResult.data.studentCode}
+          </p>
+        )}
+        {!profileResult.ok && (
+          <p role="alert" className="text-destructive text-sm">
+            {profileResult.error}
+          </p>
+        )}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment status</CardTitle>
+          <CardDescription>Across all of your enrollments.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {enrollmentsResult.ok ? (
+            <div className="flex items-baseline gap-3">
+              <span className="text-2xl font-bold">
+                {formatPaiseAsINR(
+                  enrollmentsResult.data.reduce((sum, e) => sum + e.outstandingPaise, 0),
+                )}
+              </span>
+              <span className="text-muted-foreground text-sm">outstanding</span>
+            </div>
+          ) : (
+            <p role="alert" className="text-destructive text-sm">
+              {enrollmentsResult.error}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-medium">Your programs</h2>
+          <Link
+            href="/student/enrollments"
+            className="text-primary text-sm hover:underline"
+          >
+            View all
+          </Link>
+        </div>
+        {enrollmentsResult.ok ? (
+          enrollmentsResult.data.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              You don&apos;t have any enrollments yet.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {enrollmentsResult.data.slice(0, 4).map((enrollment) => (
+                <StudentEnrollmentCard key={enrollment.id} enrollment={enrollment} />
+              ))}
+            </div>
+          )
+        ) : (
+          <p role="alert" className="text-destructive text-sm">
+            {enrollmentsResult.error}
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming classes</CardTitle>
+            <CardDescription>Coming in a later phase.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm">
+              Class scheduling is not part of this phase yet — see{" "}
+              <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
+                IMPLEMENTATION_PLAN.md
+              </code>
+              .
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Attendance</CardTitle>
+            <CardDescription>Coming in a later phase.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm">
+              Attendance tracking is not part of this phase yet — see{" "}
+              <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
+                IMPLEMENTATION_PLAN.md
+              </code>
+              .
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
 }

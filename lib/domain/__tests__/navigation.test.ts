@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_NAV_ITEMS, getActiveNavItem } from "@/lib/domain/navigation";
+import {
+  ADMIN_NAV_ITEMS,
+  getActiveNavItem,
+  STUDENT_NAV_ITEMS,
+  getActiveStudentNavItem,
+} from "@/lib/domain/navigation";
 
 describe("ADMIN_NAV_ITEMS", () => {
   it("includes exactly the 14 required admin nav sections", () => {
@@ -54,5 +59,37 @@ describe("getActiveNavItem", () => {
 
   it("returns undefined for an unrelated path", () => {
     expect(getActiveNavItem("/login")).toBeUndefined();
+  });
+});
+
+describe("STUDENT_NAV_ITEMS", () => {
+  it("includes exactly the 3 Phase 10 student nav sections", () => {
+    const labels = STUDENT_NAV_ITEMS.map((i) => i.label);
+    expect(labels).toEqual(["Dashboard", "My Enrollments", "My Profile"]);
+  });
+
+  it("has no duplicate hrefs", () => {
+    const hrefs = STUDENT_NAV_ITEMS.map((i) => i.href);
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+});
+
+describe("getActiveStudentNavItem", () => {
+  it("matches the dashboard root exactly", () => {
+    expect(getActiveStudentNavItem("/student")?.label).toBe("Dashboard");
+  });
+
+  it("matches a nested route under a module by longest-prefix", () => {
+    expect(getActiveStudentNavItem("/student/enrollments/123")?.label).toBe(
+      "My Enrollments",
+    );
+  });
+
+  it("does not match /student as a prefix of every route", () => {
+    expect(getActiveStudentNavItem("/student/profile")?.label).not.toBe("Dashboard");
+  });
+
+  it("returns undefined for an unrelated path", () => {
+    expect(getActiveStudentNavItem("/admin")).toBeUndefined();
   });
 });

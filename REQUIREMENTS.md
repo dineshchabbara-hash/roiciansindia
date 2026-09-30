@@ -104,10 +104,32 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 - FR-40 (P0): Dashboard: identity, current program(s)/batch(es), upcoming classes,
   attendance snapshot, assignment snapshot, payment status/outstanding, recent
   payments, certificates, announcements.
+  (Phase 10 implementation note: attendance/assignment snapshots, recent payments,
+  certificates, and announcements have no backing feature yet — Phases 12/13/14/17
+  build the underlying data. Phase 10's dashboard shows identity, current
+  program(s)/batch(es), and a payment status/outstanding figure derived from Phase 9
+  data; upcoming classes and attendance are inert, clearly-labeled "coming in a
+  later phase" cards, never fabricated data. Announcements is omitted entirely
+  rather than shown empty, since no announcements model exists anywhere yet.)
 - FR-41 (P0): Self-service edit limited to phone, address, profile photo, password.
   Identity/enrollment-critical fields require Admin change (with audit trail).
+  (Phase 10 implementation note: phone and address are editable from Phase 10 —
+  lib/validation/student-self-profile.ts, enforced independently at the database
+  layer by the pre-existing prevent_student_self_edit_of_protected_fields trigger,
+  20260101000014_rls_policies.sql. Profile photo upload and password change are
+  deferred — the pre-existing student-documents Storage bucket
+  (20260101000018_student_documents_storage.sql) is Admin-only with no student-
+  facing Storage grant yet, and a profile-photo bucket + its own RLS is a separate
+  unit of work; password self-service is already served by the existing role-
+  agnostic /forgot-password → /reset-password flow, so no new UI was built for it.)
 - FR-42 (P0): View program/batch/trainer/schedule/materials/assignments scoped to the
   student's own enrollments only (enforced server-side + RLS).
+  (Phase 10 implementation note: delivers the program/batch/status/dates/payment-
+  status view — lib/data/student-portal.ts, a dedicated Student-safe projection,
+  never lib/data/enrollments.ts's Admin-facing EnrollmentProfile, which carries
+  discount reason, source, and admin notes. Trainer/schedule/materials/assignments
+  views are out of Phase 10's scope — they depend on Phase 11/12/17 features that
+  don't exist yet.)
 - FR-43 (P0): View fees, installment schedule, payment history, outstanding balance;
   pay online via Razorpay; download receipts.
 - FR-44 (P0): View own attendance (present/absent/late/excused) and computed

@@ -14,6 +14,7 @@ import {
   UserPlus,
   BarChart3,
   Settings,
+  User,
 } from "lucide-react";
 
 /**
@@ -70,6 +71,35 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
  */
 export function getActiveNavItem(pathname: string): AdminNavItem | undefined {
   const matches = ADMIN_NAV_ITEMS.filter(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
+  if (matches.length === 0) return undefined;
+  return matches.reduce((longest, item) =>
+    item.href.length > longest.href.length ? item : longest,
+  );
+}
+
+/**
+ * Single source of truth for the Student Portal's own nav (Phase 10) — a
+ * separate, much smaller list from ADMIN_NAV_ITEMS above, not a filtered
+ * view of it: the Student Portal's routes, labels, and icons have nothing
+ * in common with the Admin sidebar. No `implemented: false` entries here —
+ * per the Phase 10 report, unbuilt Student-facing features (class
+ * schedules, attendance) are shown as inert placeholder content on the
+ * dashboard itself, not as clickable nav items to a page that doesn't exist
+ * yet.
+ */
+export type StudentNavItem = { label: string; href: string; icon: LucideIcon };
+
+export const STUDENT_NAV_ITEMS: StudentNavItem[] = [
+  { label: "Dashboard", href: "/student", icon: LayoutDashboard },
+  { label: "My Enrollments", href: "/student/enrollments", icon: ClipboardList },
+  { label: "My Profile", href: "/student/profile", icon: User },
+];
+
+/** Same longest-match logic as getActiveNavItem, over STUDENT_NAV_ITEMS. */
+export function getActiveStudentNavItem(pathname: string): StudentNavItem | undefined {
+  const matches = STUDENT_NAV_ITEMS.filter(
     (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   );
   if (matches.length === 0) return undefined;

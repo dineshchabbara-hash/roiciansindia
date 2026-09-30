@@ -46,3 +46,6 @@ run_sql "${REPO_ROOT}/supabase/tests/phase8_batch_management_test.sql"
 
 echo "Running Phase 9 (Enrollment Management) regression assertions..."
 run_sql "${REPO_ROOT}/supabase/tests/phase9_enrollment_management_test.sql"
+
+echo "Running Phase 10 (Student Portal) regression assertions..."
+run_sql "${REPO_ROOT}/supabase/tests/phase10_student_portal_test.sql"
