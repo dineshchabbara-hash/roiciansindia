@@ -263,7 +263,24 @@ test.describe("Student Portal — own profile and enrollments", () => {
     await loginAsStudent(page, studentA);
 
     await page.goto("/student/enrollments");
-    await expect(page.getByText("₹15,000")).toBeVisible();
+    // Root cause of the strict-mode violation: student A's own card
+    // (components/student/student-enrollment-card.tsx) renders BOTH a
+    // "Total payable" field AND an "Outstanding" field, and since no
+    // payment exists yet for this synthetic enrollment, outstanding ===
+    // total payable — the exact same "₹15,000" text appears twice on this
+    // one card, not on two different students' cards. Not a data-isolation
+    // problem: scoped to student A's own card specifically (identified by
+    // its "View details" link's exact href, the same enrollment id this
+    // test itself created — a genuine ownership marker, not a DOM index),
+    // then to the Total payable field within it specifically, via the same
+    // adjacent-sibling <p> pattern already established for this exact label
+    // throughout the Phase 9 suite.
+    const studentACard = page
+      .locator('[data-slot="card"]')
+      .filter({ has: page.locator(`a[href="/student/enrollments/${enrollmentAId}"]`) });
+    await expect(studentACard.locator('p:text-is("Total payable") + p')).toHaveText(
+      "₹15,000",
+    );
     // Student B's own known fee must never appear on Student A's list.
     await expect(page.getByText("₹20,000")).toHaveCount(0);
   });
