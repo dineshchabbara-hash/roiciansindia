@@ -342,7 +342,14 @@ test.describe("Admin authorization: Student Portal", () => {
     if (!admin) throw new Error("beforeAll did not create the Admin login identity.");
     await login(page, "/login/admin", admin.email, admin.password);
     await page.goto("/student");
-    await expect(page).not.toHaveURL(/\/student$/);
+    // Anchored to the path actually STARTING with "/student" right after
+    // the host — a bare /\/student$/ also matches /login/student (it too
+    // ends in the literal substring "student", preceded by "/login/" not
+    // "/"), which is a legitimate redirect destination here (whichever of
+    // /admin or /login/student this Admin session lands on, neither is
+    // Student Portal content), never the thing this assertion is meant to
+    // rule out.
+    await expect(page).not.toHaveURL(/^https?:\/\/[^/]+\/student(?:\/|$)/);
     await page.goto("/student/profile");
     await expect(page).not.toHaveURL(/\/student\/profile/);
   });
