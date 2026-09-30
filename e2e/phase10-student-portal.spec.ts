@@ -291,9 +291,22 @@ test.describe("Student Portal — own profile and enrollments", () => {
     }
     await loginAsStudent(page, studentA);
 
+    // Ownership proof: navigating to this exact enrollment id (created for
+    // student A by this test's own fixtures) resolves with a real 200, not
+    // the 404 the direct-URL/ID-manipulation test below proves for a
+    // DIFFERENT student's enrollment id.
     const response = await page.goto(`/student/enrollments/${enrollmentAId}`);
     expect(response?.status()).toBe(200);
-    await expect(page.getByText("₹15,000")).toBeVisible();
+
+    // Same strict-mode cause as the enrollment-list test just above: this
+    // page's own "Payment status" card (app/student/enrollments/[id]/
+    // page.tsx) renders both "Total payable" and "Outstanding", and with no
+    // payment recorded yet they render the identical "₹15,000" text. Scoped
+    // to the Total payable field specifically via the same adjacent-sibling
+    // <p> pattern used above and throughout the Phase 9 suite — this page
+    // has only one enrollment on it at all, so no further card-level
+    // scoping is needed, only label-level.
+    await expect(page.locator('p:text-is("Total payable") + p')).toHaveText("₹15,000");
   });
 
   test("Student cannot open another student's enrollment by direct URL/ID manipulation", async ({
