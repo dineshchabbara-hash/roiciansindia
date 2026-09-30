@@ -387,7 +387,11 @@ test.describe("Trainer authorization: Student Portal", () => {
     if (!trainer) throw new Error("beforeAll did not create the Trainer login identity.");
     await login(page, "/login/trainer", trainer.email, trainer.password);
     await page.goto("/student");
-    await expect(page).not.toHaveURL(/\/student$/);
+    // Same fix as the Admin authorization test above: anchored to the path
+    // actually STARTING with "/student" right after the host, so this
+    // correctly excludes /login/student (a legitimate redirect destination
+    // here) rather than rejecting it via an unanchored suffix match.
+    await expect(page).not.toHaveURL(/^https?:\/\/[^/]+\/student(?:\/|$)/);
   });
 });
 
