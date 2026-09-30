@@ -242,7 +242,19 @@ test.describe("Student Portal — own profile and enrollments", () => {
     await loginAsStudent(page, studentA);
 
     await page.goto("/student/profile");
-    await expect(page.getByText(studentA.firstName, { exact: false })).toBeVisible();
+    // Root cause of the strict-mode violation: student A's first name is
+    // also a substring of the Student Portal shell's own displayName text
+    // (components/student/student-shell.tsx renders it twice — once in the
+    // sidebar header, once in the top header — via
+    // `user.displayName ?? user.email`, where displayName is
+    // "firstName lastName"), in addition to the profile page's own "Name"
+    // field — three matches total for a page-wide substring search. Scoped
+    // to the profile content's own Identity card specifically, via the
+    // same adjacent-sibling <p> pattern already established for this exact
+    // shape of label/value throughout the Phase 9 suite.
+    await expect(page.locator('p:text-is("Name") + p')).toHaveText(
+      `${studentA.firstName} ${studentA.lastName}`,
+    );
 
     await page.locator("#addressLine1").fill("221B Baker Street");
     await page.locator("#city").fill("Mumbai");
