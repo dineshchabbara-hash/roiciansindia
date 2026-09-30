@@ -264,9 +264,9 @@ projection layer: it never selects a Program's `regular_fee`,
 serves the general authenticated-user program catalog, not Trainer scoping,
 so Phase 11 applies its own row- and column-level restriction on top of it
 rather than relying on RLS alone for Programs). Deferred to later phases, per
-scope: Class Sessions (Phase 12), Attendance (Phase 13), Materials/
-Assignments (Phase 12/17), Certificates (Phase 17), Notifications (Phase 14),
-Reports (Phase 19) — the dashboard's "Upcoming classes"/"Pending review"
+scope: Class Sessions (Phase 12), Attendance (Phase 13), Materials
+(Phase 17), Assignments (Phase 18), Certificates (Phase 19), Notifications
+(Phase 20), Reports (Phase 21) — the dashboard's "Upcoming classes"/"Pending review"
 cards are inert placeholders, never fabricated data, and no nav item links to
 a page that doesn't exist yet.)
 

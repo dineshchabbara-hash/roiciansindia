@@ -172,7 +172,7 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   Phase 11 task brief. Not implemented, not stubbed with fake data.)
 - FR-53 (P1): Upload materials, create assignments, review submissions, add
   feedback/marks scoped to assigned batches.
-  (Deferred to Phase 12/17 — explicitly out of Phase 11's scope. Not
+  (Deferred to Phase 17/18 — explicitly out of Phase 11's scope. Not
   implemented, not stubbed with fake data.)
 - FR-54 (P0): Trainers explicitly cannot: view unrelated students, modify payments or
   fees, access Admin settings.
