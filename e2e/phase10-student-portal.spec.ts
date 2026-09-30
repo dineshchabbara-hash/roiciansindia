@@ -258,7 +258,17 @@ test.describe("Student Portal — own profile and enrollments", () => {
 
     await page.locator("#addressLine1").fill("221B Baker Street");
     await page.locator("#city").fill("Mumbai");
-    await page.getByRole("button", { name: "Save changes" }).click();
+    const saveButton = page.getByRole("button", { name: /Save changes|Saving/ });
+    await saveButton.click();
+    // Settle signal, not proof of success (same Phase 9 status-persistence
+    // lesson that produced the dashboard test's own batch/status settle
+    // wait): the click only dispatches the DOM event, it does not wait for
+    // the Server Action's async round trip to complete, so reloading
+    // immediately after can race the in-flight mutation and read the field
+    // back before it was actually written. Waiting for the button to
+    // re-enable (isPending clearing) proves the round trip has finished,
+    // without claiming anything about whether it succeeded.
+    await expect(saveButton).toBeEnabled();
 
     // Durable proof, not the transient "Saved" text (Phase 9's own
     // status-persistence lesson applied here from the start): an
