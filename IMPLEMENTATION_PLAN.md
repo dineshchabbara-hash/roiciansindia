@@ -189,6 +189,9 @@ directly) and assign one or more trainers to each.
 
 ## Phase 9 — Enrollments
 
+**Status:** COMPLETED — merged to `main` at commit `797d6f7` (`Merge branch
+'claude/phase9-enrollment-management'`).
+
 **Scope:** Enrollment creation (Student + Program + Batch), financial terms entry
 (agreed fee, discount+reason, registration fee, tax), status lifecycle, balance
 cache computed on create, enrollment list/detail/search/filter.
@@ -211,6 +214,10 @@ independently tracked financial terms, matching the brief's own worked example.
 
 ## Phase 10 — Student Portal
 
+**Status:** COMPLETED — merged to `main` at commit `82e85f5` (`Merge branch
+'claude/phase10-student-portal'`). Manual browser acceptance confirmed 9/9
+passed before merge; synthetic E2E test data cleanup verified.
+
 **Scope:** Student dashboard (identity, current programs/batches, upcoming
 classes placeholder until Phase 12, attendance placeholder until Phase 13,
 payment status using Phase 9 data, announcements), profile view/edit (permitted
@@ -227,16 +234,63 @@ is rejected.
 
 ## Phase 11 — Trainer Portal
 
+**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase11-trainer-portal`,
+based off `main` at `82e85f5` (the merged Phase 10 baseline). Not yet merged;
+awaiting manual Windows browser acceptance, then explicit approval, per the
+same gate Phase 10 went through.
+
 **Scope:** Trainer dashboard (assigned batches/programs, upcoming classes
 placeholder until Phase 12), batch list scoped to `batch_trainers`, student list
 within an assigned batch (non-financial fields only).
 
-**DB changes:** None beyond prior phases.
+(Phase 11 implementation note: delivered — `/trainer` dashboard (identity,
+assigned batch/program/student counts, own batches preview, two inert
+"coming in a later phase" cards for upcoming classes and pending review, per
+FR-50), `/trainer/profile` (read-only — no `trainers_update_own` RLS policy
+exists and no FR authorizes Trainer self-edit, so this deliberately has no
+form, unlike the Student Portal's FR-41), `/trainer/batches` +
+`/trainer/batches/[id]` (assigned batches only, derived from the caller's own
+`batch_trainers` rows, never all Batches; a Batch outside that scope 404s
+identically to a nonexistent id), `/trainer/students` +
+`/trainer/students/[id]` (assigned Students only, sourced exclusively from
+the pre-existing `trainer_visible_students()`/`trainer_visible_enrollments()`
+SECURITY DEFINER functions — the only sanctioned read path to Student data
+for a Trainer — which already exclude every financial/address/DOB/emergency-
+contact column by design; an unrelated Student 404s identically to a
+nonexistent id). `lib/data/trainer-portal.ts` is a new, Trainer-specific safe
+projection layer: it never selects a Program's `regular_fee`,
+`registration_fee`, or `tax_rate_percent` columns even though
+`programs_select_published` RLS would technically allow it (that policy
+serves the general authenticated-user program catalog, not Trainer scoping,
+so Phase 11 applies its own row- and column-level restriction on top of it
+rather than relying on RLS alone for Programs). Deferred to later phases, per
+scope: Class Sessions (Phase 12), Attendance (Phase 13), Materials/
+Assignments (Phase 12/17), Certificates (Phase 17), Notifications (Phase 14),
+Reports (Phase 19) — the dashboard's "Upcoming classes"/"Pending review"
+cards are inert placeholders, never fabricated data, and no nav item links to
+a page that doesn't exist yet.)
 
-**Security implications:** Verify a trainer cannot view a batch they're not
-assigned to by direct URL/ID manipulation.
+**DB changes:** None. `supabase/tests/phase11_trainer_portal_test.sql`
+(run via `scripts/test-rls.sh`, local scratch Postgres only) adds regression
+coverage for `batches_select_trainer`/`batch_trainers_select_own` cross-
+trainer isolation — the one real gap Phase 11 newly relies on that wasn't
+previously exercised end-to-end; `trainer_visible_students()`/
+`trainer_visible_enrollments()` isolation was already fully covered by the
+pre-existing `supabase/tests/rls_trainer_isolation_test.sql`.
+
+**Security implications:** Verified a trainer cannot view a batch or student
+they're not assigned to by direct URL/ID manipulation (`getMyBatch`/
+`getMyStudent` return the identical not-found error for a nonexistent id and
+an out-of-scope id). Verified Admin/Super Admin are not treated as Trainers
+merely by navigating to `/trainer` — the existing (Phase 3)
+`canAccessRouteGroup`/`roleHomePath` gate in `app/trainer/layout.tsx`, left
+unchanged, redirects them to `/admin`.
 
 **DoD:** A seeded trainer sees only their assigned batch(es) and its students.
+Confirmed via `e2e/phase11-trainer-portal.spec.ts` (created; not yet run —
+manual Windows browser acceptance is the next gate, same process as Phase 10)
+and `supabase/tests/phase11_trainer_portal_test.sql` (run and passing against
+a local scratch Postgres instance).
 
 ## Phase 12 — Class Sessions
 

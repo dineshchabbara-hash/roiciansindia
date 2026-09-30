@@ -4,6 +4,8 @@ import {
   getActiveNavItem,
   STUDENT_NAV_ITEMS,
   getActiveStudentNavItem,
+  TRAINER_NAV_ITEMS,
+  getActiveTrainerNavItem,
 } from "@/lib/domain/navigation";
 
 describe("ADMIN_NAV_ITEMS", () => {
@@ -91,5 +93,35 @@ describe("getActiveStudentNavItem", () => {
 
   it("returns undefined for an unrelated path", () => {
     expect(getActiveStudentNavItem("/admin")).toBeUndefined();
+  });
+});
+
+describe("TRAINER_NAV_ITEMS", () => {
+  it("includes exactly the 4 Phase 11 trainer nav sections", () => {
+    const labels = TRAINER_NAV_ITEMS.map((i) => i.label);
+    expect(labels).toEqual(["Dashboard", "My Batches", "My Students", "My Profile"]);
+  });
+
+  it("has no duplicate hrefs", () => {
+    const hrefs = TRAINER_NAV_ITEMS.map((i) => i.href);
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+});
+
+describe("getActiveTrainerNavItem", () => {
+  it("matches the dashboard root exactly", () => {
+    expect(getActiveTrainerNavItem("/trainer")?.label).toBe("Dashboard");
+  });
+
+  it("matches a nested route under a module by longest-prefix", () => {
+    expect(getActiveTrainerNavItem("/trainer/batches/123")?.label).toBe("My Batches");
+  });
+
+  it("does not match /trainer as a prefix of every route", () => {
+    expect(getActiveTrainerNavItem("/trainer/profile")?.label).not.toBe("Dashboard");
+  });
+
+  it("returns undefined for an unrelated path", () => {
+    expect(getActiveTrainerNavItem("/admin")).toBeUndefined();
   });
 });

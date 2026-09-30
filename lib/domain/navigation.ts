@@ -107,3 +107,32 @@ export function getActiveStudentNavItem(pathname: string): StudentNavItem | unde
     item.href.length > longest.href.length ? item : longest,
   );
 }
+
+/**
+ * Single source of truth for the Trainer Portal's own nav (Phase 11) — a
+ * separate, much smaller list, same reasoning as STUDENT_NAV_ITEMS above.
+ * No "Assignments"/"Attendance"/"Materials" entries here even though
+ * REQUIREMENTS.md's Trainer Portal section eventually covers them (FR-52/
+ * FR-53) — those are Phase 12/13/17/18 features with no backend yet; per
+ * the Phase 11 report, unbuilt Trainer-facing features are placeholder
+ * dashboard content, not clickable nav items to pages that don't exist.
+ */
+export type TrainerNavItem = { label: string; href: string; icon: LucideIcon };
+
+export const TRAINER_NAV_ITEMS: TrainerNavItem[] = [
+  { label: "Dashboard", href: "/trainer", icon: LayoutDashboard },
+  { label: "My Batches", href: "/trainer/batches", icon: CalendarDays },
+  { label: "My Students", href: "/trainer/students", icon: Users },
+  { label: "My Profile", href: "/trainer/profile", icon: User },
+];
+
+/** Same longest-match logic as getActiveNavItem, over TRAINER_NAV_ITEMS. */
+export function getActiveTrainerNavItem(pathname: string): TrainerNavItem | undefined {
+  const matches = TRAINER_NAV_ITEMS.filter(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
+  if (matches.length === 0) return undefined;
+  return matches.reduce((longest, item) =>
+    item.href.length > longest.href.length ? item : longest,
+  );
+}

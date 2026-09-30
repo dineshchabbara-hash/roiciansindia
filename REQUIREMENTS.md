@@ -141,14 +141,51 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 ### 2.6 Trainer Portal
 - FR-50 (P0): Dashboard: assigned programs/batches, upcoming classes, assigned
   student counts, pending review queue.
+  (Phase 11 implementation note: upcoming classes and pending review have no
+  backing feature yet — Phases 12/18 build the underlying data. Phase 11's
+  dashboard shows identity, assigned batch/program/student counts (derived
+  from the caller's own `batch_trainers` rows and
+  `trainer_visible_students()`), and a preview of the caller's own batches;
+  upcoming classes and pending review are inert, clearly-labeled "coming in a
+  later phase" cards, never fabricated data.)
 - FR-51 (P0): View assigned batches and their enrolled students (basic info only —
   no payment data).
+  (Phase 11 implementation note: delivers `/trainer/batches` +
+  `/trainer/batches/[id]` and `/trainer/students` + `/trainer/students/[id]`
+  — `lib/data/trainer-portal.ts`, a dedicated Trainer-safe projection, never
+  `lib/data/trainers.ts`'s Admin-facing `getTrainerProfile`/
+  `getTrainerAssignments` (which accept a caller-supplied id and would risk
+  Program fee-column exposure). Students are sourced exclusively from the
+  pre-existing `trainer_visible_students()`/`trainer_visible_enrollments()`
+  SECURITY DEFINER functions, the only sanctioned read path to Student data
+  for a Trainer — the base `students`/`enrollments` tables carry no
+  trainer-matching RLS policy at all. Programs are derived only from the
+  caller's own assigned batches, never every published Program, and never
+  select `regular_fee`/`registration_fee`/`tax_rate_percent` even though the
+  pre-existing `programs_select_published` RLS policy would technically
+  allow it — that policy serves the general authenticated-user program
+  catalog, not Trainer scoping, so this phase applies its own row- and
+  column-level restriction rather than relying on RLS alone for Programs.)
 - FR-52 (P0): Create class sessions; mark/edit attendance for authorized batches only
   (server-enforced batch-trainer assignment check).
+  (Deferred to Phase 12/13 — explicitly out of Phase 11's scope per the
+  Phase 11 task brief. Not implemented, not stubbed with fake data.)
 - FR-53 (P1): Upload materials, create assignments, review submissions, add
   feedback/marks scoped to assigned batches.
+  (Deferred to Phase 12/17 — explicitly out of Phase 11's scope. Not
+  implemented, not stubbed with fake data.)
 - FR-54 (P0): Trainers explicitly cannot: view unrelated students, modify payments or
   fees, access Admin settings.
+  (Phase 11 implementation note: verified server-side — `getMyBatch`/
+  `getMyStudent` scope every query by the caller's own resolved trainer id in
+  addition to the requested id, returning the identical not-found error for
+  a nonexistent id and an out-of-scope id, so a probe can never distinguish
+  the two. No Trainer-facing query ever selects a financial column. Trainer
+  self-profile-editing was also considered and kept read-only: no
+  `trainers_update_own` RLS policy exists at the database layer, and no FR in
+  this section authorizes it, so `/trainer/profile` has no edit form at all —
+  a stronger, less ambiguous case than the Student Portal's FR-41, which did
+  have explicit authorization for its editable fields.)
 
 ### 2.7 Class Sessions & Attendance
 - FR-60 (P0): Class session entity per batch (date/time/topic/meeting

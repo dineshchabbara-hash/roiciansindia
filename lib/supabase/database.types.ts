@@ -494,6 +494,35 @@ export type Database = {
         };
         Returns: string | null;
       };
+      // Added for Phase 11 (Trainer Portal) — the first app-layer caller of
+      // these two pre-existing SECURITY DEFINER functions
+      // (supabase/migrations/20260101000017_replace_trainer_views_with_
+      // hardened_functions.sql). Not previously declared here since nothing
+      // in the app called them via supabase-js until this phase.
+      trainer_visible_students: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          student_id: string;
+          student_code: string;
+          first_name: string;
+          last_name: string;
+          phone: string;
+          email: string | null;
+          batch_id: string;
+        }[];
+      };
+      trainer_visible_enrollments: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          enrollment_id: string;
+          enrollment_code: string;
+          student_id: string;
+          program_id: string;
+          batch_id: string;
+          status: string;
+          enrollment_date: string;
+        }[];
+      };
     };
   };
 };
