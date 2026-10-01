@@ -23,6 +23,8 @@ import {
   createPhase12ClassSessionDirect,
   deletePhase12ClassSessionIfSafe,
   type Phase12DeleteResult,
+  RUN_ID,
+  PHASE12_E2E_PREFIX,
 } from "./support/phase12-fixtures";
 
 /**
@@ -161,6 +163,40 @@ async function runCleanupSteps(
   ).toEqual([]);
 }
 
+// Gives a single test a Class Session it owns outright — created directly
+// (service-role insert, same precedent as the Student describe block's own
+// precondition rows) rather than via the real create UI, because for each
+// caller below creation itself isn't what's under test (test (D) already
+// independently proves Admin creation through the real UI) — only list
+// rendering, editing, status changes, or the financial-field check are.
+// Runs cleanup in a `finally` so it still happens if `run` throws/fails an
+// assertion, and fails loudly (via `expect`, same convention as
+// runCleanupSteps) rather than silently leaving the row behind.
+async function withOwnClassSession<T>(
+  input: { batchId: string; topic: string },
+  run: (sessionId: string) => Promise<T>,
+): Promise<T> {
+  const sessionId = await createPhase12ClassSessionDirect({
+    batchId: input.batchId,
+    sessionDate: FUTURE_SESSION_DATE,
+    topic: input.topic,
+  });
+  try {
+    return await run(sessionId);
+  } finally {
+    const result = await deletePhase12ClassSessionIfSafe(sessionId);
+    expect(
+      result.ok,
+      result.ok
+        ? undefined
+        : `Failed to clean up this test's own class session (id=${sessionId}, ` +
+            `topic="${input.topic}"): ${result.reason}. This may still exist in the ` +
+            `dev project — do NOT broaden deletion to any other record; remove ` +
+            `manually by this exact id only, after separate approval.`,
+    ).toBe(true);
+  }
+}
+
 async function fillClassSessionForm(
   page: Page,
   input: { topic: string; startTime?: string; endTime?: string },
@@ -281,57 +317,74 @@ test.describe("Admin — Class Session management", () => {
   test("(B) The batch's Class Sessions list shows the created session", async ({
     page,
   }) => {
-    if (!admin || !pairs || !adminSessionId) {
-      throw new Error("A prior test did not create the admin session.");
-    }
-    await loginAsAdmin(page, admin);
-    await page.goto(`/admin/batches/${pairs[0].batchId}`);
-    await expect(
-      page.locator(
-        `a[href="/admin/batches/${pairs[0].batchId}/sessions/${adminSessionId}"]`,
-      ),
-    ).toHaveText("Phase12E2E Admin Session");
+    if (!admin || !pairs) throw new Error("beforeAll did not fully set up.");
+    const theAdmin = admin;
+    const batchId = pairs[0].batchId;
+    // Independently owned, not test (D)'s adminSessionId: this test's job is
+    // list visibility, not creation (already proven by (D) through the real
+    // UI) — see withOwnClassSession's own comment. Must still be runnable
+    // alone via `-g`, so it cannot depend on (D) having run first.
+    const topic = `${PHASE12_E2E_PREFIX} B List Session ${RUN_ID}`;
+    await withOwnClassSession({ batchId, topic }, async (sessionId) => {
+      await loginAsAdmin(page, theAdmin);
+      await page.goto(`/admin/batches/${batchId}`);
+      await expect(
+        page.locator(`a[href="/admin/batches/${batchId}/sessions/${sessionId}"]`),
+      ).toHaveText(topic);
+    });
   });
 
   test("(E) Admin can edit a class session, and the change persists after reload", async ({
     page,
   }) => {
-    if (!admin || !pairs || !adminSessionId) {
-      throw new Error("A prior test did not create the admin session.");
-    }
-    await loginAsAdmin(page, admin);
-    await page.goto(`/admin/batches/${pairs[0].batchId}/sessions/${adminSessionId}/edit`);
-    await page.locator("#topic").fill("Phase12E2E Admin Session Edited");
-    await page.getByRole("button", { name: "Save changes" }).click();
+    if (!admin || !pairs) throw new Error("beforeAll did not fully set up.");
+    const theAdmin = admin;
+    const batchId = pairs[0].batchId;
+    // Independently owned: this test's job is editing, not creation (already
+    // proven by (D) through the real UI) — see withOwnClassSession's own
+    // comment.
+    const topic = `${PHASE12_E2E_PREFIX} E Edit Session ${RUN_ID}`;
+    await withOwnClassSession({ batchId, topic }, async (sessionId) => {
+      await loginAsAdmin(page, theAdmin);
+      await page.goto(`/admin/batches/${batchId}/sessions/${sessionId}/edit`);
+      await page.locator("#topic").fill("Phase12E2E Admin Session Edited");
+      await page.getByRole("button", { name: "Save changes" }).click();
 
-    await expect(page).toHaveURL(
-      new RegExp(`/admin/batches/${pairs[0].batchId}/sessions/${adminSessionId}$`),
-    );
-    await expect(
-      page.getByRole("heading", { name: "Phase12E2E Admin Session Edited" }),
-    ).toBeVisible();
+      await expect(page).toHaveURL(
+        new RegExp(`/admin/batches/${batchId}/sessions/${sessionId}$`),
+      );
+      await expect(
+        page.getByRole("heading", { name: "Phase12E2E Admin Session Edited" }),
+      ).toBeVisible();
 
-    // Durable proof via an independent reload, not just the post-redirect render.
-    await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Phase12E2E Admin Session Edited" }),
-    ).toBeVisible();
+      // Durable proof via an independent reload, not just the post-redirect render.
+      await page.reload();
+      await expect(
+        page.getByRole("heading", { name: "Phase12E2E Admin Session Edited" }),
+      ).toBeVisible();
+    });
   });
 
   test("Admin can change a class session's status, and it persists after reload", async ({
     page,
   }) => {
-    if (!admin || !pairs || !adminSessionId) {
-      throw new Error("A prior test did not create the admin session.");
-    }
-    await loginAsAdmin(page, admin);
-    await page.goto(`/admin/batches/${pairs[0].batchId}/sessions/${adminSessionId}`);
-    await page.locator('select[name="status"]').selectOption("completed");
-    await page.getByRole("button", { name: "Update status" }).click();
-    await expect(page.getByText("Saved")).toBeVisible();
+    if (!admin || !pairs) throw new Error("beforeAll did not fully set up.");
+    const theAdmin = admin;
+    const batchId = pairs[0].batchId;
+    // Independently owned: this test's job is the status control, not
+    // creation (already proven by (D) through the real UI) — see
+    // withOwnClassSession's own comment.
+    const topic = `${PHASE12_E2E_PREFIX} Status Session ${RUN_ID}`;
+    await withOwnClassSession({ batchId, topic }, async (sessionId) => {
+      await loginAsAdmin(page, theAdmin);
+      await page.goto(`/admin/batches/${batchId}/sessions/${sessionId}`);
+      await page.locator('select[name="status"]').selectOption("completed");
+      await page.getByRole("button", { name: "Update status" }).click();
+      await expect(page.getByText("Saved")).toBeVisible();
 
-    await page.reload();
-    await expect(page.locator('select[name="status"]')).toHaveValue("completed");
+      await page.reload();
+      await expect(page.locator('select[name="status"]')).toHaveValue("completed");
+    });
   });
 
   test("(J) A nonexistent class session id 404s", async ({ page }) => {
@@ -346,37 +399,44 @@ test.describe("Admin — Class Session management", () => {
   test("(N) Class Session pages never render financial fields or values", async ({
     page,
   }) => {
-    if (!admin || !pairs || !adminSessionId) {
-      throw new Error("A prior test did not create the admin session.");
-    }
-    await loginAsAdmin(page, admin);
+    if (!admin || !pairs) throw new Error("beforeAll did not fully set up.");
+    const theAdmin = admin;
+    const batchId = pairs[0].batchId;
+    // Independently owned: this test's job is the financial-leakage check,
+    // not creation (already proven by (D) through the real UI) — see
+    // withOwnClassSession's own comment. Still needs a real session id to
+    // reach the detail/edit pages below.
+    const topic = `${PHASE12_E2E_PREFIX} N Financial Session ${RUN_ID}`;
+    await withOwnClassSession({ batchId, topic }, async (sessionId) => {
+      await loginAsAdmin(page, theAdmin);
 
-    const forbiddenLabels = [
-      "Total payable",
-      "Outstanding",
-      "Registration fee",
-      "Regular fee",
-      "Agreed fee",
-      "Discount",
-      "Refund",
-      "Tax rate",
-    ];
-    const pagesToCheck = [
-      `/admin/batches/${pairs[0].batchId}`,
-      `/admin/batches/${pairs[0].batchId}/sessions/${adminSessionId}`,
-      `/admin/batches/${pairs[0].batchId}/sessions/${adminSessionId}/edit`,
-      `/admin/batches/${pairs[0].batchId}/sessions/new`,
-    ];
-    for (const path of pagesToCheck) {
-      await page.goto(path);
-      const bodyText = (await page.locator("body").innerText()) ?? "";
-      for (const label of forbiddenLabels) {
-        expect(
-          bodyText.includes(label),
-          `Unexpected financial label "${label}" rendered on ${path}`,
-        ).toBe(false);
+      const forbiddenLabels = [
+        "Total payable",
+        "Outstanding",
+        "Registration fee",
+        "Regular fee",
+        "Agreed fee",
+        "Discount",
+        "Refund",
+        "Tax rate",
+      ];
+      const pagesToCheck = [
+        `/admin/batches/${batchId}`,
+        `/admin/batches/${batchId}/sessions/${sessionId}`,
+        `/admin/batches/${batchId}/sessions/${sessionId}/edit`,
+        `/admin/batches/${batchId}/sessions/new`,
+      ];
+      for (const path of pagesToCheck) {
+        await page.goto(path);
+        const bodyText = (await page.locator("body").innerText()) ?? "";
+        for (const label of forbiddenLabels) {
+          expect(
+            bodyText.includes(label),
+            `Unexpected financial label "${label}" rendered on ${path}`,
+          ).toBe(false);
+        }
       }
-    }
+    });
   });
 });
 

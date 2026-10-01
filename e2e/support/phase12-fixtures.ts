@@ -52,7 +52,7 @@ async function safely<T = unknown>(
 export const PHASE12_E2E_EMAIL_DOMAIN = "phase12-e2e.internal.test";
 export const PHASE12_E2E_PREFIX = "Phase12E2E";
 
-const RUN_ID = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+export const RUN_ID = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 export type Phase12DeleteResult = { ok: boolean; reason?: string };
 
@@ -689,6 +689,7 @@ export async function createPhase12ClassSessionDirect(input: {
   batchId: string;
   sessionDate: string;
   status?: "scheduled" | "completed" | "cancelled" | "rescheduled";
+  topic?: string;
 }): Promise<string> {
   const supabase = adminClient();
   const { data, error } = await supabase
@@ -697,6 +698,7 @@ export async function createPhase12ClassSessionDirect(input: {
       batch_id: input.batchId,
       session_date: input.sessionDate,
       status: input.status ?? "scheduled",
+      topic: input.topic ?? null,
     })
     .select("id")
     .single();
