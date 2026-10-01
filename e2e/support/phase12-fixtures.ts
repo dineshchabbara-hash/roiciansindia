@@ -584,12 +584,44 @@ export async function deletePhase12SyntheticEnrollmentIfSafe(
 }
 
 // ---------------------------------------------------------------------------
-// Class session cleanup-only helper — every session used by this suite's
-// tests is created THROUGH the real application UI (proving the real
-// create/edit flow end to end, per Phase 12 test items D/E), never inserted
-// directly by this fixtures module. This is the one function that removes
-// one, by its own id, tracked by the test that created it — never a bulk or
-// date-range delete. Checks the same dependent tables
+// Class sessions — the Admin/Trainer describe blocks create every session
+// they test THROUGH the real application UI (proving the real create/edit
+// flow end to end, per Phase 12 test items D/G). The Student describe block
+// instead needs a real, pre-existing class_sessions row as a PRECONDITION
+// (it is only proving read-scoping, not creation) — and, critically, it must
+// not depend on the Trainer describe block's own UI-driven session having
+// run first: the Phase 12 acceptance protocol runs tests ONE AT A TIME via
+// `-g` (see the Phase 12 task brief's own "manual browser acceptance" gate),
+// under which sibling describe blocks' tests never execute at all, only the
+// describe block containing the matched test gets its own beforeAll/afterAll
+// run. createPhase12ClassSessionDirect is a plain service-role insert for
+// exactly this precondition-row need — the same "direct insert for setup,
+// UI only for what's actually under test" split already used by
+// createPhase12SyntheticEnrollment above.
+
+export async function createPhase12ClassSessionDirect(input: {
+  batchId: string;
+  sessionDate: string;
+  status?: "scheduled" | "completed" | "cancelled" | "rescheduled";
+}): Promise<string> {
+  const supabase = adminClient();
+  const { data, error } = await supabase
+    .from("class_sessions")
+    .insert({
+      batch_id: input.batchId,
+      session_date: input.sessionDate,
+      status: input.status ?? "scheduled",
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    throw new Error(`Failed to create class session fixture: ${error?.message}`);
+  }
+  return data.id;
+}
+
+// Cleanup-only helper — removes one class session by its own tracked id,
+// never a bulk or date-range delete. Checks the same dependent tables
 // (attendance/materials) that `on delete cascade` would otherwise silently
 // remove, refusing instead, per this project's "check first, never force"
 // convention (see e2e/support/phase9-fixtures.ts's own precedent).

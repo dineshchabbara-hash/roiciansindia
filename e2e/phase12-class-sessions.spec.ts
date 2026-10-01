@@ -19,6 +19,7 @@ import {
   deletePhase12BatchAssignmentIfSafe,
   createPhase12SyntheticEnrollment,
   deletePhase12SyntheticEnrollmentIfSafe,
+  createPhase12ClassSessionDirect,
   deletePhase12ClassSessionIfSafe,
   type Phase12DeleteResult,
 } from "./support/phase12-fixtures";
@@ -56,13 +57,21 @@ import {
  * real route protection, and the direct-URL/ID-manipulation defense on the
  * Class Session detail/edit routes.
  *
- * Every class_sessions row this suite touches is created THROUGH the real
- * application UI (never inserted directly by the fixtures module) — this
- * also exercises Phase 12's own create/edit flows as part of proving D/E/G.
- * Each session's own id is captured from the post-create redirect URL and
- * tracked for cleanup, never a bulk/date-range delete. All sessions use a
- * fixed, clearly-future session date ("2099-01-01") so "upcoming classes"
- * filtering is deterministic regardless of which real day this suite runs.
+ * The Admin and Trainer describe blocks create every session they test
+ * THROUGH the real application UI — this also exercises Phase 12's own
+ * create/edit flows as part of proving D/E/G. Each such session's own id is
+ * captured from the post-create redirect URL and tracked for cleanup, never
+ * a bulk/date-range delete. The Student describe block instead creates its
+ * own two precondition sessions directly (createPhase12ClassSessionDirect) —
+ * it is only proving read-scoping, not creation, and critically must not
+ * depend on the Trainer block's own session having run first: the Phase 12
+ * acceptance protocol runs tests ONE AT A TIME via `-g`
+ * (`npx playwright test ... -g "<test name>"`), under which a sibling
+ * describe block's tests (and the side effects they'd otherwise create)
+ * never execute at all — only the describe block containing the matched
+ * test gets its own beforeAll/afterAll run. All sessions use a fixed,
+ * clearly-future session date ("2099-01-01") so "upcoming classes" filtering
+ * is deterministic regardless of which real day this suite runs.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -527,6 +536,8 @@ test.describe("Student — dashboard-only Class Session visibility", () => {
   let student: Phase12StudentPortalIdentity | undefined;
   let pairs: [ExistingProgramWithBatch, ExistingProgramWithBatch] | undefined;
   let enrollmentId: string | undefined;
+  let ownBatchSessionId: string | undefined;
+  let unrelatedBatchSessionId: string | undefined;
 
   test.beforeAll(async () => {
     if (skipSuite) return;
@@ -548,11 +559,40 @@ test.describe("Student — dashboard-only Class Session visibility", () => {
       batchId: pairs[0].batchId,
       agreedFeeRupees: 15000,
     });
+
+    // Self-contained precondition rows (see this file's own header comment
+    // for why these are NOT the Trainer describe block's UI-created
+    // sessions): one 'scheduled', future-dated session on the Student's own
+    // enrolled batch, and one on a genuinely unrelated batch the Student has
+    // no enrollment in at all — giving the negative isolation check in (K) a
+    // real competing row to prove isolation against, not a vacuous absence.
+    ownBatchSessionId = await createPhase12ClassSessionDirect({
+      batchId: pairs[0].batchId,
+      sessionDate: FUTURE_SESSION_DATE,
+    });
+    unrelatedBatchSessionId = await createPhase12ClassSessionDirect({
+      batchId: pairs[1].batchId,
+      sessionDate: FUTURE_SESSION_DATE,
+    });
   });
 
   test.afterAll(async () => {
     if (skipSuite) return;
     await runCleanupSteps([
+      {
+        label: `student's own-batch class session (id=${ownBatchSessionId ?? "none"})`,
+        run: () =>
+          ownBatchSessionId
+            ? deletePhase12ClassSessionIfSafe(ownBatchSessionId)
+            : Promise.resolve({ ok: true }),
+      },
+      {
+        label: `unrelated-batch class session (id=${unrelatedBatchSessionId ?? "none"})`,
+        run: () =>
+          unrelatedBatchSessionId
+            ? deletePhase12ClassSessionIfSafe(unrelatedBatchSessionId)
+            : Promise.resolve({ ok: true }),
+      },
       {
         label: `student's enrollment (id=${enrollmentId ?? "none"})`,
         run: () =>
@@ -588,23 +628,27 @@ test.describe("Student — dashboard-only Class Session visibility", () => {
     // The Upcoming-classes widget (lib/data/student-portal.ts's
     // getMyUpcomingClassSessions, mirroring the pre-existing Admin dashboard
     // widget's own shape) shows batch/program name, not session topic — it
-    // picks up Trainer A's still-'scheduled' session on pairs[0], the same
-    // batch this Student is enrolled in. pairs[0].batchName also legitimately
-    // appears a second time on this page, in this Student's own
-    // StudentEnrollmentCard ("Batch" field) — so the positive assertion is
-    // scoped to the Upcoming-classes card specifically, the same
-    // card-scoping-by-marker pattern established throughout Phase 9/10/11
-    // rather than an arbitrary .first()/.last().
+    // picks up this describe block's own still-'scheduled' session on
+    // pairs[0] (created directly in beforeAll — see this file's header
+    // comment for why it is not the Trainer describe block's UI-created
+    // session). pairs[0].batchName also legitimately appears a second time
+    // on this page, in this Student's own StudentEnrollmentCard ("Batch"
+    // field) — so the positive assertion is scoped to the Upcoming-classes
+    // card specifically, the same card-scoping-by-marker pattern established
+    // throughout Phase 9/10/11 rather than an arbitrary .first()/.last().
     const upcomingCard = page.locator('[data-slot="card"]').filter({
       has: page.locator('[data-slot="card-title"]:text-is("Upcoming classes")'),
     });
     await expect(
       upcomingCard.getByText(pairs[0].batchName, { exact: true }),
     ).toBeVisible();
-    // pairs[1] (Trainer B's unrelated batch, no enrollment for this
-    // Student at all) must never appear anywhere on this Student's own
+    // pairs[1] (the unrelated batch this describe block's own beforeAll also
+    // created a real 'scheduled' session for, but the Student has no
+    // enrollment in at all) must never appear anywhere on this Student's own
     // dashboard — unlike pairs[0], this one has no other legitimate reason
-    // to render here, so the page-wide zero-count check is unambiguous.
+    // to render here, so the page-wide zero-count check is unambiguous, and
+    // it is proven against a genuinely existing competing row, not a vacuous
+    // absence.
     await expect(page.getByText(pairs[1].batchName, { exact: true })).toHaveCount(0);
   });
 
