@@ -52,3 +52,6 @@ run_sql "${REPO_ROOT}/supabase/tests/phase10_student_portal_test.sql"
 
 echo "Running Phase 11 (Trainer Portal) regression assertions..."
 run_sql "${REPO_ROOT}/supabase/tests/phase11_trainer_portal_test.sql"
+
+echo "Running Phase 12 (Class Sessions) regression assertions..."
+run_sql "${REPO_ROOT}/supabase/tests/phase12_class_sessions_test.sql"

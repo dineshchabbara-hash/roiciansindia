@@ -190,6 +190,18 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 ### 2.7 Class Sessions & Attendance
 - FR-60 (P0): Class session entity per batch (date/time/topic/meeting
   link/status: Scheduled/Completed/Cancelled/Rescheduled).
+  (Phase 12 implementation note: the `class_sessions` table and its status
+  CHECK constraint already matched this FR exactly before Phase 12 began
+  (provisioned alongside the rest of the schema) — Phase 12 is the
+  application layer on top: Admin full CRUD except hard delete (status
+  change to "Cancelled" is the approved removal path, per this FR's own
+  status list — see IMPLEMENTATION_PLAN.md's Phase 12 note for why no
+  delete control is exposed despite the pre-existing RLS allowing it for
+  Admin), Trainer create/edit scoped to their own assigned batch only
+  (`lib/data/trainer-portal.ts`, never `lib/data/class-sessions.ts`'s
+  Admin-facing, caller-trusted-id functions), and a read-only "Upcoming
+  classes" dashboard widget for Student/Trainer/Admin alike, scoped by the
+  pre-existing class_sessions_select_student/select_trainer RLS policies.)
 - FR-61 (P0): Attendance rows link Student + Enrollment + Batch + Class Session,
   status (Present/Absent/Late/Excused), `marked_by`, timestamp, optional notes.
 - FR-62 (P0): Attendance percentage computed on read (view/materialized aggregate),

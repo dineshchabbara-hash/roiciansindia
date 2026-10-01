@@ -2,6 +2,8 @@ import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DataResult } from "@/lib/data/dashboard";
+import type { ClassSessionStatus } from "@/lib/domain/class-sessions";
+import type { ClassSessionInput } from "@/lib/validation/class-sessions";
 
 /**
  * Trainer Portal data-access layer (Phase 11). Deliberately separate from
@@ -370,4 +372,276 @@ export async function getMyStudent(studentId: string): Promise<DataResult<MyStud
   const row = result.data.find((student) => student.studentId === studentId);
   if (!row) return { ok: false, error: "Student not found." };
   return { ok: true, data: row };
+}
+
+// ---------------------------------------------------------------------------
+// Class Sessions (Phase 12) — FR-60/IMPLEMENTATION_PLAN.md Phase 12 scope
+// ("Trainer create/edit for assigned batches"), already backed by
+// pre-existing RLS (class_sessions_select_trainer/write_trainer/
+// update_trainer, 20260101000014_rls_policies.sql — unchanged by Phase 12,
+// scoped via batch_trainers to current_trainer_id()). Every function below
+// still independently re-verifies the batch is actually one of the caller's
+// own assignments via getMyBatch before touching class_sessions, the same
+// defense-in-depth already established for Batches/Students above — RLS is
+// the backstop, not the only check. There is no Trainer delete capability:
+// no class_sessions_delete_trainer policy exists, by design (see the Phase
+// 12 report).
+
+export type MyClassSessionRow = {
+  id: string;
+  batchId: string;
+  trainerId: string | null;
+  trainerName: string | null;
+  sessionDate: string;
+  startTime: string | null;
+  endTime: string | null;
+  topic: string | null;
+  description: string | null;
+  meetingLink: string | null;
+  status: ClassSessionStatus;
+  notes: string | null;
+};
+
+const CLASS_SESSION_SELECT =
+  "id, batch_id, trainer_id, session_date, start_time, end_time, topic, description, meeting_link, status, notes, trainer:trainers(first_name, last_name)";
+
+type ClassSessionJoinRow = {
+  id: string;
+  batch_id: string;
+  trainer_id: string | null;
+  session_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  topic: string | null;
+  description: string | null;
+  meeting_link: string | null;
+  status: ClassSessionStatus;
+  notes: string | null;
+  trainer: { first_name: string; last_name: string } | null;
+};
+
+function toMyClassSessionRow(row: ClassSessionJoinRow): MyClassSessionRow {
+  return {
+    id: row.id,
+    batchId: row.batch_id,
+    trainerId: row.trainer_id,
+    trainerName: row.trainer
+      ? `${row.trainer.first_name} ${row.trainer.last_name}`
+      : null,
+    sessionDate: row.session_date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    topic: row.topic,
+    description: row.description,
+    meetingLink: row.meeting_link,
+    status: row.status,
+    notes: row.notes,
+  };
+}
+
+export async function getMySessionsForBatch(
+  batchId: string,
+): Promise<DataResult<MyClassSessionRow[]>> {
+  const batch = await getMyBatch(batchId);
+  if (!batch.ok) return batch;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("class_sessions")
+      .select(CLASS_SESSION_SELECT)
+      .eq("batch_id", batchId)
+      .order("session_date", { ascending: true })
+      .order("start_time", { ascending: true });
+    if (error) throw error;
+
+    return {
+      ok: true,
+      data: ((data ?? []) as unknown as ClassSessionJoinRow[]).map(toMyClassSessionRow),
+    };
+  } catch (error) {
+    return fail("Could not load class sessions for this batch.", error);
+  }
+}
+
+// Scoped by batch ownership (getMyBatch) AND the session's own batch_id —
+// an unassigned batch id, a nonexistent session id, or a genuine session
+// that belongs to a DIFFERENT batch than the [id] segment all 404
+// identically, the same guarantee as getMyBatch/getMyStudent above.
+export async function getMySession(
+  batchId: string,
+  sessionId: string,
+): Promise<DataResult<MyClassSessionRow>> {
+  const batch = await getMyBatch(batchId);
+  if (!batch.ok) return batch;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("class_sessions")
+      .select(CLASS_SESSION_SELECT)
+      .eq("id", sessionId)
+      .eq("batch_id", batchId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return { ok: false, error: "Class session not found." };
+
+    return {
+      ok: true,
+      data: toMyClassSessionRow(data as unknown as ClassSessionJoinRow),
+    };
+  } catch (error) {
+    return fail("Could not load this class session.", error);
+  }
+}
+
+export async function createMyClassSession(
+  batchId: string,
+  input: ClassSessionInput,
+): Promise<DataResult<{ id: string }>> {
+  const batch = await getMyBatch(batchId);
+  if (!batch.ok) return batch;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const trainerId = await resolveMyTrainerId(supabase);
+    if (!trainerId.ok) return trainerId;
+
+    const { data, error } = await supabase
+      .from("class_sessions")
+      .insert({
+        batch_id: batchId,
+        // Always the caller's own resolved trainer id — never a value the
+        // browser could submit — so a Trainer can never attribute a session
+        // to a different Trainer.
+        trainer_id: trainerId.data,
+        session_date: input.sessionDate,
+        start_time: input.startTime,
+        end_time: input.endTime,
+        topic: input.topic,
+        description: input.description,
+        meeting_link: input.meetingLink,
+        notes: input.notes,
+      })
+      .select("id")
+      .single();
+
+    if (error) throw error;
+    return { ok: true, data: { id: data.id } };
+  } catch (error) {
+    return fail("Could not create the class session. Please try again.", error);
+  }
+}
+
+export async function updateMyClassSession(
+  batchId: string,
+  sessionId: string,
+  input: ClassSessionInput,
+): Promise<DataResult<null>> {
+  const session = await getMySession(batchId, sessionId);
+  if (!session.ok) return session;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase
+      .from("class_sessions")
+      .update({
+        session_date: input.sessionDate,
+        start_time: input.startTime,
+        end_time: input.endTime,
+        topic: input.topic,
+        description: input.description,
+        meeting_link: input.meetingLink,
+        notes: input.notes,
+      })
+      .eq("id", sessionId)
+      .eq("batch_id", batchId);
+
+    if (error) throw error;
+    return { ok: true, data: null };
+  } catch (error) {
+    return fail("Could not save changes. Please try again.", error);
+  }
+}
+
+export async function updateMyClassSessionStatus(
+  batchId: string,
+  sessionId: string,
+  status: ClassSessionStatus,
+): Promise<DataResult<null>> {
+  const session = await getMySession(batchId, sessionId);
+  if (!session.ok) return session;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase
+      .from("class_sessions")
+      .update({ status })
+      .eq("id", sessionId)
+      .eq("batch_id", batchId);
+
+    if (error) throw error;
+    return { ok: true, data: null };
+  } catch (error) {
+    return fail("Could not update the session's status. Please try again.", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Trainer dashboard "Upcoming classes" widget (IMPLEMENTATION_PLAN.md Phase
+// 12 — "closing the placeholders from Phases 4/10/11"). Relies entirely on
+// class_sessions_select_trainer RLS to scope rows to the caller's own
+// assigned batches — the same minimal-query pattern as lib/data/dashboard.ts's
+// Admin-facing getUpcomingClassSessions, just under RLS as a Trainer rather
+// than is_admin_or_super().
+
+export type MyUpcomingClassSession = {
+  id: string;
+  batchName: string;
+  programName: string;
+  sessionDate: string;
+  startTime: string | null;
+  endTime: string | null;
+};
+
+export async function getMyUpcomingClassSessions(
+  limit: number,
+): Promise<DataResult<MyUpcomingClassSession[]>> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+      .from("class_sessions")
+      .select(
+        "id, session_date, start_time, end_time, batch:batches(name, program:programs(name))",
+      )
+      .eq("status", "scheduled")
+      .gte("session_date", today)
+      .order("session_date", { ascending: true })
+      .limit(limit);
+    if (error) throw error;
+
+    const rows = (data ?? []) as unknown as Array<{
+      id: string;
+      session_date: string;
+      start_time: string | null;
+      end_time: string | null;
+      batch: { name: string; program: { name: string } | null } | null;
+    }>;
+
+    return {
+      ok: true,
+      data: rows.map((row) => ({
+        id: row.id,
+        batchName: row.batch?.name ?? "Unknown batch",
+        programName: row.batch?.program?.name ?? "Unknown program",
+        sessionDate: row.session_date,
+        startTime: row.start_time,
+        endTime: row.end_time,
+      })),
+    };
+  } catch (error) {
+    return fail("Could not load your upcoming classes.", error);
+  }
 }

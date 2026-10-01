@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUserContext } from "@/lib/auth/session";
-import { getMyStudentProfile, getMyEnrollments } from "@/lib/data/student-portal";
+import {
+  getMyStudentProfile,
+  getMyEnrollments,
+  getMyUpcomingClassSessions,
+} from "@/lib/data/student-portal";
 import { StudentEnrollmentCard } from "@/components/student/student-enrollment-card";
 import {
   Card,
@@ -15,22 +19,24 @@ import { formatPaiseAsINR } from "@/lib/domain/money";
 export const dynamic = "force-dynamic";
 
 // Phase 10 scope (IMPLEMENTATION_PLAN.md): identity, current programs/
-// batches, and payment status using Phase 9 data. Upcoming classes and
-// attendance are explicitly placeholders until Phase 12/13 build the
-// underlying features — shown here as inert, clearly-labeled cards, never
-// as a clickable nav item to a page that doesn't exist yet (see the Phase
-// 10 report). Announcements (also listed under FR-40) has no backing data
-// model anywhere in this codebase yet, so it is omitted rather than
-// fabricated — also noted in the report.
+// batches, and payment status using Phase 9 data. Phase 12 closes the
+// "Upcoming classes" placeholder with real class_sessions data (own enrolled
+// batches only, via RLS). Attendance remains a placeholder until Phase 13
+// builds the underlying feature — still shown as an inert, clearly-labeled
+// card, never a clickable nav item to a page that doesn't exist yet (see the
+// Phase 10/12 reports). Announcements (also listed under FR-40) has no
+// backing data model anywhere in this codebase yet, so it is omitted rather
+// than fabricated — also noted in the report.
 export default async function StudentHome() {
   const user = await getCurrentUserContext();
   if (!user) {
     redirect("/login/student");
   }
 
-  const [profileResult, enrollmentsResult] = await Promise.all([
+  const [profileResult, enrollmentsResult, upcomingResult] = await Promise.all([
     getMyStudentProfile(),
     getMyEnrollments(),
+    getMyUpcomingClassSessions(5),
   ]);
 
   return (
@@ -107,16 +113,40 @@ export default async function StudentHome() {
         <Card>
           <CardHeader>
             <CardTitle>Upcoming classes</CardTitle>
-            <CardDescription>Coming in a later phase.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Class scheduling is not part of this phase yet — see{" "}
-              <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
-                IMPLEMENTATION_PLAN.md
-              </code>
-              .
-            </p>
+            {!upcomingResult.ok ? (
+              <p role="alert" className="text-destructive text-sm">
+                {upcomingResult.error}
+              </p>
+            ) : upcomingResult.data.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No upcoming classes</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {upcomingResult.data.map((session) => (
+                  <li
+                    key={session.id}
+                    className="flex items-center justify-between gap-3 border-b pb-3 last:border-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{session.batchName}</p>
+                      <p className="text-muted-foreground truncate text-xs">
+                        {session.programName}
+                      </p>
+                    </div>
+                    <div className="text-muted-foreground shrink-0 text-right text-xs">
+                      <p>{session.sessionDate}</p>
+                      {session.startTime && (
+                        <p>
+                          {session.startTime.slice(0, 5)}
+                          {session.endTime ? `–${session.endTime.slice(0, 5)}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
         <Card>

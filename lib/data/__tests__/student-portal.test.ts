@@ -23,6 +23,7 @@ import {
   updateMyStudentProfile,
   getMyEnrollments,
   getMyEnrollment,
+  getMyUpcomingClassSessions,
 } from "@/lib/data/student-portal";
 import type { StudentSelfProfileInput } from "@/lib/validation/student-self-profile";
 
@@ -274,5 +275,68 @@ describe("getMyEnrollment", () => {
 
     const result = await getMyEnrollment("someone-elses-enrollment-id");
     expect(result).toEqual({ ok: false, error: "Enrollment not found." });
+  });
+});
+
+describe("getMyUpcomingClassSessions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // A dedicated local builder (not the shared makeBuilder above, whose
+  // .order() resolves immediately rather than chaining to .limit()) — this
+  // query is select -> eq -> gte -> order -> limit, each step returning the
+  // same thenable object, same style as
+  // lib/data/__tests__/trainer-portal.test.ts's own builder.
+  function sessionsBuilder(resolvedValue: { data: unknown; error: unknown }) {
+    const builder: Record<string, unknown> = {};
+    builder.select = vi.fn(() => builder);
+    builder.eq = vi.fn(() => builder);
+    builder.gte = vi.fn(() => builder);
+    builder.order = vi.fn(() => builder);
+    builder.limit = vi.fn(() => builder);
+    builder.then = (onFulfilled: (value: { data: unknown; error: unknown }) => unknown) =>
+      Promise.resolve(resolvedValue).then(onFulfilled);
+    return builder;
+  }
+
+  it("reads scheduled, upcoming sessions scoped by RLS, with no student_id/batch_id filter in the query itself", async () => {
+    const classSessionsBuilder = sessionsBuilder({
+      data: [
+        {
+          id: "session-1",
+          session_date: "2099-01-01",
+          start_time: "09:00:00",
+          end_time: "11:00:00",
+          batch: { name: "Batch A", program: { name: "Data Analytics" } },
+        },
+      ],
+      error: null,
+    });
+    mockSupabase({ fromTable: { class_sessions: classSessionsBuilder } });
+
+    const result = await getMyUpcomingClassSessions(5);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual([
+        {
+          id: "session-1",
+          batchName: "Batch A",
+          programName: "Data Analytics",
+          sessionDate: "2099-01-01",
+          startTime: "09:00:00",
+          endTime: "11:00:00",
+        },
+      ]);
+    }
+    expect(classSessionsBuilder.eq).toHaveBeenCalledWith("status", "scheduled");
+    expect(classSessionsBuilder.limit).toHaveBeenCalledWith(5);
+  });
+
+  it("returns an empty list rather than an error when there are no upcoming sessions", async () => {
+    const classSessionsBuilder = sessionsBuilder({ data: [], error: null });
+    mockSupabase({ fromTable: { class_sessions: classSessionsBuilder } });
+
+    const result = await getMyUpcomingClassSessions(5);
+    expect(result).toEqual({ ok: true, data: [] });
   });
 });

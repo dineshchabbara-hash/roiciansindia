@@ -17,20 +17,33 @@ import {
   getMyStudents,
   getMyStudentsForBatch,
   getMyStudent,
+  getMySessionsForBatch,
+  getMySession,
+  createMyClassSession,
+  updateMyClassSession,
+  updateMyClassSessionStatus,
+  getMyUpcomingClassSessions,
 } from "@/lib/data/trainer-portal";
+import type { ClassSessionInput } from "@/lib/validation/class-sessions";
 
 const AUTH_USER = { id: "auth-user-1" };
 
 // Same thenable fluent builder as lib/data/__tests__/student-portal.test.ts
-// (Phase 10) — select/eq/in all return itself so any combination of
-// filters resolves the same way whether the caller awaits directly or
-// calls `.maybeSingle()` explicitly.
+// (Phase 10) — select/eq/in/order/gte/insert/update all return itself so any
+// combination of filters resolves the same way whether the caller awaits
+// directly or calls `.maybeSingle()`/`.single()` explicitly.
 function makeBuilder(resolvedValue: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
   builder.select = vi.fn(() => builder);
   builder.eq = vi.fn(() => builder);
   builder.in = vi.fn(() => builder);
+  builder.order = vi.fn(() => builder);
+  builder.gte = vi.fn(() => builder);
+  builder.limit = vi.fn(() => builder);
+  builder.insert = vi.fn(() => builder);
+  builder.update = vi.fn(() => builder);
   builder.maybeSingle = vi.fn().mockResolvedValue(resolvedValue);
+  builder.single = vi.fn().mockResolvedValue(resolvedValue);
   builder.then = (onFulfilled: (value: { data: unknown; error: unknown }) => unknown) =>
     Promise.resolve(resolvedValue).then(onFulfilled);
   return builder;
@@ -365,5 +378,276 @@ describe("getMyStudent", () => {
     const result = await getMyStudent("student-1");
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.studentId).toBe("student-1");
+  });
+});
+
+function classSessionJoinRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "session-1",
+    batch_id: "batch-1",
+    trainer_id: null,
+    session_date: "2026-09-01",
+    start_time: "09:00:00",
+    end_time: "11:00:00",
+    topic: "Introduction",
+    description: null,
+    meeting_link: null,
+    status: "scheduled",
+    notes: null,
+    trainer: null,
+    ...overrides,
+  };
+}
+
+function baseSessionInput(): ClassSessionInput {
+  return {
+    sessionDate: "2026-09-01",
+    startTime: "09:00",
+    endTime: "11:00",
+    topic: "Introduction",
+    description: null,
+    meetingLink: null,
+    notes: null,
+  };
+}
+
+describe("getMySessionsForBatch", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("verifies batch ownership via getMyBatch before listing that batch's sessions", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const classSessionsBuilder = makeBuilder({
+      data: [classSessionJoinRow()],
+      error: null,
+    });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        class_sessions: classSessionsBuilder,
+      },
+    });
+
+    const result = await getMySessionsForBatch("batch-1");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe("session-1");
+    }
+    expect(classSessionsBuilder.eq).toHaveBeenCalledWith("batch_id", "batch-1");
+  });
+
+  it("returns the batch's own not-found error for an unassigned batch, never querying sessions", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: null, error: null });
+    const classSessionsBuilder = makeBuilder({ data: [], error: null });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        class_sessions: classSessionsBuilder,
+      },
+    });
+
+    const result = await getMySessionsForBatch("unassigned-batch");
+    expect(result).toEqual({ ok: false, error: "Batch not found." });
+    expect(classSessionsBuilder.select).not.toHaveBeenCalled();
+  });
+});
+
+describe("getMySession", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("filters by both the session id and the batch id, after confirming batch ownership", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const classSessionsBuilder = makeBuilder({
+      data: classSessionJoinRow(),
+      error: null,
+    });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        class_sessions: classSessionsBuilder,
+      },
+    });
+
+    const result = await getMySession("batch-1", "session-1");
+
+    expect(result.ok).toBe(true);
+    expect(classSessionsBuilder.eq).toHaveBeenCalledWith("id", "session-1");
+    expect(classSessionsBuilder.eq).toHaveBeenCalledWith("batch_id", "batch-1");
+  });
+
+  it("returns the same not-found error for a nonexistent session and for one on a different batch", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const classSessionsBuilder = makeBuilder({ data: null, error: null });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        class_sessions: classSessionsBuilder,
+      },
+    });
+
+    const result = await getMySession("batch-1", "someone-elses-session");
+    expect(result).toEqual({ ok: false, error: "Class session not found." });
+  });
+});
+
+describe("createMyClassSession", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("verifies batch ownership and always sets trainer_id to the caller's own resolved id", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const classSessionsBuilder = makeBuilder({ data: { id: "session-1" }, error: null });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        class_sessions: classSessionsBuilder,
+      },
+    });
+
+    const result = await createMyClassSession("batch-1", baseSessionInput());
+
+    expect(result).toEqual({ ok: true, data: { id: "session-1" } });
+    expect(classSessionsBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ batch_id: "batch-1", trainer_id: "trainer-1" }),
+    );
+  });
+
+  it("refuses to create a session for a batch the caller is not assigned to", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: null, error: null });
+    const classSessionsBuilder = makeBuilder({ data: { id: "session-1" }, error: null });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        class_sessions: classSessionsBuilder,
+      },
+    });
+
+    const result = await createMyClassSession("unassigned-batch", baseSessionInput());
+    expect(result).toEqual({ ok: false, error: "Batch not found." });
+    expect(classSessionsBuilder.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateMyClassSession", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("verifies the session belongs to the caller's own assigned batch before updating", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const classSessionsBuilder = makeBuilder({
+      data: classSessionJoinRow(),
+      error: null,
+    });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        class_sessions: classSessionsBuilder,
+      },
+    });
+
+    const result = await updateMyClassSession("batch-1", "session-1", baseSessionInput());
+
+    expect(result).toEqual({ ok: true, data: null });
+    const updateMock = classSessionsBuilder.update as ReturnType<typeof vi.fn>;
+    const updatePayload = updateMock.mock.calls[0][0];
+    expect(updatePayload).not.toHaveProperty("batch_id");
+    expect(updatePayload).not.toHaveProperty("trainer_id");
+  });
+
+  it("refuses to update a session on an unrelated batch", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: null, error: null });
+    const classSessionsBuilder = makeBuilder({ data: null, error: null });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        class_sessions: classSessionsBuilder,
+      },
+    });
+
+    const result = await updateMyClassSession(
+      "unassigned-batch",
+      "session-1",
+      baseSessionInput(),
+    );
+    expect(result).toEqual({ ok: false, error: "Batch not found." });
+    expect(classSessionsBuilder.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateMyClassSessionStatus", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("verifies ownership before changing the status", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const classSessionsBuilder = makeBuilder({
+      data: classSessionJoinRow(),
+      error: null,
+    });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        class_sessions: classSessionsBuilder,
+      },
+    });
+
+    const result = await updateMyClassSessionStatus("batch-1", "session-1", "completed");
+
+    expect(result).toEqual({ ok: true, data: null });
+    expect(classSessionsBuilder.update).toHaveBeenCalledWith({ status: "completed" });
+  });
+});
+
+describe("getMyUpcomingClassSessions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads scheduled, upcoming sessions scoped by RLS, never a base/batch filter in the query itself", async () => {
+    const classSessionsBuilder = makeBuilder({
+      data: [
+        {
+          id: "session-1",
+          session_date: "2099-01-01",
+          start_time: "09:00:00",
+          end_time: "11:00:00",
+          batch: { name: "Batch A", program: { name: "Data Analytics" } },
+        },
+      ],
+      error: null,
+    });
+    mockSupabase({ fromTable: { class_sessions: classSessionsBuilder } });
+
+    const result = await getMyUpcomingClassSessions(5);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual([
+        {
+          id: "session-1",
+          batchName: "Batch A",
+          programName: "Data Analytics",
+          sessionDate: "2099-01-01",
+          startTime: "09:00:00",
+          endTime: "11:00:00",
+        },
+      ]);
+    }
+    expect(classSessionsBuilder.eq).toHaveBeenCalledWith("status", "scheduled");
+    expect(classSessionsBuilder.limit).toHaveBeenCalledWith(5);
   });
 });

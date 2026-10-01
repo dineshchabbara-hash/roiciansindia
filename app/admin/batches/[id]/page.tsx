@@ -7,12 +7,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BatchStatusBadge } from "@/components/admin/batches/batch-status-badge";
 import { BatchStatusControl } from "@/components/admin/batches/batch-status-control";
 import { BatchTrainerAssignmentsCard } from "@/components/admin/batches/batch-trainer-assignments-card";
+import { ClassSessionList } from "@/components/admin/class-sessions/class-session-list";
 import {
   getBatchEnrollmentCount,
   getBatchProfile,
   getBatchTrainerAssignments,
   getTrainerOptions,
 } from "@/lib/data/batches";
+import { getClassSessionsForBatch } from "@/lib/data/class-sessions";
 import { formatDaysOfWeekForDisplay } from "@/lib/domain/batches";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +51,29 @@ async function TrainersSection({ batchId }: { batchId: string }) {
       assignments={assignmentsResult.data}
       trainerOptions={trainerOptionsResult.ok ? trainerOptionsResult.data : []}
     />
+  );
+}
+
+async function ClassSessionsSection({ batchId }: { batchId: string }) {
+  const result = await getClassSessionsForBatch(batchId);
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Class Sessions</CardTitle>
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/admin/batches/${batchId}/sessions/new`}>Add session</Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {!result.ok ? (
+          <p role="alert" className="text-destructive text-sm">
+            {result.error}
+          </p>
+        ) : (
+          <ClassSessionList batchId={batchId} sessions={result.data} />
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -174,6 +199,10 @@ export default async function BatchProfilePage({
           <EnrollmentSummaryCard batchId={batch.id} />
         </Suspense>
       </div>
+
+      <Suspense fallback={<SectionSkeleton />}>
+        <ClassSessionsSection batchId={batch.id} />
+      </Suspense>
     </div>
   );
 }

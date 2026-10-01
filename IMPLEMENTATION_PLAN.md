@@ -234,10 +234,10 @@ is rejected.
 
 ## Phase 11 — Trainer Portal
 
-**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase11-trainer-portal`,
-based off `main` at `82e85f5` (the merged Phase 10 baseline). Not yet merged;
-awaiting manual Windows browser acceptance, then explicit approval, per the
-same gate Phase 10 went through.
+**Status:** COMPLETED — on `main` as commits `001073d` (implementation) and
+`996a22f` (a documentation-only numbering correction), pushed directly to
+`main` with no separate merge commit. Manual browser acceptance confirmed
+16/16 passed; synthetic E2E test data cleanup verified (read-only audit).
 
 **Scope:** Trainer dashboard (assigned batches/programs, upcoming classes
 placeholder until Phase 12), batch list scoped to `batch_trainers`, student list
@@ -294,15 +294,71 @@ a local scratch Postgres instance).
 
 ## Phase 12 — Class Sessions
 
+**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase12-class-sessions`,
+based off `main` at `996a22f` (the Phase 11 baseline). Not yet merged;
+awaiting manual Windows browser acceptance, then explicit approval, per the
+same gate Phase 10/11 went through.
+
 **Scope:** Class session CRUD scoped to a batch (Trainer create/edit for assigned
 batches; Admin full access), status lifecycle, schedule display feeding both
 Admin "upcoming classes" and Student/Trainer dashboards (closing the placeholders
 from Phases 4/10/11).
 
+(Phase 12 implementation note: the `class_sessions` table, its status CHECK
+constraint, and every RLS policy this phase relies on
+(class_sessions_select_admin/select_trainer/select_student/write_admin/
+write_trainer/update_admin/update_trainer/delete_admin) already existed
+(20260101000008_academic_tables.sql / 20260101000014_rls_policies.sql,
+provisioned ahead of schedule alongside the rest of the schema) — Phase 12
+is the first phase to actually write to this table and is purely an
+application-layer build on top of unchanged, pre-existing security. Delivered:
+`/admin/batches/[id]` gains a Class Sessions section (list + "Add session"),
+`/admin/batches/[id]/sessions/new` (create), `/admin/batches/[id]/sessions/
+[sessionId]` (detail + status control), `/admin/batches/[id]/sessions/
+[sessionId]/edit` (edit) — full CRUD except hard delete (see below).
+`/trainer/batches/[id]` gains the identical shape at `/trainer/batches/[id]/
+sessions/...`, scoped to the caller's own assigned batch (verified via the
+existing getMyBatch ownership check before every read/write, on top of the
+pre-existing RLS). The Student Portal gets no new route — REQUIREMENTS.md
+FR-42 already deferred a Student "schedule" view to Phase 12, and this
+phase's actual scope line only ever promised a dashboard widget, so
+`/student`'s "Upcoming classes" card is populated with real, RLS-scoped data
+(class_sessions_select_student) and nothing else changes for Students.
+`lib/data/class-sessions.ts` (Admin) and `lib/data/trainer-portal.ts`'s new
+functions (Trainer) are deliberately separate modules — the same Phase 11
+precedent of never sharing a caller-trusted-id Admin data path with a
+Trainer one. Hard delete is NOT exposed anywhere in the UI even though
+class_sessions_delete_admin exists at the RLS layer (tested directly in
+supabase/tests/phase12_class_sessions_test.sql): FR-60's own status enum
+already specifies "Cancelled" as the approved way to retire a session, so
+the status control is the only "removal" path — conservative, per this
+phase's own DoD guidance not to invent destructive behavior beyond what
+requirements specify. `trainer_id` is never a form field for either portal:
+it is set automatically to the creating Trainer's own id on Trainer-created
+sessions, left null on Admin-created ones, and never reassignable afterward
+— no FR or existing schema convention calls for a trainer-picker UI, so none
+was built.)
+
 **DB changes:** None beyond Phase 2 (`class_sessions`).
+`supabase/tests/phase12_class_sessions_test.sql` (run via
+`scripts/test-rls.sh`, local scratch Postgres only) adds the first end-to-end
+regression coverage of the pre-existing class_sessions RLS policies listed
+above, since no application code exercised them before Phase 12.
 
 **DoD:** Upcoming-classes widgets across all three portals now show real,
-session-backed data.
+session-backed data. Confirmed via `e2e/phase12-class-sessions.spec.ts`
+(created; not yet run — manual Windows browser acceptance is the next gate)
+and `supabase/tests/phase12_class_sessions_test.sql` (run and passing
+against a local scratch Postgres instance).
+
+**Known limitations / deferred:** No hard-delete capability anywhere (see
+above). No recurrence, schedule-conflict detection, or trainer/batch
+collision prevention (none specified in requirements). No Student-facing
+batch/session detail page — dashboard widget only. Attendance (Phase 13) is
+explicitly out of scope: no present/absent/late/excused marking, no
+attendance percentages, no attendance-triggered financial consequences —
+`class_sessions` exists as a prerequisite row for Phase 13 to reference,
+nothing more.
 
 ## Phase 13 — Attendance
 

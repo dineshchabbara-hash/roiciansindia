@@ -1,8 +1,15 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrainerStudentTable } from "@/components/trainer/trainer-student-table";
-import { getMyBatch, getMyStudentsForBatch } from "@/lib/data/trainer-portal";
+import { TrainerClassSessionList } from "@/components/trainer/trainer-class-session-list";
+import {
+  getMyBatch,
+  getMySessionsForBatch,
+  getMyStudentsForBatch,
+} from "@/lib/data/trainer-portal";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +25,10 @@ export default async function TrainerBatchDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [batchResult, studentsResult] = await Promise.all([
+  const [batchResult, studentsResult, sessionsResult] = await Promise.all([
     getMyBatch(id),
     getMyStudentsForBatch(id),
+    getMySessionsForBatch(id),
   ]);
 
   if (!batchResult.ok) {
@@ -82,6 +90,24 @@ export default async function TrainerBatchDetailPage({
             <p className="text-muted-foreground text-xs">Location</p>
             <p>{batch.location ?? batch.meetingLink ?? "—"}</p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Class Sessions</CardTitle>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/trainer/batches/${batch.id}/sessions/new`}>Add session</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {sessionsResult.ok ? (
+            <TrainerClassSessionList batchId={batch.id} sessions={sessionsResult.data} />
+          ) : (
+            <p role="alert" className="text-destructive text-sm">
+              {sessionsResult.error}
+            </p>
+          )}
         </CardContent>
       </Card>
 

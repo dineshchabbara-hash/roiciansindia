@@ -6,6 +6,7 @@ import {
   getMyBatches,
   getMyStudents,
   getMyPrograms,
+  getMyUpcomingClassSessions,
 } from "@/lib/data/trainer-portal";
 import { TrainerBatchCard } from "@/components/trainer/trainer-batch-card";
 import {
@@ -19,22 +20,24 @@ import {
 export const dynamic = "force-dynamic";
 
 // Phase 11 scope (REQUIREMENTS.md FR-50): identity, assigned programs/
-// batches, and assigned student count. Upcoming classes (Phase 12) and a
-// pending-review queue (Phase 18) have no backing feature yet — shown here
-// as inert, clearly-labeled cards, never as a clickable nav item to a page
-// that doesn't exist yet (see the Phase 11 report).
+// batches, and assigned student count. Phase 12 closes the "Upcoming
+// classes" placeholder with real class_sessions data (own assigned batches
+// only, via RLS). A pending-review queue (Phase 18) has no backing feature
+// yet — still shown as an inert, clearly-labeled card, never a clickable nav
+// item to a page that doesn't exist yet (see the Phase 11/12 reports).
 export default async function TrainerHome() {
   const user = await getCurrentUserContext();
   if (!user) {
     redirect("/login/trainer");
   }
 
-  const [profileResult, batchesResult, studentsResult, programsResult] =
+  const [profileResult, batchesResult, studentsResult, programsResult, upcomingResult] =
     await Promise.all([
       getMyTrainerProfile(),
       getMyBatches(),
       getMyStudents(),
       getMyPrograms(),
+      getMyUpcomingClassSessions(5),
     ]);
 
   return (
@@ -113,16 +116,40 @@ export default async function TrainerHome() {
         <Card>
           <CardHeader>
             <CardTitle>Upcoming classes</CardTitle>
-            <CardDescription>Coming in a later phase.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Class scheduling is not part of this phase yet — see{" "}
-              <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
-                IMPLEMENTATION_PLAN.md
-              </code>
-              .
-            </p>
+            {!upcomingResult.ok ? (
+              <p role="alert" className="text-destructive text-sm">
+                {upcomingResult.error}
+              </p>
+            ) : upcomingResult.data.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No upcoming classes</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {upcomingResult.data.map((session) => (
+                  <li
+                    key={session.id}
+                    className="flex items-center justify-between gap-3 border-b pb-3 last:border-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{session.batchName}</p>
+                      <p className="text-muted-foreground truncate text-xs">
+                        {session.programName}
+                      </p>
+                    </div>
+                    <div className="text-muted-foreground shrink-0 text-right text-xs">
+                      <p>{session.sessionDate}</p>
+                      {session.startTime && (
+                        <p>
+                          {session.startTime.slice(0, 5)}
+                          {session.endTime ? `–${session.endTime.slice(0, 5)}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
         <Card>

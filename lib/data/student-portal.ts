@@ -255,3 +255,64 @@ export async function getMyEnrollment(
     return fail("Could not load this enrollment.", error);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Student dashboard "Upcoming classes" widget (IMPLEMENTATION_PLAN.md Phase
+// 12 — "closing the placeholders from Phases 4/10/11"). Relies entirely on
+// the pre-existing class_sessions_select_student RLS policy (scoped via
+// enrollments to current_student_id(), 20260101000014_rls_policies.sql) to
+// return only sessions for batches the caller is actually enrolled in —
+// there is no student_id/batch_id filter in this query because none is
+// needed: RLS already restricts every row this client can see. Read-only;
+// Students have no class_sessions write policy at all.
+
+export type MyUpcomingClassSession = {
+  id: string;
+  batchName: string;
+  programName: string;
+  sessionDate: string;
+  startTime: string | null;
+  endTime: string | null;
+};
+
+export async function getMyUpcomingClassSessions(
+  limit: number,
+): Promise<DataResult<MyUpcomingClassSession[]>> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+      .from("class_sessions")
+      .select(
+        "id, session_date, start_time, end_time, batch:batches(name, program:programs(name))",
+      )
+      .eq("status", "scheduled")
+      .gte("session_date", today)
+      .order("session_date", { ascending: true })
+      .limit(limit);
+    if (error) throw error;
+
+    const rows = (data ?? []) as unknown as Array<{
+      id: string;
+      session_date: string;
+      start_time: string | null;
+      end_time: string | null;
+      batch: { name: string; program: { name: string } | null } | null;
+    }>;
+
+    return {
+      ok: true,
+      data: rows.map((row) => ({
+        id: row.id,
+        batchName: row.batch?.name ?? "Unknown batch",
+        programName: row.batch?.program?.name ?? "Unknown program",
+        sessionDate: row.session_date,
+        startTime: row.start_time,
+        endTime: row.end_time,
+      })),
+    };
+  } catch (error) {
+    return fail("Could not load your upcoming classes.", error);
+  }
+}

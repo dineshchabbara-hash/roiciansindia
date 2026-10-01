@@ -427,7 +427,13 @@ export type Database = {
           session_date: string;
           start_time: string | null;
           end_time: string | null;
+          topic: string | null;
+          description: string | null;
+          meeting_link: string | null;
           status: "scheduled" | "completed" | "cancelled" | "rescheduled";
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["class_sessions"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["class_sessions"]["Row"]>;
