@@ -570,7 +570,16 @@ test.describe("Trainer — assigned-batch-only Class Session access", () => {
     if (!trainerB || !pairs) throw new Error("beforeAll did not fully set up.");
     await loginAsTrainer(page, trainerB);
     await page.goto(`/trainer/batches/${pairs[1].batchId}/sessions/new`);
-    await fillClassSessionForm(page, { topic: "Phase12E2E TrainerB Session" });
+    // Matches (G)'s and (D)'s own proven-working fillClassSessionForm calls
+    // exactly (both always supply startTime/endTime) — this test previously
+    // omitted them, the one difference from every other real-UI create flow
+    // in this suite, and was the one that failed to navigate past
+    // /sessions/new on the real Windows run.
+    await fillClassSessionForm(page, {
+      topic: "Phase12E2E TrainerB Session",
+      startTime: "09:00",
+      endTime: "11:00",
+    });
     await page.getByRole("button", { name: "Create session" }).click();
 
     await expect(page).toHaveURL(
