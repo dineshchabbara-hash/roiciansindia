@@ -95,19 +95,49 @@ async function login(page: Page, path: string, email: string, password: string) 
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
+// A plain toHaveURL(...) check after login()'s click is not sufficient: the
+// sign-in Server Action's redirect() updates the browser's URL via Next's
+// client router before the destination route's own server-side auth check
+// (and the browser's cookie jar) have necessarily settled, so the URL
+// assertion can pass on a request where the session hasn't actually
+// persisted yet — e2e/phase5-student-management.spec.ts's own git history
+// (commits cb4af96/0454bc8) diagnosed and fixed exactly this race for Admin
+// login: the symptom there was identical to what reappeared here (a
+// create-form page never rendering, with the server logging the same
+// is_admin_or_super/current_trainer_id permission errors a genuinely
+// unauthenticated request produces against those RLS-embedded functions).
+// This file's login helpers predate that fix and never received it — each
+// waits for the destination portal's own heading to actually render
+// (Playwright's auto-retrying toBeVisible(), not a one-shot URL match) and
+// for at least one sb-* auth cookie to be present (existence only, never a
+// value) before any caller is allowed to navigate further.
+async function assertSessionPersisted(page: Page) {
+  const cookies = await page.context().cookies();
+  expect(
+    cookies.some((c) => c.name.startsWith("sb-")),
+    "expected a persisted sb-* auth cookie after a successful login",
+  ).toBe(true);
+}
+
 async function loginAsAdmin(page: Page, identity: Phase12AdminIdentity) {
   await login(page, "/login/admin", identity.email, identity.password);
   await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  await assertSessionPersisted(page);
 }
 
 async function loginAsTrainer(page: Page, identity: Phase12TrainerPortalIdentity) {
   await login(page, "/login/trainer", identity.email, identity.password);
   await expect(page).toHaveURL(/\/trainer$/);
+  await expect(page.getByRole("heading", { name: /^Welcome/, level: 1 })).toBeVisible();
+  await assertSessionPersisted(page);
 }
 
 async function loginAsStudent(page: Page, identity: Phase12StudentPortalIdentity) {
   await login(page, "/login/student", identity.email, identity.password);
   await expect(page).toHaveURL(/\/student$/);
+  await expect(page.getByRole("heading", { name: /^Welcome/, level: 1 })).toBeVisible();
+  await assertSessionPersisted(page);
 }
 
 async function runCleanupSteps(
