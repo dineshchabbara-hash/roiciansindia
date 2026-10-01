@@ -648,7 +648,25 @@ test.describe("Student — dashboard-only Class Session visibility", () => {
       throw new Error("beforeAll did not fully set up.");
     }
     await loginAsStudent(page, student);
-    await page.goto("/student");
+    // Not page.goto("/student") — the login redirect already lands here.
+    // Live Supabase edge_logs forensics during this fix's own diagnosis
+    // showed that re-navigating to the SAME URL via page.goto() produced no
+    // additional REST traffic at all in the actual failing run, meaning the
+    // prior assertion evaluated an unverified page state rather than a
+    // guaranteed fresh one. page.reload() is this project's own established
+    // idiom (Phase 9/10) for a durable, unambiguous fresh server round-trip,
+    // and force-dynamic on this route guarantees it re-runs
+    // getMyUpcomingClassSessions server-side.
+    await page.reload();
+
+    // Fails loudly with the real error text if the data layer itself
+    // errored, rather than leaving only an opaque "element not found" —
+    // getMyUpcomingClassSessions (lib/data/student-portal.ts) surfaces a
+    // failure as a role="alert" element in this exact card.
+    const upcomingCard = page.locator('[data-slot="card"]').filter({
+      has: page.locator('[data-slot="card-title"]:text-is("Upcoming classes")'),
+    });
+    await expect(upcomingCard.getByRole("alert")).toHaveCount(0);
 
     // The Upcoming-classes widget (lib/data/student-portal.ts's
     // getMyUpcomingClassSessions, mirroring the pre-existing Admin dashboard
@@ -663,9 +681,6 @@ test.describe("Student — dashboard-only Class Session visibility", () => {
     // the positive assertion is scoped to the Upcoming-classes card
     // specifically, the same card-scoping-by-marker pattern established
     // throughout Phase 9/10/11 rather than an arbitrary .first()/.last().
-    const upcomingCard = page.locator('[data-slot="card"]').filter({
-      has: page.locator('[data-slot="card-title"]:text-is("Upcoming classes")'),
-    });
     await expect(
       upcomingCard.getByText(ownBatch.batchName, { exact: true }),
     ).toBeVisible();
