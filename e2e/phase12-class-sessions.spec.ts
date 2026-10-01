@@ -583,19 +583,44 @@ test.describe("Trainer — assigned-batch-only Class Session access", () => {
   test("(H/I) Trainer A cannot view Trainer B's session via direct URL/ID manipulation", async ({
     page,
   }) => {
-    if (!trainerA || !pairs || !trainerBSessionId) {
-      throw new Error("A prior test did not set up Trainer B's session.");
-    }
-    await loginAsTrainer(page, trainerA);
+    if (!trainerA || !pairs) throw new Error("beforeAll did not fully set up.");
+    const theTrainerA = trainerA;
+    // Independently owned, not the sibling "sets up Trainer B's own
+    // session..." test's trainerBSessionId: that variable is only ever
+    // assigned inside that test's own body, so running (H/I) alone via `-g`
+    // (sibling tests in the same describe block never execute) always found
+    // it unset. This test's purpose is the cross-trainer/cross-batch denial,
+    // not proving Trainer B's own create flow (already covered by the
+    // sibling test, and by (G) for Trainer A) — so a direct-insert session is
+    // the right setup here, same precedent as the Admin describe block's own
+    // isolation fix (withOwnClassSession).
+    //
+    // "Belongs to Trainer B's own Batch" and "Trainer A is unrelated to that
+    // Batch" both hold by construction, not by assertion: this session is
+    // inserted on pairs[1].batchId, the exact batch beforeAll assigned to
+    // Trainer B (assignPhase12TrainerToBatch(trainerB.trainerId,
+    // pairs[1].batchId)) — never Trainer A — and pairs[1] is guaranteed
+    // distinct from pairs[0] (Trainer A's own assigned batch) by
+    // findTwoExistingProgramsWithBatches. Trainer A was never used to create
+    // it.
+    const trainerBBatchId = pairs[1].batchId;
+    const topic = `${PHASE12_E2E_PREFIX} HI TrainerB Session ${RUN_ID}`;
+    await withOwnClassSession(
+      { batchId: trainerBBatchId, topic },
+      async (trainerBSessionId) => {
+        await loginAsTrainer(page, theTrainerA);
 
-    // getMySession (lib/data/trainer-portal.ts) first verifies the batch is
-    // one of the caller's own assignments via getMyBatch — Trainer B's real,
-    // genuinely-existing batch/session must come back as a plain 404.
-    const response = await page.goto(
-      `/trainer/batches/${pairs[1].batchId}/sessions/${trainerBSessionId}`,
+        // getMySession (lib/data/trainer-portal.ts) first verifies the batch
+        // is one of the caller's own assignments via getMyBatch — Trainer
+        // B's real, genuinely-existing batch/session must come back as a
+        // plain 404.
+        const response = await page.goto(
+          `/trainer/batches/${trainerBBatchId}/sessions/${trainerBSessionId}`,
+        );
+        expect(response?.status()).toBe(404);
+        await expect(page.getByText(topic)).toHaveCount(0);
+      },
     );
-    expect(response?.status()).toBe(404);
-    await expect(page.getByText("Phase12E2E TrainerB Session")).toHaveCount(0);
   });
 
   test("(J) A nonexistent class session id 404s for a Trainer too", async ({ page }) => {
