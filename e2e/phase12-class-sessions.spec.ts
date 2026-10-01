@@ -450,7 +450,6 @@ test.describe("Trainer — assigned-batch-only Class Session access", () => {
   let assignmentAId: string | undefined;
   let assignmentBId: string | undefined;
   let trainerASessionId: string | undefined;
-  let trainerBSessionId: string | undefined;
 
   test.beforeAll(async () => {
     if (skipSuite) return;
@@ -491,13 +490,6 @@ test.describe("Trainer — assigned-batch-only Class Session access", () => {
         run: () =>
           trainerASessionId
             ? deletePhase12ClassSessionIfSafe(trainerASessionId)
-            : Promise.resolve({ ok: true }),
-      },
-      {
-        label: `trainer B's class session (id=${trainerBSessionId ?? "none"})`,
-        run: () =>
-          trainerBSessionId
-            ? deletePhase12ClassSessionIfSafe(trainerBSessionId)
             : Promise.resolve({ ok: true }),
       },
       {
@@ -564,45 +556,22 @@ test.describe("Trainer — assigned-batch-only Class Session access", () => {
     ).toBeVisible();
   });
 
-  test("sets up Trainer B's own session for the cross-batch isolation checks", async ({
-    page,
-  }) => {
-    if (!trainerB || !pairs) throw new Error("beforeAll did not fully set up.");
-    await loginAsTrainer(page, trainerB);
-    await page.goto(`/trainer/batches/${pairs[1].batchId}/sessions/new`);
-    // Matches (G)'s and (D)'s own proven-working fillClassSessionForm calls
-    // exactly (both always supply startTime/endTime) — this test previously
-    // omitted them, the one difference from every other real-UI create flow
-    // in this suite, and was the one that failed to navigate past
-    // /sessions/new on the real Windows run.
-    await fillClassSessionForm(page, {
-      topic: "Phase12E2E TrainerB Session",
-      startTime: "09:00",
-      endTime: "11:00",
-    });
-    await page.getByRole("button", { name: "Create session" }).click();
-
-    await expect(page).toHaveURL(
-      new RegExp(`/trainer/batches/${pairs[1].batchId}/sessions/[0-9a-f-]{36}$`),
-    );
-    trainerBSessionId = sessionIdFromUrl(page.url());
-    console.log(`[phase12 e2e] trainer B session created: id=${trainerBSessionId}`);
-  });
-
   test("(H/I) Trainer A cannot view Trainer B's session via direct URL/ID manipulation", async ({
     page,
   }) => {
     if (!trainerA || !pairs) throw new Error("beforeAll did not fully set up.");
     const theTrainerA = trainerA;
-    // Independently owned, not the sibling "sets up Trainer B's own
-    // session..." test's trainerBSessionId: that variable is only ever
-    // assigned inside that test's own body, so running (H/I) alone via `-g`
-    // (sibling tests in the same describe block never execute) always found
-    // it unset. This test's purpose is the cross-trainer/cross-batch denial,
-    // not proving Trainer B's own create flow (already covered by the
-    // sibling test, and by (G) for Trainer A) — so a direct-insert session is
-    // the right setup here, same precedent as the Admin describe block's own
-    // isolation fix (withOwnClassSession).
+    // Independently owned: this test's purpose is the cross-trainer/
+    // cross-batch denial, not proving Trainer B's own create flow (already
+    // covered by (G) for Trainer A — there is no separate acceptance
+    // requirement for a second Trainer to repeat the identical create flow,
+    // see this file's own A-P matrix above, which maps creation only to
+    // D/E/G) — so a direct-insert session is the right setup here, same
+    // precedent as the Admin describe block's own isolation fix
+    // (withOwnClassSession). A prior version of this test depended on a
+    // sibling "sets up Trainer B's own session..." test's trainerBSessionId,
+    // which both broke `-g` isolation and turned out to be pure duplicate
+    // setup once this test stopped reading it — removed.
     //
     // "Belongs to Trainer B's own Batch" and "Trainer A is unrelated to that
     // Batch" both hold by construction, not by assertion: this session is
