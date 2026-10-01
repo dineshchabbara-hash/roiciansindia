@@ -648,16 +648,27 @@ test.describe("Student — dashboard-only Class Session visibility", () => {
       throw new Error("beforeAll did not fully set up.");
     }
     await loginAsStudent(page, student);
-    // Not page.goto("/student") — the login redirect already lands here.
-    // Live Supabase edge_logs forensics during this fix's own diagnosis
-    // showed that re-navigating to the SAME URL via page.goto() produced no
-    // additional REST traffic at all in the actual failing run, meaning the
-    // prior assertion evaluated an unverified page state rather than a
-    // guaranteed fresh one. page.reload() is this project's own established
-    // idiom (Phase 9/10) for a durable, unambiguous fresh server round-trip,
-    // and force-dynamic on this route guarantees it re-runs
-    // getMyUpcomingClassSessions server-side.
-    await page.reload();
+    // No page.goto("/student") and no page.reload() here. Both were tried in
+    // earlier rounds of this fix and both left test (K) failing; live
+    // Supabase edge_logs for the actual runs (captured directly from the dev
+    // project, not inferred) showed why neither extra navigation was ever
+    // the right tool: the fixture's own class_sessions rows are inserted via
+    // a plain `await` service-role POST in beforeAll — e.g. a captured run's
+    // POST .../rest/v1/class_sessions (201) at 16:00:07.937/08.677, strictly
+    // before that same run's POST .../auth/v1/token login at 16:00:10.110 —
+    // so by the time loginAsStudent's redirect lands on /student, the data
+    // this test asserts on is already committed. force-dynamic on
+    // app/student/page.tsx then guarantees that very first post-login render
+    // is a fresh, uncached server round-trip (the same run's own
+    // GET .../rest/v1/class_sessions?...&limit=5 at 16:00:12.276 is that
+    // round-trip, already after the commit). A second navigation is not
+    // just unnecessary — a reload() captured for this exact test produced no
+    // additional REST traffic to Supabase at all in the run's logs (no
+    // second auth/class_sessions/students/enrollments/payments burst between
+    // login and this describe block's cleanup), so it was asserting against
+    // an unverified, possibly-unrefreshed page rather than adding safety.
+    // Asserting directly off the post-login render matches test (P) immediately
+    // above, which has passed throughout every round of this fix.
 
     // Fails loudly with the real error text if the data layer itself
     // errored, rather than leaving only an opaque "element not found" —
