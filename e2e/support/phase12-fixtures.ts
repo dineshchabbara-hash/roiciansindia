@@ -465,6 +465,92 @@ export async function findTwoExistingProgramsWithBatches(): Promise<
 }
 
 // ---------------------------------------------------------------------------
+// Eligible batch pair for the Student describe block specifically.
+// getMyUpcomingClassSessions (lib/data/student-portal.ts) is
+// `.order("session_date", {ascending: true}).limit(5)` — a real, actively
+// used dev batch (e.g. a QA/demo batch) can easily already carry 5+ real
+// 'scheduled', future-dated class_sessions rows of its own. Enrolling the
+// Student into a batch like that and inserting one more synthetic row,
+// however far in the future it's dated, is not guaranteed a slot in that
+// top-5 window — not an RLS or filter bug, just ordering+limit colliding
+// with real data volume (this is what made test (K) fail even after the
+// cross-describe-block isolation fix). This function picks a batch that
+// currently has FEWER than 5 such rows, so our own one additional insert is
+// guaranteed to land inside the widget's limit regardless of its exact
+// date or how much real dev data already exists — never by deleting or
+// touching any existing row. The "unrelated" batch has no such requirement
+// (the negative check only needs the Student to have no enrollment there).
+
+export async function findEligibleStudentBatchPair(): Promise<{
+  ownBatch: ExistingProgramWithBatch;
+  unrelatedBatch: ExistingProgramWithBatch;
+} | null> {
+  const supabase = adminClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const WIDGET_LIMIT = 5;
+  const CANDIDATE_POOL_SIZE = 50;
+
+  const { data: batches, error: batchesError } = await supabase
+    .from("batches")
+    .select("id, name, program_id")
+    .order("id", { ascending: true })
+    .limit(CANDIDATE_POOL_SIZE);
+  if (batchesError) {
+    throw new Error(`Could not look up existing batches: ${batchesError.message}`);
+  }
+  const rows = (batches ?? []) as Array<{ id: string; name: string; program_id: string }>;
+  if (rows.length < 2) return null;
+
+  const { data: sessions, error: sessionsError } = await supabase
+    .from("class_sessions")
+    .select("batch_id")
+    .eq("status", "scheduled")
+    .gte("session_date", today)
+    .in(
+      "batch_id",
+      rows.map((r) => r.id),
+    );
+  if (sessionsError) {
+    throw new Error(
+      `Could not check existing upcoming sessions per batch: ${sessionsError.message}`,
+    );
+  }
+  const scheduledCountByBatch = new Map<string, number>();
+  for (const row of (sessions ?? []) as Array<{ batch_id: string }>) {
+    scheduledCountByBatch.set(
+      row.batch_id,
+      (scheduledCountByBatch.get(row.batch_id) ?? 0) + 1,
+    );
+  }
+
+  const ownRow = rows.find((r) => (scheduledCountByBatch.get(r.id) ?? 0) < WIDGET_LIMIT);
+  if (!ownRow) return null;
+  const unrelatedRow = rows.find((r) => r.id !== ownRow.id);
+  if (!unrelatedRow) return null;
+
+  const programIds = Array.from(new Set([ownRow.program_id, unrelatedRow.program_id]));
+  const { data: programs, error: programsError } = await supabase
+    .from("programs")
+    .select("id, name")
+    .in("id", programIds);
+  if (programsError) {
+    throw new Error(`Could not look up batches' programs: ${programsError.message}`);
+  }
+  const programNameById = new Map(
+    ((programs ?? []) as Array<{ id: string; name: string }>).map((p) => [p.id, p.name]),
+  );
+
+  const toPair = (row: { id: string; name: string; program_id: string }) => ({
+    programId: row.program_id,
+    programName: programNameById.get(row.program_id) ?? "",
+    batchId: row.id,
+    batchName: row.name,
+  });
+
+  return { ownBatch: toPair(ownRow), unrelatedBatch: toPair(unrelatedRow) };
+}
+
+// ---------------------------------------------------------------------------
 // Batch assignment — same reasoning/safety as
 // e2e/support/phase11-fixtures.ts's assignPhase11TrainerToBatch: always
 // is_primary: false, so this never collides with a real batch's already-

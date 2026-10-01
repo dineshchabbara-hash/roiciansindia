@@ -15,6 +15,7 @@ import {
   type Phase12StudentPortalIdentity,
   findTwoExistingProgramsWithBatches,
   type ExistingProgramWithBatch,
+  findEligibleStudentBatchPair,
   assignPhase12TrainerToBatch,
   deletePhase12BatchAssignmentIfSafe,
   createPhase12SyntheticEnrollment,
@@ -534,7 +535,8 @@ test.describe("Trainer — assigned-batch-only Class Session access", () => {
 
 test.describe("Student — dashboard-only Class Session visibility", () => {
   let student: Phase12StudentPortalIdentity | undefined;
-  let pairs: [ExistingProgramWithBatch, ExistingProgramWithBatch] | undefined;
+  let ownBatch: ExistingProgramWithBatch | undefined;
+  let unrelatedBatch: ExistingProgramWithBatch | undefined;
   let enrollmentId: string | undefined;
   let ownBatchSessionId: string | undefined;
   let unrelatedBatchSessionId: string | undefined;
@@ -547,31 +549,52 @@ test.describe("Student — dashboard-only Class Session visibility", () => {
       if (err instanceof Phase12PartialStudentPortalIdentityError) student = err.partial;
       throw err;
     }
-    const found = await findTwoExistingProgramsWithBatches();
-    if (!found) throw new Error("Fewer than two existing Batches were found.");
-    pairs = found;
+    // Deliberately NOT findTwoExistingProgramsWithBatches (the plain
+    // "first two batches by id" lookup the Admin/Trainer blocks use) — see
+    // findEligibleStudentBatchPair's own doc comment: a real, actively used
+    // dev batch can already carry 5+ real 'scheduled' future-dated sessions
+    // of its own, and getMyUpcomingClassSessions hard-limits to 5 ordered by
+    // date ascending, so a single additional synthetic row — however far in
+    // the future it's dated — is not guaranteed a slot in that window. This
+    // was the actual remaining cause of test (K) failing even after the
+    // cross-describe-block isolation fix: the chosen batch ("QA Demo 2" in
+    // the dev project) already had enough real upcoming sessions to crowd
+    // out a row dated 2099-01-01. findEligibleStudentBatchPair picks a batch
+    // with fewer than 5 existing such rows instead, guaranteeing room,
+    // without touching any real/legitimate dev data.
+    const found = await findEligibleStudentBatchPair();
+    if (!found) {
+      throw new Error(
+        "Could not find a Batch with room under the Upcoming-classes widget's limit(5) " +
+          "among the first 50 existing Batches in the dev project.",
+      );
+    }
+    ownBatch = found.ownBatch;
+    unrelatedBatch = found.unrelatedBatch;
     if (!student.studentId) {
       throw new Error("beforeAll did not fully create the Student identity.");
     }
     enrollmentId = await createPhase12SyntheticEnrollment({
       studentId: student.studentId,
-      programId: pairs[0].programId,
-      batchId: pairs[0].batchId,
+      programId: ownBatch.programId,
+      batchId: ownBatch.batchId,
       agreedFeeRupees: 15000,
     });
 
     // Self-contained precondition rows (see this file's own header comment
     // for why these are NOT the Trainer describe block's UI-created
     // sessions): one 'scheduled', future-dated session on the Student's own
-    // enrolled batch, and one on a genuinely unrelated batch the Student has
-    // no enrollment in at all — giving the negative isolation check in (K) a
-    // real competing row to prove isolation against, not a vacuous absence.
+    // enrolled batch (now guaranteed room within the widget's limit(5) by
+    // findEligibleStudentBatchPair above), and one on a genuinely unrelated
+    // batch the Student has no enrollment in at all — giving the negative
+    // isolation check in (K) a real competing row to prove isolation
+    // against, not a vacuous absence.
     ownBatchSessionId = await createPhase12ClassSessionDirect({
-      batchId: pairs[0].batchId,
+      batchId: ownBatch.batchId,
       sessionDate: FUTURE_SESSION_DATE,
     });
     unrelatedBatchSessionId = await createPhase12ClassSessionDirect({
-      batchId: pairs[1].batchId,
+      batchId: unrelatedBatch.batchId,
       sessionDate: FUTURE_SESSION_DATE,
     });
   });
@@ -621,7 +644,9 @@ test.describe("Student — dashboard-only Class Session visibility", () => {
   test("(K) Student sees their own enrolled batch's upcoming class on the dashboard, never an unrelated batch's", async ({
     page,
   }) => {
-    if (!student || !pairs) throw new Error("beforeAll did not fully set up.");
+    if (!student || !ownBatch || !unrelatedBatch) {
+      throw new Error("beforeAll did not fully set up.");
+    }
     await loginAsStudent(page, student);
     await page.goto("/student");
 
@@ -629,35 +654,39 @@ test.describe("Student — dashboard-only Class Session visibility", () => {
     // getMyUpcomingClassSessions, mirroring the pre-existing Admin dashboard
     // widget's own shape) shows batch/program name, not session topic — it
     // picks up this describe block's own still-'scheduled' session on
-    // pairs[0] (created directly in beforeAll — see this file's header
+    // ownBatch (created directly in beforeAll — see this file's header
     // comment for why it is not the Trainer describe block's UI-created
-    // session). pairs[0].batchName also legitimately appears a second time
-    // on this page, in this Student's own StudentEnrollmentCard ("Batch"
-    // field) — so the positive assertion is scoped to the Upcoming-classes
-    // card specifically, the same card-scoping-by-marker pattern established
+    // session, and findEligibleStudentBatchPair's own comment for why this
+    // batch, specifically, is guaranteed room within the widget's limit(5)).
+    // ownBatch.batchName also legitimately appears a second time on this
+    // page, in this Student's own StudentEnrollmentCard ("Batch" field) — so
+    // the positive assertion is scoped to the Upcoming-classes card
+    // specifically, the same card-scoping-by-marker pattern established
     // throughout Phase 9/10/11 rather than an arbitrary .first()/.last().
     const upcomingCard = page.locator('[data-slot="card"]').filter({
       has: page.locator('[data-slot="card-title"]:text-is("Upcoming classes")'),
     });
     await expect(
-      upcomingCard.getByText(pairs[0].batchName, { exact: true }),
+      upcomingCard.getByText(ownBatch.batchName, { exact: true }),
     ).toBeVisible();
-    // pairs[1] (the unrelated batch this describe block's own beforeAll also
-    // created a real 'scheduled' session for, but the Student has no
-    // enrollment in at all) must never appear anywhere on this Student's own
-    // dashboard — unlike pairs[0], this one has no other legitimate reason
+    // unrelatedBatch (this describe block's own beforeAll also created a
+    // real 'scheduled' session for it, but the Student has no enrollment
+    // there at all) must never appear anywhere on this Student's own
+    // dashboard — unlike ownBatch, this one has no other legitimate reason
     // to render here, so the page-wide zero-count check is unambiguous, and
     // it is proven against a genuinely existing competing row, not a vacuous
     // absence.
-    await expect(page.getByText(pairs[1].batchName, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(unrelatedBatch.batchName, { exact: true })).toHaveCount(
+      0,
+    );
   });
 
   test("(M) Student is blocked from the Trainer Class Session create route", async ({
     page,
   }) => {
-    if (!student || !pairs) throw new Error("beforeAll did not fully set up.");
+    if (!student || !ownBatch) throw new Error("beforeAll did not fully set up.");
     await loginAsStudent(page, student);
-    await page.goto(`/trainer/batches/${pairs[0].batchId}/sessions/new`);
+    await page.goto(`/trainer/batches/${ownBatch.batchId}/sessions/new`);
     await expect(page).not.toHaveURL(/^https?:\/\/[^/]+\/trainer(?:\/|$)/);
   });
 });
