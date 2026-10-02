@@ -779,11 +779,20 @@ test.describe("Student — Attendance visibility", () => {
     if (!student || !enrollmentId) throw new Error("beforeAll did not fully set up.");
     await loginAsStudent(page, student);
 
-    // Dashboard card: one marked session, all present -> 100%.
+    // Dashboard card: one marked session, all present -> 100%. The card's
+    // own row renders the percentage and the session count as sibling text
+    // inside one <span> (`100% (1 session)`, app/student/page.tsx) — a
+    // deliberate, valid format that shows both at a glance, not a defect —
+    // so an exact match against that span can never succeed; a substring
+    // match is the correct way to assert against it, the same reasoning
+    // already applied to this suite's own `/Saved — 1 marked/`-style
+    // locators elsewhere. The enrollment-detail page's own percentage,
+    // checked below, is genuinely isolated in its own <span> (no sibling
+    // text), so its exact match is correct as-is.
     const attendanceCard = page.locator('[data-slot="card"]').filter({
       has: page.locator('[data-slot="card-title"]:text-is("Attendance")'),
     });
-    await expect(attendanceCard.getByText("100%", { exact: true })).toBeVisible();
+    await expect(attendanceCard.getByText(/100%/)).toBeVisible();
 
     await page.goto(`/student/enrollments/${enrollmentId}`);
     await expect(page.getByText("100%", { exact: true })).toBeVisible();
