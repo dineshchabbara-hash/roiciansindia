@@ -705,3 +705,65 @@ export async function deletePhase13AttendanceIfSafe(
   }
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------------
+// UI-driven attendance cleanup — the Admin/Trainer (G) tests mark, then
+// correct, Attendance through the actual running app (never through
+// createPhase13AttendanceDirect above), so no caller-side attendance id is
+// ever returned to the test for it to track. This looks up the exact row by
+// its own (class_session_id, enrollment_id) pair — both already synthetic
+// ids owned exclusively by the calling describe block's own beforeAll, and
+// unique together per attendance_unique_per_session — rather than any
+// broader filter (never by date, status, or student alone). A correction
+// changes `status`, which is exactly the case lib/data/attendance.ts and
+// lib/data/trainer-portal.ts write an attendance_audit row for (FR-63), so
+// that audit row — itself entirely synthetic, created only by this test's
+// own correction of this test's own synthetic attendance row — is deleted
+// first, by the exact attendance_id it references, before the attendance
+// row itself; deletePhase13AttendanceIfSafe's own attendance_audit guard
+// would otherwise correctly refuse to delete it. No legitimate/historical
+// audit data is ever touched, since the attendance_id used here can only
+// resolve to a row this test created. Finds nothing and no-ops (ok: true)
+// when (G) never ran in this process — e.g. a sibling test in the same
+// describe block was filtered out via `-g`.
+export async function deletePhase13MarkedAttendanceIfSafe(
+  classSessionId: string,
+  enrollmentId: string,
+): Promise<Phase13DeleteResult> {
+  const supabase = adminClient();
+
+  const { data: rows, error: lookupError } = await safely<Array<{ id: string }>>(() =>
+    supabase
+      .from("attendance")
+      .select("id")
+      .eq("class_session_id", classSessionId)
+      .eq("enrollment_id", enrollmentId)
+      .limit(1),
+  );
+  if (lookupError) {
+    return {
+      ok: false,
+      reason: `Could not look up the marked attendance row: ${lookupError.message}`,
+    };
+  }
+  const attendanceId = (rows ?? [])[0]?.id;
+  if (!attendanceId) {
+    // (G) never ran (or never got as far as marking) in this process — not a
+    // cleanup failure.
+    return { ok: true };
+  }
+
+  const { error: auditDeleteError } = await safely(() =>
+    supabase.from("attendance_audit").delete().eq("attendance_id", attendanceId),
+  );
+  if (auditDeleteError) {
+    return {
+      ok: false,
+      reason:
+        `Could not delete attendance_audit row(s) for attendance id=${attendanceId}: ` +
+        auditDeleteError.message,
+    };
+  }
+
+  return deletePhase13AttendanceIfSafe(attendanceId);
+}

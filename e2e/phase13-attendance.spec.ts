@@ -24,6 +24,7 @@ import {
   deletePhase13ClassSessionIfSafe,
   createPhase13AttendanceDirect,
   deletePhase13AttendanceIfSafe,
+  deletePhase13MarkedAttendanceIfSafe,
   type Phase13DeleteResult,
 } from "./support/phase13-fixtures";
 
@@ -241,6 +242,25 @@ test.describe("Admin — Attendance management", () => {
   test.afterAll(async () => {
     if (skipSuite) return;
     await runCleanupSteps([
+      {
+        // (G) marks, then corrects, Attendance through the UI — the
+        // resulting attendance row (and, since the correction changes
+        // status, its attendance_audit row) is never created via a fixture
+        // helper that would hand back an id to track. This looks the row up
+        // by its own exact (session, enrollment) pair, both already
+        // synthetic and owned only by this describe block's beforeAll, and
+        // must run BEFORE the class session / enrollment below — they are
+        // its FK parents (attendance.class_session_id,
+        // attendance.enrollment_id, both `on delete cascade` but never
+        // relied upon here; this test's own exact-id cleanup still removes
+        // them explicitly). A no-op if (G) never ran in this process (e.g.
+        // filtered out via `-g`).
+        label: `admin's marked attendance row (session=${sessionId ?? "none"}, enrollment=${enrollmentOwnId ?? "none"})`,
+        run: () =>
+          sessionId && enrollmentOwnId
+            ? deletePhase13MarkedAttendanceIfSafe(sessionId, enrollmentOwnId)
+            : Promise.resolve({ ok: true }),
+      },
       {
         label: `admin's class session (id=${sessionId ?? "none"})`,
         run: () =>
@@ -466,6 +486,17 @@ test.describe("Trainer — Attendance management", () => {
   test.afterAll(async () => {
     if (skipSuite) return;
     await runCleanupSteps([
+      {
+        // Same UI-driven-attendance cleanup gap as the Admin describe
+        // block's own (G) test — see its afterAll's identical first step
+        // for the full reasoning. Must run before the class session /
+        // enrollment steps below, which are its FK parents.
+        label: `trainer's marked attendance row (session=${sessionId ?? "none"}, enrollment=${enrollmentOwnId ?? "none"})`,
+        run: () =>
+          sessionId && enrollmentOwnId
+            ? deletePhase13MarkedAttendanceIfSafe(sessionId, enrollmentOwnId)
+            : Promise.resolve({ ok: true }),
+      },
       {
         label: `trainer's class session (id=${sessionId ?? "none"})`,
         run: () =>
