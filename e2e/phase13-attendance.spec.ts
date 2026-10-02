@@ -175,6 +175,38 @@ function statusSelect(page: Page, enrollmentId: string) {
   return page.locator(`select[name="status__${enrollmentId}"]`);
 }
 
+// TEMPORARY (Phase 13 Trainer (G) investigation) — the failure under
+// investigation is "expected success text not found", not a thrown
+// exception, so guessing at a fix without seeing what the page actually
+// rendered would be exactly the kind of blind patch the task brief warns
+// against. Waits for the form's own real pending-state signal (the Save
+// button reverting from "Saving..." back to "Save attendance" — already
+// part of TrainerAttendanceRosterForm/AttendanceRosterForm, not an
+// arbitrary sleep) before snapshotting the URL, any role="alert" text (the
+// formError branch), and the full body text. Swallows its own wait's
+// timeout so the capture — and the real assertion that follows it, which
+// this function never touches — still run either way. Remove once the root
+// cause is confirmed and either the fix or the assertion itself is settled.
+async function captureAttendanceSaveDiagnostics(
+  page: Page,
+  label: string,
+): Promise<void> {
+  await page
+    .getByRole("button", { name: "Save attendance" })
+    .waitFor({ state: "visible" })
+    .catch(() => {});
+  console.log(`[phase13-G-diagnostics] ${label} — URL:`, page.url());
+  const alertText = await page
+    .getByRole("alert")
+    .textContent()
+    .catch(() => null);
+  console.log(`[phase13-G-diagnostics] ${label} — alert role text:`, alertText);
+  console.log(
+    `[phase13-G-diagnostics] ${label} — BODY:`,
+    await page.locator("body").innerText(),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // (A/D/G/J/O) Admin — Attendance management on a real Class Session.
 
@@ -600,6 +632,7 @@ test.describe("Trainer — Attendance management", () => {
 
     await statusSelect(page, enrollmentOwnId).selectOption("late");
     await page.getByRole("button", { name: "Save attendance" }).click();
+    await captureAttendanceSaveDiagnostics(page, "trainer initial mark (late)");
     await expect(page.getByText(/Saved — 1 marked/)).toBeVisible();
 
     await page.reload();
@@ -607,6 +640,7 @@ test.describe("Trainer — Attendance management", () => {
 
     await statusSelect(page, enrollmentOwnId).selectOption("excused");
     await page.getByRole("button", { name: "Save attendance" }).click();
+    await captureAttendanceSaveDiagnostics(page, "trainer correction (excused)");
     await expect(page.getByText(/Saved — 0 marked, 1 corrected/)).toBeVisible();
 
     await page.reload();
