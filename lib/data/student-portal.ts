@@ -316,3 +316,138 @@ export async function getMyUpcomingClassSessions(
     return fail("Could not load your upcoming classes.", error);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Attendance (Phase 13 — REQUIREMENTS.md FR-44/62, IMPLEMENTATION_PLAN.md
+// Phase 13 — "closing the Phase 10 placeholder"). student_attendance_summary
+// (supabase/migrations/20260101000011_views.sql) is declared
+// `security_invoker = true` (20260101000013_rls_lockdown.sql), so it
+// inherits the caller's own RLS on the underlying `attendance` table
+// (attendance_select_own, scoped to current_student_id()) rather than the
+// view owner's — a Student querying it only ever sees rows for their own
+// enrollments, the same guarantee as every other Student Portal query in
+// this file. FR-62 ("computed on read ... not manually maintained") is
+// satisfied by this view doing the aggregation in SQL; nothing here
+// recomputes it.
+//
+// Individual per-session records intentionally omit `notes` and
+// `marked_by`/`marked_by_type` — FR-44 requires only the status and the
+// computed percentage, not the Trainer/Admin's own correction notes or who
+// marked it, and neither is otherwise authorized for Student visibility.
+
+export type MyAttendanceSummaryRow = {
+  enrollmentId: string;
+  totalSessions: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  attendancePercentage: number | null;
+};
+
+export async function getMyAttendanceSummary(): Promise<
+  DataResult<MyAttendanceSummaryRow[]>
+> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("student_attendance_summary")
+      .select(
+        "enrollment_id, total_sessions, present_count, absent_count, late_count, excused_count, attendance_percentage",
+      );
+    if (error) throw error;
+
+    return {
+      ok: true,
+      data: (data ?? []).map((row) => ({
+        enrollmentId: row.enrollment_id,
+        totalSessions: row.total_sessions,
+        presentCount: row.present_count,
+        absentCount: row.absent_count,
+        lateCount: row.late_count,
+        excusedCount: row.excused_count,
+        attendancePercentage: row.attendance_percentage,
+      })),
+    };
+  } catch (error) {
+    return fail("Could not load your attendance summary.", error);
+  }
+}
+
+export type MyAttendanceRecordRow = {
+  id: string;
+  sessionDate: string;
+  topic: string | null;
+  status: "present" | "absent" | "late" | "excused";
+};
+
+// Re-checks ownership via getMyEnrollment (student_id-scoped, same
+// direct-URL/ID-manipulation defense as every other per-enrollment query in
+// this file) before reading any attendance row for it — attendance_select_own
+// RLS already enforces this independently, but this module never relies on
+// RLS alone.
+export async function getMyAttendanceForEnrollment(
+  enrollmentId: string,
+): Promise<
+  DataResult<{ summary: MyAttendanceSummaryRow | null; records: MyAttendanceRecordRow[] }>
+> {
+  const enrollment = await getMyEnrollment(enrollmentId);
+  if (!enrollment.ok) return enrollment;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+
+    const { data: summaryRow, error: summaryError } = await supabase
+      .from("student_attendance_summary")
+      .select(
+        "enrollment_id, total_sessions, present_count, absent_count, late_count, excused_count, attendance_percentage",
+      )
+      .eq("enrollment_id", enrollmentId)
+      .maybeSingle();
+    if (summaryError) throw summaryError;
+
+    // Sorted in application code below rather than via `.order()` — PostgREST
+    // embedded-resource ordering syntax is not something this codebase uses
+    // anywhere else, so this avoids relying on behavior nothing else here
+    // already proves works.
+    const { data: records, error: recordsError } = await supabase
+      .from("attendance")
+      .select("id, status, class_session:class_sessions(session_date, topic)")
+      .eq("enrollment_id", enrollmentId);
+    if (recordsError) throw recordsError;
+
+    const recordRows = (records ?? []) as unknown as Array<{
+      id: string;
+      status: "present" | "absent" | "late" | "excused";
+      class_session: { session_date: string; topic: string | null } | null;
+    }>;
+
+    return {
+      ok: true,
+      data: {
+        summary: summaryRow
+          ? {
+              enrollmentId: summaryRow.enrollment_id,
+              totalSessions: summaryRow.total_sessions,
+              presentCount: summaryRow.present_count,
+              absentCount: summaryRow.absent_count,
+              lateCount: summaryRow.late_count,
+              excusedCount: summaryRow.excused_count,
+              attendancePercentage: summaryRow.attendance_percentage,
+            }
+          : null,
+        records: recordRows
+          .filter((row) => row.class_session !== null)
+          .map((row) => ({
+            id: row.id,
+            sessionDate: row.class_session!.session_date,
+            topic: row.class_session!.topic,
+            status: row.status,
+          }))
+          .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate)),
+      },
+    };
+  } catch (error) {
+    return fail("Could not load attendance for this enrollment.", error);
+  }
+}

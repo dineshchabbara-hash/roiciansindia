@@ -5,6 +5,7 @@ import {
   getMyStudentProfile,
   getMyEnrollments,
   getMyUpcomingClassSessions,
+  getMyAttendanceSummary,
 } from "@/lib/data/student-portal";
 import { StudentEnrollmentCard } from "@/components/student/student-enrollment-card";
 import {
@@ -19,12 +20,11 @@ import { formatPaiseAsINR } from "@/lib/domain/money";
 export const dynamic = "force-dynamic";
 
 // Phase 10 scope (IMPLEMENTATION_PLAN.md): identity, current programs/
-// batches, and payment status using Phase 9 data. Phase 12 closes the
+// batches, and payment status using Phase 9 data. Phase 12 closed the
 // "Upcoming classes" placeholder with real class_sessions data (own enrolled
-// batches only, via RLS). Attendance remains a placeholder until Phase 13
-// builds the underlying feature — still shown as an inert, clearly-labeled
-// card, never a clickable nav item to a page that doesn't exist yet (see the
-// Phase 10/12 reports). Announcements (also listed under FR-40) has no
+// batches only, via RLS). Phase 13 closes the "Attendance" placeholder with
+// real data from student_attendance_summary (FR-44/62 — computed percentage,
+// never hand-maintained). Announcements (also listed under FR-40) has no
 // backing data model anywhere in this codebase yet, so it is omitted rather
 // than fabricated — also noted in the report.
 export default async function StudentHome() {
@@ -33,11 +33,13 @@ export default async function StudentHome() {
     redirect("/login/student");
   }
 
-  const [profileResult, enrollmentsResult, upcomingResult] = await Promise.all([
-    getMyStudentProfile(),
-    getMyEnrollments(),
-    getMyUpcomingClassSessions(5),
-  ]);
+  const [profileResult, enrollmentsResult, upcomingResult, attendanceResult] =
+    await Promise.all([
+      getMyStudentProfile(),
+      getMyEnrollments(),
+      getMyUpcomingClassSessions(5),
+      getMyAttendanceSummary(),
+    ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -152,16 +154,45 @@ export default async function StudentHome() {
         <Card>
           <CardHeader>
             <CardTitle>Attendance</CardTitle>
-            <CardDescription>Coming in a later phase.</CardDescription>
+            <CardDescription>
+              Per enrollment, computed from marked sessions.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Attendance tracking is not part of this phase yet — see{" "}
-              <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
-                IMPLEMENTATION_PLAN.md
-              </code>
-              .
-            </p>
+            {!attendanceResult.ok ? (
+              <p role="alert" className="text-destructive text-sm">
+                {attendanceResult.error}
+              </p>
+            ) : attendanceResult.data.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No attendance records yet</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {attendanceResult.data.map((summary) => {
+                  const enrollment = enrollmentsResult.ok
+                    ? enrollmentsResult.data.find((e) => e.id === summary.enrollmentId)
+                    : undefined;
+                  return (
+                    <li key={summary.enrollmentId}>
+                      <Link
+                        href={`/student/enrollments/${summary.enrollmentId}`}
+                        className="flex items-center justify-between gap-3 border-b pb-3 last:border-0 last:pb-0 hover:underline"
+                      >
+                        <span className="min-w-0 truncate text-sm font-medium">
+                          {enrollment?.programName ?? "Enrollment"}
+                        </span>
+                        <span className="text-muted-foreground shrink-0 text-xs">
+                          {summary.attendancePercentage !== null
+                            ? `${summary.attendancePercentage}%`
+                            : "—"}{" "}
+                          ({summary.totalSessions} session
+                          {summary.totalSessions === 1 ? "" : "s"})
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>

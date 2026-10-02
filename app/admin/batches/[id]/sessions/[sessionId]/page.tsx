@@ -59,6 +59,11 @@ export default async function ClassSessionDetailPage({
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
+            <Link href={`/admin/batches/${batch.id}/sessions/${session.id}/attendance`}>
+              Attendance
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
             <Link href={`/admin/batches/${batch.id}/sessions/${session.id}/edit`}>
               Edit
             </Link>

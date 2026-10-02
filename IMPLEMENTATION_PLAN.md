@@ -294,10 +294,11 @@ a local scratch Postgres instance).
 
 ## Phase 12 — Class Sessions
 
-**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase12-class-sessions`,
-based off `main` at `996a22f` (the Phase 11 baseline). Not yet merged;
-awaiting manual Windows browser acceptance, then explicit approval, per the
-same gate Phase 10/11 went through.
+**Status:** COMPLETED — on `main` at `91bb700`, pushed directly to `main`
+with no separate merge commit (same convention as Phase 11). Manual browser
+acceptance confirmed 16/16 passed; synthetic E2E test data cleanup verified
+(read-only audit, corrected twice for scoping and verdict-logic issues
+before being accepted).
 
 **Scope:** Class session CRUD scoped to a batch (Trainer create/edit for assigned
 batches; Admin full access), status lifecycle, schedule display feeding both
@@ -362,6 +363,11 @@ nothing more.
 
 ## Phase 13 — Attendance
 
+**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase13-attendance`, based
+off `main` at `91bb700` (the Phase 12 baseline). Not yet merged; awaiting
+manual Windows browser acceptance, then explicit approval, per the same gate
+Phase 10/11/12 went through.
+
 **Scope:** Attendance marking UI (Trainer, scoped to assigned batch + session),
 Admin override, attendance percentage view/computation, attendance audit trail
 for post-marking edits, Student read-only attendance view (closing the Phase 10
@@ -375,6 +381,75 @@ a batch outside their assignment, even by crafting a direct request.
 
 **DoD:** Attendance percentage is computed, not hand-entered; audit trail records
 changes after initial marking.
+
+(Phase 13 implementation note: the `attendance` table, its status CHECK
+constraint (`present`/`absent`/`late`/`excused`), the `attendance_unique_per_session`
+uniqueness constraint, the `attendance_audit` correction-trail table, the
+`student_attendance_summary` view (`security_invoker = true`, computing
+`attendance_percentage` on read with late counting as present), and every RLS
+policy this phase relies on (attendance_select_admin/select_trainer/
+select_student/insert_admin/insert_trainer/update_admin/update_trainer/
+delete_admin) already existed (20260101000008_academic_tables.sql /
+20260101000011_views.sql / 20260101000013_rls_lockdown.sql /
+20260101000014_rls_policies.sql / 20260101000017_.../
+20260101000022_..., provisioned ahead of schedule alongside the rest of the
+schema) — Phase 13 is the first phase to actually write to `attendance` and
+`attendance_audit` and is purely an application-layer build on top of
+unchanged, pre-existing security, the same relationship Phase 12 had to
+`class_sessions`. No new migration was added.
+
+Delivered: `/admin/batches/[id]/sessions/[sessionId]/attendance` (per-session
+roster — mark/correct status + notes for every enrolled student in that
+session's own batch, in one form submit) and the identical shape at
+`/trainer/batches/[id]/sessions/[sessionId]/attendance`, scoped server-side
+to the caller's own assigned batch. The roster for both portals is derived
+exclusively from server-side Enrollment+Batch+Class-Session relationships —
+`lib/data/attendance.ts` (Admin, queries `enrollments` directly scoped to the
+session's own `batch_id`) and `lib/data/trainer-portal.ts`'s new functions
+(Trainer, built on the pre-existing `trainer_visible_enrollments()` /
+`trainer_visible_students()` SECURITY DEFINER RPCs, the only sanctioned read
+path to Student/Enrollment data for a Trainer) — never trusting a browser-
+submitted student/enrollment/batch/trainer id. Every submitted
+`enrollmentId` is re-intersected against this server-derived set on mutation;
+anything not found is silently ignored (counted, never acted on). A fresh
+mark is a plain insert with no audit row (FR-63 scopes the audit trail to
+changes after initial marking); a correction writes `attendance_audit` only
+when status changes (notes has no audit column) and a lost-race unique
+violation on insert falls through to the correction path. Because
+`attendance_audit` carries no RLS policy for Trainers at all (by design, not
+a gap), the Trainer-side correction path writes that one audit row via the
+existing service-role admin client (`lib/supabase/admin.ts`) — the
+`attendance` row mutation itself still goes through the Trainer's own
+RLS-scoped client, which remains the actual authorization gate. The Student
+Portal gets its own read-only view: `/student`'s dashboard gains a real
+Attendance summary card (`student_attendance_summary`, computed-on-read) and
+`/student/enrollments/[id]` gains a per-session Attendance history list —
+closing the Phase 10 placeholder per FR-44, with no notes/marked-by metadata
+exposed and no financial fields anywhere on these pages. Hard delete is NOT
+exposed anywhere in the UI even though `attendance_delete_admin` exists at
+the RLS layer (tested directly in `supabase/tests/phase13_attendance_test.sql`):
+correction via status update is the only "removal" path, the same
+conservative precedent Phase 12 set for `class_sessions_delete_admin`. The
+roster is not filtered by enrollment status (e.g. excluding withdrawn/
+cancelled) since neither FR-61 nor the pre-existing `trainer_visible_enrollments()`
+function applies such a filter — not an invented restriction, matching
+existing precedent. A pre-existing `/admin/attendance` "Coming Soon"
+placeholder (a cross-batch overview, a distinct feature from the per-session
+marking UI delivered here) was found during requirements review and
+deliberately left untouched as out of this phase's documented scope.)
+
+Confirmed via `e2e/phase13-attendance.spec.ts` (created; not yet run — manual
+Windows browser acceptance is the next gate, same process as Phase 10/11/12)
+and `supabase/tests/phase13_attendance_test.sql` (run and passing against a
+local scratch Postgres instance).
+
+**Known limitations / deferred:** No hard-delete capability anywhere (see
+above). No cross-batch Attendance overview (the pre-existing `/admin/attendance`
+placeholder is unchanged — out of scope). No attendance-triggered financial
+consequences (fee/payment/discount/refund fields are never read or rendered
+anywhere in this phase). No Payment Plans, Razorpay, receipts, refunds,
+Materials, Assignments, Certificates, Notifications, or Reports — all
+explicitly Phase 14+ and untouched.
 
 ## Phase 14 — Payment Plans / Installments
 

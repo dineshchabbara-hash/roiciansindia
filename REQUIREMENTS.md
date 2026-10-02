@@ -134,6 +134,14 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   pay online via Razorpay; download receipts.
 - FR-44 (P0): View own attendance (present/absent/late/excused) and computed
   attendance percentage.
+  (Phase 13 implementation note: delivers a dashboard summary card
+  (`/student`, `student_attendance_summary` view — computed on read, not
+  hand-maintained) and a per-session history list on
+  `/student/enrollments/[id]` (`getMyAttendanceForEnrollment`), closing the
+  Phase 10 placeholder. Scoped to the caller's own enrollment only, the same
+  own-data-only pattern as the rest of the Student Portal. Trainer-private
+  `notes`/`marked_by`/`marked_by_type` fields are never selected or rendered
+  for the Student — not explicitly authorized by this FR, so withheld.)
 - FR-45 (P1): View/submit assignments, see trainer feedback/marks.
 - FR-46 (P1): View/download materials scoped to enrolled batches.
 - FR-47 (P1): View/download issued certificates.
@@ -168,8 +176,18 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   column-level restriction rather than relying on RLS alone for Programs.)
 - FR-52 (P0): Create class sessions; mark/edit attendance for authorized batches only
   (server-enforced batch-trainer assignment check).
-  (Deferred to Phase 12/13 — explicitly out of Phase 11's scope per the
-  Phase 11 task brief. Not implemented, not stubbed with fake data.)
+  (Class session half: Phase 12. Attendance-marking half: Phase 13
+  implementation note — `/trainer/batches/[id]/sessions/[sessionId]/attendance`
+  derives the eligible roster exclusively from the pre-existing
+  `trainer_visible_enrollments()` SECURITY DEFINER function (the same
+  sanctioned read path Phase 11 established for Trainer access to Student/
+  Enrollment data), then independently re-verifies the session's own
+  `batch_id` is one of the caller's assignments on every mutation — a
+  browser-supplied enrollment/batch/student id is never trusted. Mirrors
+  Admin's `/admin/batches/[id]/sessions/[sessionId]/attendance` in shape but
+  uses a wholly separate, Trainer-safe data path
+  (`lib/data/trainer-portal.ts`), never the Admin-facing
+  `lib/data/attendance.ts` functions that accept a caller-trusted batch id.)
 - FR-53 (P1): Upload materials, create assignments, review submissions, add
   feedback/marks scoped to assigned batches.
   (Deferred to Phase 17/18 — explicitly out of Phase 11's scope. Not
@@ -204,9 +222,39 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   pre-existing class_sessions_select_student/select_trainer RLS policies.)
 - FR-61 (P0): Attendance rows link Student + Enrollment + Batch + Class Session,
   status (Present/Absent/Late/Excused), `marked_by`, timestamp, optional notes.
+  (Phase 13 implementation note: the `attendance` table, its status CHECK
+  constraint, and its `attendance_unique_per_session` uniqueness constraint
+  already matched this FR exactly before Phase 13 began (provisioned
+  alongside the rest of the schema in Phase 2) — Phase 13 is the application
+  layer on top, the same relationship Phase 12 had to `class_sessions`. No
+  new migration was added. `marked_by`/`marked_by_type` is a polymorphic pair
+  (uuid + a `'trainer'|'admin'` check, no real FK — referential integrity is
+  enforced at the application layer, matching the pre-existing schema's own
+  design) set server-side to the authenticated actor's own resolved id, never
+  a form field. The roster is not filtered by enrollment status — neither
+  this FR nor the pre-existing `trainer_visible_enrollments()` function
+  applies such a filter, so none was invented.)
 - FR-62 (P0): Attendance percentage computed on read (view/materialized aggregate),
   not manually maintained.
+  (Phase 13 implementation note: the pre-existing `student_attendance_summary`
+  view (`security_invoker = true`) already computed this exactly as
+  specified — `round(100.0 * count(*) filter (where status in ('present',
+  'late')) / count(*), 2)`, late counting as present — before Phase 13 began.
+  Phase 13 is the first phase to read from it, in both the Student dashboard
+  summary card and the enrollment-detail Attendance card.)
 - FR-63 (P1): Audit trail for attendance changes after initial marking.
+  (Phase 13 implementation note: the pre-existing `attendance_audit` table is
+  used as-is — no second audit system was built alongside it, and no row is
+  duplicated into the general `audit_logs` table. A fresh mark (no prior row
+  for that enrollment+session) writes no audit row, since this FR scopes the
+  trail to changes *after* initial marking. A correction writes
+  `attendance_audit` only when `status` changes (the table has no `notes`
+  column to diff). `attendance_audit` carries no RLS policy for Trainers at
+  all (by design, not a gap) — the Trainer-side correction path writes that
+  one audit row via the existing service-role admin client
+  (`lib/supabase/admin.ts`); the `attendance` row mutation itself still goes
+  through the Trainer's own RLS-scoped client, which remains the actual
+  authorization gate.)
 
 ### 2.8 Materials & Course Structure
 - FR-70 (P1): Upload PDFs/docs/slides/sheets/images/links/video links; attach to

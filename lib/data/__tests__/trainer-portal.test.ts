@@ -8,7 +8,12 @@ vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(),
 }));
 
+vi.mock("@/lib/supabase/admin", () => ({
+  createSupabaseAdminClient: vi.fn(),
+}));
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   getMyTrainerProfile,
   getMyBatches,
@@ -23,6 +28,8 @@ import {
   updateMyClassSession,
   updateMyClassSessionStatus,
   getMyUpcomingClassSessions,
+  getMyEligibleRosterForSession,
+  markMyAttendanceForSession,
 } from "@/lib/data/trainer-portal";
 import type { ClassSessionInput } from "@/lib/validation/class-sessions";
 
@@ -649,5 +656,217 @@ describe("getMyUpcomingClassSessions", () => {
     }
     expect(classSessionsBuilder.eq).toHaveBeenCalledWith("status", "scheduled");
     expect(classSessionsBuilder.limit).toHaveBeenCalledWith(5);
+  });
+});
+
+describe("getMyEligibleRosterForSession", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("merges trainer_visible_enrollments/students with existing attendance marks for this batch only", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const classSessionsBuilder = makeBuilder({
+      data: classSessionJoinRow(),
+      error: null,
+    });
+    const attendanceBuilder = makeBuilder({
+      data: [
+        {
+          id: "att-1",
+          enrollment_id: "enr-1",
+          status: "present",
+          notes: null,
+          marked_at: "t",
+        },
+      ],
+      error: null,
+    });
+
+    const client = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: AUTH_USER } }) },
+      from: vi.fn(
+        (table: string) =>
+          ({
+            trainers: trainersBuilder,
+            batch_trainers: batchTrainersBuilder,
+            class_sessions: classSessionsBuilder,
+            attendance: attendanceBuilder,
+          })[table],
+      ),
+      rpc: vi.fn((name: string) => {
+        if (name === "trainer_visible_enrollments") {
+          return Promise.resolve({
+            data: [
+              { enrollment_id: "enr-1", student_id: "stu-1", batch_id: "batch-1" },
+              // A different batch's enrollment the RPC also returns (the
+              // Trainer may be assigned to more than one batch) — must be
+              // filtered out, not shown in this session's roster.
+              { enrollment_id: "enr-2", student_id: "stu-2", batch_id: "other-batch" },
+            ],
+            error: null,
+          });
+        }
+        if (name === "trainer_visible_students") {
+          return Promise.resolve({
+            data: [
+              {
+                student_id: "stu-1",
+                student_code: "S-1",
+                first_name: "Amy",
+                last_name: "Z",
+                batch_id: "batch-1",
+              },
+              {
+                student_id: "stu-2",
+                student_code: "S-2",
+                first_name: "Cal",
+                last_name: "Q",
+                batch_id: "other-batch",
+              },
+            ],
+            error: null,
+          });
+        }
+        throw new Error(`Unexpected rpc: ${name}`);
+      }),
+    };
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>,
+    );
+
+    const result = await getMyEligibleRosterForSession("batch-1", "session-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toEqual([
+      {
+        enrollmentId: "enr-1",
+        studentId: "stu-1",
+        studentCode: "S-1",
+        firstName: "Amy",
+        lastName: "Z",
+        attendanceId: "att-1",
+        status: "present",
+        notes: null,
+        markedAt: "t",
+      },
+    ]);
+  });
+});
+
+describe("markMyAttendanceForSession", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("marks a fresh entry under the caller's own trainer id, writing no attendance_audit row", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const classSessionsBuilder = makeBuilder({
+      data: classSessionJoinRow(),
+      error: null,
+    });
+    const attendanceInsert = vi.fn().mockResolvedValue({ error: null });
+    const attendanceExistingBuilder = makeBuilder({ data: [], error: null });
+
+    const client = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: AUTH_USER } }) },
+      from: vi.fn((table: string) => {
+        if (table === "trainers") return trainersBuilder;
+        if (table === "batch_trainers") return batchTrainersBuilder;
+        if (table === "class_sessions") return classSessionsBuilder;
+        if (table === "attendance") {
+          // First call: the existing-rows read. Second call: the insert.
+          const calls = client.from.mock.calls.filter(
+            (c) => c[0] === "attendance",
+          ).length;
+          return calls <= 1 ? attendanceExistingBuilder : { insert: attendanceInsert };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: [{ enrollment_id: "enr-1", student_id: "stu-1", batch_id: "batch-1" }],
+        error: null,
+      }),
+    };
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>,
+    );
+
+    const result = await markMyAttendanceForSession("batch-1", "session-1", [
+      { enrollmentId: "enr-1", status: "present", notes: null },
+    ]);
+
+    expect(result).toEqual({ ok: true, data: { marked: 1, corrected: 0, ignored: 0 } });
+    expect(attendanceInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enrollment_id: "enr-1",
+        student_id: "stu-1",
+        marked_by: "trainer-1",
+        marked_by_type: "trainer",
+      }),
+    );
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("uses the service-role client only for the attendance_audit insert on a status correction", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const classSessionsBuilder = makeBuilder({
+      data: classSessionJoinRow(),
+      error: null,
+    });
+    const attendanceExistingBuilder = makeBuilder({
+      data: [{ id: "att-1", enrollment_id: "enr-1", status: "absent", notes: null }],
+      error: null,
+    });
+    const beforeRowBuilder = makeBuilder({
+      data: { id: "att-1", status: "absent", notes: null },
+      error: null,
+    });
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+
+    const client = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: AUTH_USER } }) },
+      from: vi.fn((table: string) => {
+        if (table === "trainers") return trainersBuilder;
+        if (table === "batch_trainers") return batchTrainersBuilder;
+        if (table === "class_sessions") return classSessionsBuilder;
+        if (table === "attendance") {
+          const calls = client.from.mock.calls.filter(
+            (c) => c[0] === "attendance",
+          ).length;
+          if (calls <= 1) return attendanceExistingBuilder;
+          if (calls === 2) return beforeRowBuilder;
+          return { update: () => ({ eq: updateEq }) };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: [{ enrollment_id: "enr-1", student_id: "stu-1", batch_id: "batch-1" }],
+        error: null,
+      }),
+    };
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>,
+    );
+
+    const auditInsert = vi.fn().mockResolvedValue({ error: null });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue({
+      from: vi.fn(() => ({ insert: auditInsert })),
+    } as never);
+
+    const result = await markMyAttendanceForSession("batch-1", "session-1", [
+      { enrollmentId: "enr-1", status: "present", notes: null },
+    ]);
+
+    expect(result).toEqual({ ok: true, data: { marked: 0, corrected: 1, ignored: 0 } });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+    expect(auditInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attendance_id: "att-1",
+        changed_by: "trainer-1",
+        changed_by_type: "trainer",
+        previous_status: "absent",
+        new_status: "present",
+      }),
+    );
   });
 });

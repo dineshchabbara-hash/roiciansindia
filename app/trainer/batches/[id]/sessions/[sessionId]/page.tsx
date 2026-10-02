@@ -52,9 +52,16 @@ export default async function TrainerClassSessionDetailPage({
             </Link>
           </p>
         </div>
-        <Button variant="outline" asChild>
-          <Link href={`/trainer/batches/${id}/sessions/${session.id}/edit`}>Edit</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/trainer/batches/${id}/sessions/${session.id}/attendance`}>
+              Attendance
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href={`/trainer/batches/${id}/sessions/${session.id}/edit`}>Edit</Link>
+          </Button>
+        </div>
       </div>
 
       <Card>

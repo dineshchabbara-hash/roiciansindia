@@ -1,9 +1,12 @@
 import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DataResult } from "@/lib/data/dashboard";
 import type { ClassSessionStatus } from "@/lib/domain/class-sessions";
 import type { ClassSessionInput } from "@/lib/validation/class-sessions";
+import type { AttendanceStatus } from "@/lib/domain/attendance";
+import type { AttendanceRosterEntry } from "@/lib/validation/attendance";
 
 /**
  * Trainer Portal data-access layer (Phase 11). Deliberately separate from
@@ -643,5 +646,293 @@ export async function getMyUpcomingClassSessions(
     };
   } catch (error) {
     return fail("Could not load your upcoming classes.", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Attendance (Phase 13 — REQUIREMENTS.md FR-52/61/62/63,
+// IMPLEMENTATION_PLAN.md Phase 13). Backed by pre-existing RLS
+// (attendance_select_trainer/write_trainer/update_trainer — scoped via
+// batch_trainers to current_trainer_id(), 20260101000014_rls_policies.sql)
+// unchanged by this phase. getMySession above already re-verifies the
+// batch+session relationship and the caller's own assignment to it; every
+// function below calls it first, the same defense-in-depth already
+// established for Batches/Students/Class Sessions in this file.
+//
+// The eligible roster comes from trainer_visible_enrollments()/
+// trainer_visible_students() — the ONLY sanctioned read path to
+// Student/Enrollment data for a Trainer (this file's own header comment) —
+// filtered in application code to this session's own batch, never from a
+// caller-supplied student/enrollment id. There is no Trainer delete
+// capability: no attendance_delete_trainer policy exists, by design.
+//
+// attendance_audit has NO trainer RLS policy at all (only
+// attendance_audit_select_admin/write_admin exist) — a Trainer correcting
+// their own prior mark cannot write that table under their own session, by
+// design (defense in depth: a Trainer can update `attendance` itself, which
+// RLS genuinely authorizes via attendance_update_trainer, but cannot touch
+// the audit history of it directly). The actual `attendance` mutation below
+// still goes through the Trainer's own RLS-scoped client — RLS is still the
+// real authorization gate — and only the resulting attendance_audit insert
+// uses the service-role client, exactly the same narrow, write-only,
+// after-the-fact pattern lib/data/audit-log.ts's writeAuditLog() already
+// uses for the general audit trail.
+
+export type MyAttendanceRosterRow = {
+  enrollmentId: string;
+  studentId: string;
+  studentCode: string;
+  firstName: string;
+  lastName: string;
+  attendanceId: string | null;
+  status: AttendanceStatus | null;
+  notes: string | null;
+  markedAt: string | null;
+};
+
+export async function getMyEligibleRosterForSession(
+  batchId: string,
+  sessionId: string,
+): Promise<DataResult<MyAttendanceRosterRow[]>> {
+  const session = await getMySession(batchId, sessionId);
+  if (!session.ok) return session;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+
+    const enrollments = await supabase.rpc("trainer_visible_enrollments");
+    if (enrollments.error) throw enrollments.error;
+    const students = await supabase.rpc("trainer_visible_students");
+    if (students.error) throw students.error;
+
+    type VisibleEnrollmentRow = {
+      enrollment_id: string;
+      student_id: string;
+      batch_id: string;
+    };
+    type VisibleStudentRow = {
+      student_id: string;
+      student_code: string;
+      first_name: string;
+      last_name: string;
+      batch_id: string;
+    };
+
+    const studentById = new Map(
+      (students.data as VisibleStudentRow[])
+        .filter((row) => row.batch_id === batchId)
+        .map((row) => [row.student_id, row]),
+    );
+
+    const { data: existing, error: existingError } = await supabase
+      .from("attendance")
+      .select("id, enrollment_id, status, notes, marked_at")
+      .eq("class_session_id", sessionId);
+    if (existingError) throw existingError;
+    const existingByEnrollment = new Map(
+      (
+        (existing ?? []) as Array<{
+          id: string;
+          enrollment_id: string;
+          status: AttendanceStatus;
+          notes: string | null;
+          marked_at: string;
+        }>
+      ).map((row) => [row.enrollment_id, row]),
+    );
+
+    const roster: MyAttendanceRosterRow[] = [];
+    for (const row of enrollments.data as VisibleEnrollmentRow[]) {
+      if (row.batch_id !== batchId) continue;
+      const student = studentById.get(row.student_id);
+      if (!student) continue;
+
+      const existingRow = existingByEnrollment.get(row.enrollment_id);
+      roster.push({
+        enrollmentId: row.enrollment_id,
+        studentId: student.student_id,
+        studentCode: student.student_code,
+        firstName: student.first_name,
+        lastName: student.last_name,
+        attendanceId: existingRow?.id ?? null,
+        status: existingRow?.status ?? null,
+        notes: existingRow?.notes ?? null,
+        markedAt: existingRow?.marked_at ?? null,
+      });
+    }
+    roster.sort((a, b) =>
+      `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
+    );
+
+    return { ok: true, data: roster };
+  } catch (error) {
+    return fail("Could not load the attendance roster for this class session.", error);
+  }
+}
+
+export type MyAttendanceMarkResult = {
+  marked: number;
+  corrected: number;
+  ignored: number;
+};
+
+async function upsertOneMyAttendanceRow(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  params: {
+    sessionId: string;
+    batchId: string;
+    studentId: string;
+    entry: AttendanceRosterEntry;
+    existing: { id: string; status: AttendanceStatus; notes: string | null } | undefined;
+    trainerId: string;
+  },
+): Promise<DataResult<"marked" | "corrected" | "unchanged">> {
+  const { sessionId, batchId, studentId, entry, existing, trainerId } = params;
+  const newNotes = entry.notes ?? null;
+
+  if (!existing) {
+    const { error } = await supabase.from("attendance").insert({
+      class_session_id: sessionId,
+      enrollment_id: entry.enrollmentId,
+      student_id: studentId,
+      batch_id: batchId,
+      status: entry.status,
+      marked_by: trainerId,
+      marked_by_type: "trainer",
+      notes: newNotes,
+    });
+    if (!error) return { ok: true, data: "marked" };
+    if ((error as { code?: string }).code !== "23505") {
+      return { ok: false, error: `Could not mark attendance: ${error.message}` };
+    }
+  }
+
+  const { data: beforeRow, error: beforeError } = await supabase
+    .from("attendance")
+    .select("id, status, notes")
+    .eq("class_session_id", sessionId)
+    .eq("enrollment_id", entry.enrollmentId)
+    .maybeSingle();
+  if (beforeError)
+    return {
+      ok: false,
+      error: `Could not load the existing mark: ${beforeError.message}`,
+    };
+  if (!beforeRow)
+    return { ok: false, error: "Attendance row disappeared mid-correction." };
+
+  const statusChanged = beforeRow.status !== entry.status;
+  const notesChanged = (beforeRow.notes ?? null) !== newNotes;
+  if (!statusChanged && !notesChanged) return { ok: true, data: "unchanged" };
+
+  const { error: updateError } = await supabase
+    .from("attendance")
+    .update({
+      status: entry.status,
+      notes: newNotes,
+      marked_by: trainerId,
+      marked_by_type: "trainer",
+      marked_at: new Date().toISOString(),
+    })
+    .eq("id", beforeRow.id);
+  if (updateError)
+    return { ok: false, error: `Could not correct attendance: ${updateError.message}` };
+
+  if (statusChanged) {
+    // No attendance_audit RLS policy exists for Trainer — service role is
+    // required for this one insert only, after the real RLS-authorized
+    // update above already succeeded. See this section's own header comment.
+    const adminClient = createSupabaseAdminClient();
+    const { error: auditError } = await adminClient.from("attendance_audit").insert({
+      attendance_id: beforeRow.id,
+      changed_by: trainerId,
+      changed_by_type: "trainer",
+      previous_status: beforeRow.status,
+      new_status: entry.status,
+    });
+    if (auditError) {
+      return {
+        ok: false,
+        error: `Could not record the attendance change history: ${auditError.message}`,
+      };
+    }
+  }
+
+  return { ok: true, data: "corrected" };
+}
+
+export async function markMyAttendanceForSession(
+  batchId: string,
+  sessionId: string,
+  entries: AttendanceRosterEntry[],
+): Promise<DataResult<MyAttendanceMarkResult>> {
+  const session = await getMySession(batchId, sessionId);
+  if (!session.ok) return session;
+
+  const selected = entries.filter((entry) => entry.status !== undefined);
+  if (selected.length === 0)
+    return { ok: true, data: { marked: 0, corrected: 0, ignored: 0 } };
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const trainerId = await resolveMyTrainerId(supabase);
+    if (!trainerId.ok) return trainerId;
+
+    const enrollments = await supabase.rpc("trainer_visible_enrollments");
+    if (enrollments.error) throw enrollments.error;
+    type VisibleEnrollmentRow = {
+      enrollment_id: string;
+      student_id: string;
+      batch_id: string;
+    };
+    const studentIdByEnrollment = new Map(
+      (enrollments.data as VisibleEnrollmentRow[])
+        .filter((row) => row.batch_id === batchId)
+        .map((row) => [row.enrollment_id, row.student_id]),
+    );
+
+    const { data: existingRows, error: existingError } = await supabase
+      .from("attendance")
+      .select("id, enrollment_id, status, notes")
+      .eq("class_session_id", sessionId);
+    if (existingError) throw existingError;
+    const existingByEnrollment = new Map(
+      (
+        (existingRows ?? []) as Array<{
+          id: string;
+          enrollment_id: string;
+          status: AttendanceStatus;
+          notes: string | null;
+        }>
+      ).map((row) => [
+        row.enrollment_id,
+        { id: row.id, status: row.status, notes: row.notes },
+      ]),
+    );
+
+    const result: MyAttendanceMarkResult = { marked: 0, corrected: 0, ignored: 0 };
+    for (const entry of selected) {
+      const studentId = studentIdByEnrollment.get(entry.enrollmentId);
+      if (!studentId) {
+        result.ignored += 1;
+        continue;
+      }
+
+      const outcome = await upsertOneMyAttendanceRow(supabase, {
+        sessionId,
+        batchId,
+        studentId,
+        entry,
+        existing: existingByEnrollment.get(entry.enrollmentId),
+        trainerId: trainerId.data,
+      });
+      if (!outcome.ok) return outcome;
+      if (outcome.data === "marked") result.marked += 1;
+      else if (outcome.data === "corrected") result.corrected += 1;
+    }
+
+    return { ok: true, data: result };
+  } catch (error) {
+    return fail("Could not save attendance. Please try again.", error);
   }
 }

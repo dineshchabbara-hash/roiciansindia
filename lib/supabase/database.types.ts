@@ -170,7 +170,12 @@ export type Database = {
           student_id: string;
           batch_id: string;
           status: "present" | "absent" | "late" | "excused";
+          marked_by: string;
+          marked_by_type: "trainer" | "admin";
           marked_at: string;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["attendance"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["attendance"]["Row"]>;
@@ -180,6 +185,28 @@ export type Database = {
             columns: ["student_id"];
             isOneToOne: false;
             referencedRelation: "students";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      attendance_audit: {
+        Row: {
+          id: string;
+          attendance_id: string;
+          changed_by: string;
+          changed_by_type: "trainer" | "admin";
+          previous_status: string | null;
+          new_status: string | null;
+          changed_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["attendance_audit"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["attendance_audit"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "attendance_audit_attendance_id_fkey";
+            columns: ["attendance_id"];
+            isOneToOne: false;
+            referencedRelation: "attendance";
             referencedColumns: ["id"];
           },
         ];

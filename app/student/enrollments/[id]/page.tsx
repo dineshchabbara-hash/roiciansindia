@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EnrollmentStatusBadge } from "@/components/admin/enrollments/enrollment-status-badge";
 import { formatPaiseAsINR } from "@/lib/domain/money";
-import { getMyEnrollment } from "@/lib/data/student-portal";
+import { getMyEnrollment, getMyAttendanceForEnrollment } from "@/lib/data/student-portal";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +32,7 @@ export default async function StudentEnrollmentDetailPage({
   }
 
   const enrollment = result.data;
+  const attendanceResult = await getMyAttendanceForEnrollment(id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -78,6 +79,52 @@ export default async function StudentEnrollmentDetailPage({
             <p className="text-muted-foreground text-xs">Outstanding</p>
             <p className="font-medium">{formatPaiseAsINR(enrollment.outstandingPaise)}</p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Attendance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!attendanceResult.ok ? (
+            <p role="alert" className="text-destructive text-sm">
+              {attendanceResult.error}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-baseline gap-3">
+                <span className="text-2xl font-bold">
+                  {attendanceResult.data.summary?.attendancePercentage !== null &&
+                  attendanceResult.data.summary?.attendancePercentage !== undefined
+                    ? `${attendanceResult.data.summary.attendancePercentage}%`
+                    : "—"}
+                </span>
+                <span className="text-muted-foreground text-sm">
+                  {attendanceResult.data.summary
+                    ? `${attendanceResult.data.summary.totalSessions} session${attendanceResult.data.summary.totalSessions === 1 ? "" : "s"} recorded`
+                    : "No sessions recorded yet"}
+                </span>
+              </div>
+              {attendanceResult.data.records.length > 0 && (
+                <ul className="flex flex-col gap-2">
+                  {attendanceResult.data.records.map((record) => (
+                    <li
+                      key={record.id}
+                      className="flex items-center justify-between gap-3 border-b pb-2 text-sm last:border-0 last:pb-0"
+                    >
+                      <span className="min-w-0 truncate">
+                        {record.topic ?? record.sessionDate}
+                      </span>
+                      <span className="text-muted-foreground shrink-0 text-xs capitalize">
+                        {record.status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

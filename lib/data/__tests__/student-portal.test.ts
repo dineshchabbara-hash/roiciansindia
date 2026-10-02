@@ -24,6 +24,8 @@ import {
   getMyEnrollments,
   getMyEnrollment,
   getMyUpcomingClassSessions,
+  getMyAttendanceSummary,
+  getMyAttendanceForEnrollment,
 } from "@/lib/data/student-portal";
 import type { StudentSelfProfileInput } from "@/lib/validation/student-self-profile";
 
@@ -338,5 +340,131 @@ describe("getMyUpcomingClassSessions", () => {
 
     const result = await getMyUpcomingClassSessions(5);
     expect(result).toEqual({ ok: true, data: [] });
+  });
+});
+
+describe("getMyAttendanceSummary", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads student_attendance_summary with no extra filter — RLS (attendance_select_own) does the scoping", async () => {
+    const summaryBuilder = makeBuilder({
+      data: [
+        {
+          enrollment_id: "enr-1",
+          total_sessions: 10,
+          present_count: 8,
+          absent_count: 1,
+          late_count: 1,
+          excused_count: 0,
+          attendance_percentage: 90,
+        },
+      ],
+      error: null,
+    });
+    mockSupabase({ fromTable: { student_attendance_summary: summaryBuilder } });
+
+    const result = await getMyAttendanceSummary();
+
+    expect(result).toEqual({
+      ok: true,
+      data: [
+        {
+          enrollmentId: "enr-1",
+          totalSessions: 10,
+          presentCount: 8,
+          absentCount: 1,
+          lateCount: 1,
+          excusedCount: 0,
+          attendancePercentage: 90,
+        },
+      ],
+    });
+  });
+});
+
+describe("getMyAttendanceForEnrollment", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("re-verifies ownership via getMyEnrollment before reading any attendance row", async () => {
+    const studentsBuilder = makeBuilder({ data: { id: "student-1" }, error: null });
+    const enrollmentsBuilder = makeBuilder({ data: null, error: null });
+    mockSupabase({
+      fromTable: { students: studentsBuilder, enrollments: enrollmentsBuilder },
+    });
+
+    const result = await getMyAttendanceForEnrollment("someone-elses-enrollment-id");
+    expect(result).toEqual({ ok: false, error: "Enrollment not found." });
+  });
+
+  it("returns the summary and per-session records, with no notes/marked_by fields exposed", async () => {
+    const studentsBuilder = makeBuilder({ data: { id: "student-1" }, error: null });
+    const enrollmentsBuilder = makeBuilder({ data: enrollmentJoinRow(), error: null });
+    const summaryBuilder = makeBuilder({
+      data: {
+        enrollment_id: "enr-1",
+        total_sessions: 2,
+        present_count: 1,
+        absent_count: 1,
+        late_count: 0,
+        excused_count: 0,
+        attendance_percentage: 50,
+      },
+      error: null,
+    });
+    const attendanceBuilder = makeBuilder({
+      data: [
+        {
+          id: "att-1",
+          status: "present",
+          class_session: { session_date: "2026-09-02", topic: "Intro" },
+        },
+        {
+          id: "att-2",
+          status: "absent",
+          class_session: { session_date: "2026-09-01", topic: null },
+        },
+      ],
+      error: null,
+    });
+    mockSupabase({
+      fromTable: {
+        students: studentsBuilder,
+        enrollments: enrollmentsBuilder,
+        student_attendance_summary: summaryBuilder,
+        attendance: attendanceBuilder,
+      },
+    });
+    vi.mocked(getEnrollmentFinancialSummary).mockResolvedValue({
+      ok: true,
+      data: {
+        totalPayablePaise: 1_000_000,
+        totalPaidPaise: 0,
+        totalRefundedPaise: 0,
+        outstandingPaise: 1_000_000,
+      },
+    });
+
+    const result = await getMyAttendanceForEnrollment("enr-1");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.summary).toEqual({
+      enrollmentId: "enr-1",
+      totalSessions: 2,
+      presentCount: 1,
+      absentCount: 1,
+      lateCount: 0,
+      excusedCount: 0,
+      attendancePercentage: 50,
+    });
+    // Sorted by session date descending; no `notes`/`marked_by` keys at all.
+    expect(result.data.records).toEqual([
+      { id: "att-1", sessionDate: "2026-09-02", topic: "Intro", status: "present" },
+      { id: "att-2", sessionDate: "2026-09-01", topic: null, status: "absent" },
+    ]);
+    for (const record of result.data.records) {
+      expect(record).not.toHaveProperty("notes");
+      expect(record).not.toHaveProperty("markedBy");
+    }
   });
 });
