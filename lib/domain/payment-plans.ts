@@ -28,6 +28,16 @@
  * there is no separate "does the submitted total match the installments"
  * validation to invent (IMPLEMENTATION_PLAN.md §11's own warning against
  * guessing a total-matching formula) — the total simply IS the sum, always.
+ *
+ * Pre-acceptance review correction (see DECISIONS_NEEDED.md / IMPLEMENTATION_
+ * PLAN.md Phase 14 note): no primary source defines a timezone, date
+ * boundary, overdue threshold, or grace period for "overdue" — the CHECK
+ * constraint and FR-96 only establish it as an *allowed* status value, not
+ * when to assign it. `deriveInstallmentDisplayStatus` therefore never
+ * derives 'overdue' automatically; an unpaid installment on or past its due
+ * date reads as 'due' (payment awaited, no threshold judgment claimed).
+ * 'overdue' remains a valid `InstallmentStatus` for a future phase that
+ * defines the missing rule explicitly.
  */
 
 export const INSTALLMENT_STATUSES = [
@@ -67,8 +77,11 @@ export function deriveInstallmentDisplayStatus(installment: {
 
   if (amountPaidPaise >= amountPaise && amountPaise > 0) return "paid";
   if (amountPaidPaise > 0) return "partially_paid";
-  if (dueDate < today) return "overdue";
-  if (dueDate === today) return "due";
+
+  // No primary source defines an "overdue" threshold/timezone/grace period
+  // (see the module comment) — an unpaid installment on or past its due
+  // date is reported as 'due', never an invented 'overdue' judgment.
+  if (dueDate <= today) return "due";
   return "upcoming";
 }
 

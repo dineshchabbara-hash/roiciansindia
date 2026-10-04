@@ -320,16 +320,27 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   Phase 14 began (provisioned alongside the rest of the schema in Phase 2) —
   Phase 14 is the application layer on top, the same relationship Phase 12
   had to `class_sessions` and Phase 13 had to `attendance`. Status is mostly
-  *derived* on read (due/overdue/upcoming from the due date, partially_paid/
-  paid from `amount_paid_cache` once a future phase's payment posts), per
-  this FR's own co-location with FR-91's "balances are never edited
-  directly" principle — `waived` is the one status value this phase ever
-  writes explicitly, since no formula can derive an Admin's decision to
-  forgive an installment. `payment_plans.total_amount` is likewise a
-  derived, server-recomputed cache (`sum(installments.amount)`), never a
-  submitted form field — see IMPLEMENTATION_PLAN.md's Phase 14 note for the
-  full reasoning. `programs.installments_allowed` (defined in Phase 2,
-  never enforced before now) gates growing a plan past one line.)
+  *derived* on read (due/upcoming from the due date, partially_paid/paid
+  from `amount_paid_cache` once a future phase's payment posts), per this
+  FR's own co-location with FR-91's "balances are never edited directly"
+  principle — `waived` is the one status value this phase ever writes
+  explicitly, since no formula can derive an Admin's decision to forgive an
+  installment. Pre-acceptance review correction: `overdue` is listed here
+  as an *allowed* status value only — no primary source defines the
+  timezone/boundary/threshold/grace-period needed to derive it
+  automatically, so Phase 14 never assigns it; an unpaid installment past
+  its due date reads as `due`, and `overdue` is reserved for a future phase
+  that defines the missing rule explicitly. `payment_plans.total_amount` is
+  likewise a derived, server-recomputed cache (`sum(installments.amount)`),
+  never a submitted form field — see IMPLEMENTATION_PLAN.md's Phase 14 note
+  for the full reasoning, including why this is the least-invented of the
+  three possible readings of an otherwise-unspecified field.
+  `programs.installments_allowed` (defined in Phase 2, never enforced
+  before now) gates growing a plan past one line. Registration fee is not
+  modeled as a mandatory first installment line — that was this phase's
+  own over-read of a schema label example, corrected during pre-acceptance
+  review; Payment Plans are fully generic, and `registration_fee` stays an
+  Enrollment-level field, independent of any installment schedule.)
 - FR-97 (P2): Refund transactions link back to the original payment; original payment
   rows are never deleted or overwritten.
 

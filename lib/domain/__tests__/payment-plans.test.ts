@@ -58,7 +58,11 @@ describe("deriveInstallmentDisplayStatus", () => {
     ).toBe("partially_paid");
   });
 
-  it("returns 'overdue' when unpaid and past due date", () => {
+  it("returns 'due' (never an invented 'overdue') when unpaid and past due date", () => {
+    // No primary source (REQUIREMENTS.md/DATABASE_SCHEMA.md) defines an
+    // overdue timezone/threshold/grace period — only that 'overdue' is an
+    // allowed status value. Phase 14 does not invent that rule, so a past-
+    // due unpaid installment reads as 'due', not 'overdue'.
     expect(
       deriveInstallmentDisplayStatus({
         status: "upcoming",
@@ -67,7 +71,7 @@ describe("deriveInstallmentDisplayStatus", () => {
         amountPaidPaise: 0,
         today: "2026-01-01",
       }),
-    ).toBe("overdue");
+    ).toBe("due");
   });
 
   it("returns 'due' when unpaid and due today exactly", () => {
@@ -106,7 +110,7 @@ describe("deriveInstallmentDisplayStatus", () => {
         amountPaidPaise: 0,
         today: "2026-01-01",
       }),
-    ).toBe("overdue");
+    ).toBe("due");
   });
 });
 

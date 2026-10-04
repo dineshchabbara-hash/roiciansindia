@@ -11,8 +11,7 @@ import {
 const initialState: PaymentPlanFormState = {};
 
 /**
- * No plan exists yet for this Enrollment — a worked-example-shaped form
- * (IMPLEMENTATION_PLAN.md Phase 14 DoD: "registration + two installments"),
+ * No plan exists yet for this Enrollment — a generic installment-line form,
  * starting with one row and letting Admin add more client-side before
  * submit. Every row's label/amount/dueDate use plain repeated field names
  * (not array-bracket syntax), parsed server-side by
@@ -21,6 +20,11 @@ const initialState: PaymentPlanFormState = {};
  * components/admin/attendance/attendance-roster-form.tsx already
  * established. No totalAmount field: the plan total is always computed
  * server-side as the sum of these rows (lib/domain/payment-plans.ts).
+ *
+ * Label is free text with no default tied to row position — no primary
+ * source requires a "registration fee" line to exist, be first, or be
+ * auto-labeled (see IMPLEMENTATION_PLAN.md's Phase 14 note); Admin types
+ * whatever label fits each installment.
  */
 export function CreatePaymentPlanForm({ enrollmentId }: { enrollmentId: string }) {
   const boundAction = createPaymentPlanAction.bind(null, enrollmentId);
@@ -39,7 +43,7 @@ export function CreatePaymentPlanForm({ enrollmentId }: { enrollmentId: string }
           <li key={key} className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Input
               name="label"
-              placeholder={index === 0 ? "e.g. Registration" : `Installment ${index + 1}`}
+              placeholder={`Installment ${index + 1}`}
               className="sm:w-48"
               aria-label="Installment label"
             />

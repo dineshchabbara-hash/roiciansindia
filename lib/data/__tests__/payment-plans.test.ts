@@ -53,7 +53,7 @@ describe("getPaymentPlanForEnrollment", () => {
     expect(result).toEqual({ ok: true, data: null });
   });
 
-  it("maps installments to their derived display status, including waived and overdue", async () => {
+  it("maps installments to their derived display status, including waived and due (never an invented overdue)", async () => {
     const planMaybeSingle = vi.fn().mockResolvedValue({
       data: { id: "plan-1", enrollment_id: "enr-1", total_amount: "30000.00" },
       error: null,
@@ -92,7 +92,7 @@ describe("getPaymentPlanForEnrollment", () => {
     const result = await getPaymentPlanForEnrollment("enr-1");
     expect(result.ok).toBe(true);
     if (!result.ok || !result.data) return;
-    expect(result.data.installments[0].displayStatus).toBe("overdue");
+    expect(result.data.installments[0].displayStatus).toBe("due");
     expect(result.data.installments[0].editable).toBe(true);
     expect(result.data.installments[1].displayStatus).toBe("waived");
   });

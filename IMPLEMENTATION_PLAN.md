@@ -509,6 +509,22 @@ rule (the brief's own §11 warning against guessing a total-matching
 formula): there is nothing to validate, since the total is never
 independently submitted.
 
+**Pre-acceptance review re-verification:** `DATABASE_SCHEMA.md` lists
+`payment_plans.total_amount` only as `numeric(12,2) not null`, with no
+formula given (unlike `enrollments.total_payable`, whose formula §6 states
+explicitly) — so no primary source defines it as A) a derived total of
+installments, B) an independently agreed plan total, or C) a snapshot of
+`enrollments.total_payable`. Of these, (A) is the only option that avoids
+inventing either a second form field or a matching-validation rule, and it
+follows this codebase's own established cache-field precedent exactly —
+so it is kept as the least-destructive, least-invented interpretation.
+(B) would require Admin to type an independent total with no defined
+reconciliation rule against the lines (the exact guess the brief warned
+against); (C) would force every plan's total to equal the Enrollment's
+full `total_payable`, which is not stated anywhere and would wrongly
+forbid a plan that only schedules part of what's owed. No code change
+was needed for this item.
+
 Every mutation is its own small, independently-submittable action (create
 plan, add one installment, edit one installment, waive one installment,
 remove one installment), matching this codebase's established
@@ -523,13 +539,30 @@ phase's own DoD wording ("status derivation ... as a computed view rather
 than a manually maintained field where possible"): the stored `status`
 column stays at its DB default (`upcoming`) for every installment this
 phase creates, with exactly one status this phase ever writes explicitly —
-`waived`, an Admin business decision no formula can derive. `due`/
-`overdue`/`upcoming` are computed from `due_date` vs. the server's own
-current date; `partially_paid`/`paid` are computed from
-`amount_paid_cache`, which Phase 14 never writes to (structurally
-unreachable for a Phase-14-created installment until a real payment posts
-in Phase 15/16) — the derivation still handles them correctly once one
-does. An installment whose derived status is `paid` is never editable,
+`waived`, an Admin business decision no formula can derive.
+`partially_paid`/`paid` are computed from `amount_paid_cache`, which
+Phase 14 never writes to (structurally unreachable for a Phase-14-created
+installment until a real payment posts in Phase 15/16) — the derivation
+still handles them correctly once one does.
+
+**Pre-acceptance review correction:** the status CHECK constraint and
+FR-96 list `overdue` as an *allowed* status value, but neither
+`REQUIREMENTS.md`, `DATABASE_SCHEMA.md`, nor any other primary source
+defines a timezone, date boundary, overdue threshold, or grace period for
+when an installment actually becomes overdue — only that `due`/`upcoming`
+are allowed statuses was ever a safe inference. The original Phase 14
+build derived `overdue` automatically from a bare `due_date < today`
+string comparison; this was an invented rule the Phase 14 brief explicitly
+warned against ("do not implement overdue logic unless requirements
+define timezone/boundary/threshold/grace-period"). Corrected:
+`deriveInstallmentDisplayStatus` now computes only `due` (unpaid, due date
+on or before today) and `upcoming` (unpaid, due date in the future) from
+the date; it never assigns `overdue`. `overdue` remains a valid
+`InstallmentStatus` value — preserved in the type and the CHECK constraint
+— for a future phase that defines the missing rule explicitly, but Phase
+14 does not decide it.
+
+An installment whose derived status is `paid` is never editable,
 waivable, or removable (conservative: nothing in Phase 14 can produce that
 state, but a future phase's payment could, and mutating a fully-paid
 installment after the fact would desync it from the real payment it was
@@ -552,13 +585,32 @@ when the Enrollment's Program has it set to `false`; a single-line "full
 payment" plan is never gated by it (the flag's own name describes splitting
 into installments, not whether an Enrollment may have a plan at all).
 
-Registration fee is confirmed, from `DATABASE_SCHEMA.md` §90's own formula
+Registration fee is confirmed, from `DATABASE_SCHEMA.md` §6's own formula
 (`total_payable = agreed_fee - discount_amount + registration_fee +
-tax_amount`), to already be part of `total_payable` — not a separate,
-immediately-due concept — so the brief's own worked example ("₹10,000
-registration + two ₹20,000 installments") is modeled as a 3-line plan where
-the registration fee is simply installment #1, not a distinct field or
-table.
+tax_amount`), to already be part of `total_payable` on the Enrollment
+itself — not a separate, immediately-due concept.
+
+**Pre-acceptance review correction:** the original Phase 14 build went
+further than this and modeled the brief's own worked example ("₹10,000
+registration + two ₹20,000 installments") as a requirement that an
+installment schedule's first line must represent the registration fee —
+reflected in a UI placeholder hint ("e.g. Registration" on row 1 only) and
+in this document's own prior wording ("registration is simply
+installment #1"). On re-inspection, no primary source (`REQUIREMENTS.md`,
+`DATABASE_SCHEMA.md`, this plan's own DoD text) actually requires this:
+`registration_fee` being part of `total_payable` says nothing about
+whether, or how, it should also appear as an installment line, and
+`DATABASE_SCHEMA.md`'s `installments.label` comment ("e.g. 'Registration',
+'Installment 1'") is only an illustration of free-text label values, not a
+rule that row 1 must be a registration line. Classification: **C —
+merely inferred from an example**, not explicitly required. Corrected:
+Payment Plans are fully generic — every installment row's label, amount,
+and due date are entirely Admin-defined with no position-dependent
+default or assumption. The create-plan form's placeholder text is now the
+same neutral `Installment {n}` for every row, including the first. Admin
+remains free to label a row "Registration" (or anything else) if that
+fits their process — that is ordinary free-text labeling, not application
+logic. `registration_fee` on the Enrollment itself is unchanged.
 
 FR-31 (Confirmed Unpaid Fees / outstanding-balance sign behavior) remains
 the same unresolved discrepancy flagged during Phase 9 — see this phase's
