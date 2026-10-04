@@ -7,6 +7,7 @@ import { EnrollmentStatusBadge } from "@/components/admin/enrollments/enrollment
 import { EnrollmentStatusControl } from "@/components/admin/enrollments/enrollment-status-control";
 import { EnrollmentBatchAssignmentControl } from "@/components/admin/enrollments/enrollment-batch-assignment-control";
 import { EnrollmentFinancialSummaryCard } from "@/components/admin/enrollments/enrollment-financial-summary-card";
+import { PaymentPlanCard } from "@/components/admin/payment-plans/payment-plan-card";
 import { formatDecimalAsINR } from "@/lib/domain/money";
 import {
   getBatchOptionsForEnrollment,
@@ -14,6 +15,7 @@ import {
   getEnrollmentProfile,
   type BatchOption,
 } from "@/lib/data/enrollments";
+import { getPaymentPlanForEnrollment } from "@/lib/data/payment-plans";
 import { canAssignBatch, PAYMENT_PLAN_TYPES } from "@/lib/domain/enrollments";
 
 // Same friendly display text as components/admin/enrollments/enrollment-form.tsx
@@ -62,6 +64,25 @@ async function FinancialSection({
     );
   }
   return <EnrollmentFinancialSummaryCard summary={result.data} />;
+}
+
+async function PaymentPlanSection({ enrollmentId }: { enrollmentId: string }) {
+  const result = await getPaymentPlanForEnrollment(enrollmentId);
+  if (!result.ok) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment Plan</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p role="alert" className="text-destructive text-sm">
+            {result.error}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  return <PaymentPlanCard enrollmentId={enrollmentId} plan={result.data} />;
 }
 
 export default async function EnrollmentProfilePage({
@@ -206,6 +227,10 @@ export default async function EnrollmentProfilePage({
           enrollmentId={enrollment.id}
           totalPayable={enrollment.totalPayable}
         />
+      </Suspense>
+
+      <Suspense fallback={<SectionSkeleton />}>
+        <PaymentPlanSection enrollmentId={enrollment.id} />
       </Suspense>
     </div>
   );

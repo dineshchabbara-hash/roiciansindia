@@ -81,11 +81,40 @@ never-resetting sequence across all years (e.g. `REC-000001`, `REC-000002`, …
 indefinitely) — both are legitimate business choices and this only needs
 confirming before Phase 16 (Receipts).
 
+### D8. Outstanding-balance refund sign (FR-31) — confirm which direction is correct
+
+`REQUIREMENTS.md` FR-31 was previously listed below as "resolved with a stated
+engineering default," but re-inspection during Phase 14 found that the
+resolution text is internally inconsistent, not actually settled. FR-31's own
+prose reads `total payable − sum(valid payments) − sum(approved
+refunds/credits)` (a refund *further reduces* what's owed), but the `§91`
+logic it cites as its source, in `DATABASE_SCHEMA.md`, actually computes
+`outstanding_balance = total_payable − (valid_payments_sum −
+approved_refunds_sum)` — algebraically `total_payable − payments + refunds`
+(a refund *adds back* to what's owed, since it reverses a payment). The
+actual code (`lib/domain/dashboard-metrics.ts`) implements the second
+version, backed by an existing unit test that cites "the Phase 2
+verification report" as its own authority.
+
+**Default in effect today:** the second interpretation (refund adds back to
+outstanding — the standard accounting reading: a refunded payment no longer
+counts as paid, so the amount is owed again). No phase through Phase 14 has
+changed this or depends on changing it — Payment Plans (Phase 14) never
+touch this formula at all. **Needed from you:** confirm the second
+interpretation is correct (in which case FR-31's own prose sentence should
+be corrected to match its own cited source), or tell us the first
+interpretation was actually intended (in which case the code and its
+existing test both need to change) — either way this is a one-line fix once
+confirmed, but nobody should make that call silently. Not urgent before any
+phase through 16 (Receipts) unless real refund volume starts making the
+distinction financially visible sooner.
+
 ---
 
 Everything else in the original brief — including all items the brief itself
 flagged as ambiguous (Student ID format, Enrollment ID format, email-uniqueness
-handling, amount-paid/outstanding-balance derivation, program-module structure,
-trainer-multiplicity modeling, invoice-vs-receipt separation) — has been resolved
-with a stated engineering default in `REQUIREMENTS.md` §7 and does not require
-your input to begin implementation.
+handling, program-module structure, trainer-multiplicity modeling,
+invoice-vs-receipt separation) — has been resolved with a stated engineering
+default in `REQUIREMENTS.md` §7 and does not require your input to begin
+implementation. (Amount-paid/outstanding-balance derivation is no longer
+listed here as settled — see D8 above.)

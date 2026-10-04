@@ -97,6 +97,26 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 - FR-31 (P0): Outstanding balance is **derived**, not stored as a freely-editable
   number: `total payable − sum(valid payments) − sum(approved refunds/credits)`. See
   §91 logic, reproduced in `DATABASE_SCHEMA.md`.
+  (UNRESOLVED DISCREPANCY, flagged during Phase 9, re-confirmed during Phase
+  14 review, not fixed by either: this sentence's own refund term — "−
+  sum(approved refunds/credits)", i.e. a refund *further reduces*
+  outstanding — does not match the §91 formula it cites as its source.
+  `DATABASE_SCHEMA.md` §91 actually gives `amount_paid = valid_payments_sum
+  − approved_refunds_sum` then `outstanding_balance = total_payable −
+  amount_paid`, which algebraically is `total_payable − valid_payments_sum
+  + approved_refunds_sum` — a refund *adds back* to outstanding (the
+  standard "a refund reverses a payment, so the amount owed goes back up"
+  interpretation). The actual code
+  (`lib/domain/dashboard-metrics.ts`'s `computeOutstandingFeesPaise`) matches
+  §91, not this sentence, and is covered by an existing unit test that cites
+  "the Phase 2 verification report" as its own source of truth — two of the
+  three sources agree with each other; only this sentence disagrees with the
+  section it names as its own source. This reads as a drafting error in this
+  sentence, not a code defect, but per explicit instruction it is documented
+  here rather than silently "corrected." No phase through Phase 14 has
+  touched `amount_paid_cache`/`outstanding_balance_cache`/this formula — an
+  explicit product decision on the correct sign is still needed before any
+  future phase relies on it more heavily than Phase 9/10 already do.)
 - FR-32 (P0): A student can hold many enrollments; enrollments are never merged into
   a single "profile balance."
 
@@ -273,6 +293,13 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 ### 2.10 Payments
 - FR-90 (P0): Payment types: registration fee, full payment, installment, partial,
   online (Razorpay), offline (admin-recorded), refund (tracked, P1/P2 execution).
+  (Phase 14 implementation note: this phase builds only the *planned*
+  schedule the "registration fee"/"installment" types above will eventually
+  post against — `payment_plans`/`installments`, pre-existing schema with no
+  prior application code reading or writing either table. Actual payment
+  transactions of any of these types are explicitly Phase 15/16 scope; Phase
+  14 never inserts into `payments`, only reads it once, by exact
+  `installment_id`, to check whether an installment is safe to hard-delete.)
 - FR-91 (P0): Payment record is an **immutable transaction row** (see §21/§90 fields);
   balances are never edited directly — only new payment/refund rows change them.
 - FR-92 (P0): Razorpay order creation is server-side; amount is always re-derived
@@ -288,6 +315,21 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   `MAX(x)+1` read-then-write).
 - FR-96 (P1): Configurable installment plans per enrollment (amount, due date,
   status: Upcoming/Due/Partially Paid/Paid/Overdue/Waived).
+  (Phase 14 implementation note: the `payment_plans`/`installments` tables
+  and their status CHECK constraint already matched this FR exactly before
+  Phase 14 began (provisioned alongside the rest of the schema in Phase 2) —
+  Phase 14 is the application layer on top, the same relationship Phase 12
+  had to `class_sessions` and Phase 13 had to `attendance`. Status is mostly
+  *derived* on read (due/overdue/upcoming from the due date, partially_paid/
+  paid from `amount_paid_cache` once a future phase's payment posts), per
+  this FR's own co-location with FR-91's "balances are never edited
+  directly" principle — `waived` is the one status value this phase ever
+  writes explicitly, since no formula can derive an Admin's decision to
+  forgive an installment. `payment_plans.total_amount` is likewise a
+  derived, server-recomputed cache (`sum(installments.amount)`), never a
+  submitted form field — see IMPLEMENTATION_PLAN.md's Phase 14 note for the
+  full reasoning. `programs.installments_allowed` (defined in Phase 2,
+  never enforced before now) gates growing a plan past one line.)
 - FR-97 (P2): Refund transactions link back to the original payment; original payment
   rows are never deleted or overwritten.
 

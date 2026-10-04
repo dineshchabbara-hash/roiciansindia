@@ -58,3 +58,6 @@ run_sql "${REPO_ROOT}/supabase/tests/phase12_class_sessions_test.sql"
 
 echo "Running Phase 13 (Attendance) regression assertions..."
 run_sql "${REPO_ROOT}/supabase/tests/phase13_attendance_test.sql"
+
+echo "Running Phase 14 (Payment Plans & Financial Engine) regression assertions..."
+run_sql "${REPO_ROOT}/supabase/tests/phase14_financial_engine_test.sql"

@@ -363,10 +363,13 @@ nothing more.
 
 ## Phase 13 — Attendance
 
-**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase13-attendance`, based
-off `main` at `91bb700` (the Phase 12 baseline). Not yet merged; awaiting
-manual Windows browser acceptance, then explicit approval, per the same gate
-Phase 10/11/12 went through.
+**Status:** COMPLETED — on `main` at `865bd3c`, pushed directly to `main`
+with no separate merge commit (same convention as Phase 11/12). Manual
+browser acceptance confirmed 13/13 passed (across several rounds of
+E2E-fixture-only fixes — a cleanup-ordering gap in the UI-driven mark/
+correct tests, a Student dashboard locator fix — none touching application
+behavior); synthetic E2E test data cleanup verified via a dedicated
+read-only audit script before publishing to main.
 
 **Scope:** Attendance marking UI (Trainer, scoped to assigned batch + session),
 Admin override, attendance percentage view/computation, attendance audit trail
@@ -453,6 +456,11 @@ explicitly Phase 14+ and untouched.
 
 ## Phase 14 — Payment Plans / Installments
 
+**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase14-financial-engine`,
+based off `main` at `865bd3c` (the Phase 13 baseline). Not yet merged;
+awaiting manual Windows browser acceptance, then explicit approval, per the
+same gate Phase 10/11/12/13 went through.
+
 **Scope:** Admin configures a payment plan (full or installment) per enrollment;
 installment CRUD (amount/due date), status derivation
 (Upcoming/Due/Partially Paid/Paid/Overdue/Waived) as a computed view rather than
@@ -463,6 +471,103 @@ a manually maintained field where possible.
 **DoD:** An enrollment can be configured with the brief's own worked example
 (₹10,000 registration + two ₹20,000 installments) and the plan displays correctly
 in both Admin and (read-only) Student views.
+
+(Phase 14 implementation note: the `payment_plans` and `installments` tables,
+their status CHECK constraint, and every RLS policy this phase relies on
+(payment_plans_select_admin/select_own/write_admin/update_admin/delete_admin,
+installments_select_admin/select_own/write_admin/update_admin/delete_admin —
+20260101000014_rls_policies.sql) already existed, provisioned ahead of
+schedule alongside the rest of the schema — Phase 14 is the first phase to
+actually write to either table and is purely an application-layer build on
+top of unchanged, pre-existing security, the same relationship Phase 12 had
+to `class_sessions` and Phase 13 had to `attendance`. No new migration was
+added. There is zero Trainer RLS policy on either table (confirmed by direct
+inspection, not an oversight) — Trainer has no financial access at all,
+matching `USER_ROLES_AND_PERMISSIONS.md`'s explicit "never fee, discount,
+payment, or outstanding-balance data."
+
+Delivered: a "Payment Plan" card on the existing `/admin/enrollments/[id]`
+page (no new route — Payment Plan is a section of the Enrollment detail
+page, not a standalone area) with a create form when no plan exists yet, and
+per-installment edit/waive/remove controls plus an "add installment" form
+once one does; a read-only "Payment Plan" card on the existing
+`/student/enrollments/[id]` page showing the Student's own installment
+schedule. `/admin/payments` (a separate, pre-existing `ComingSoon`
+placeholder — a cross-enrollment payments overview, a different feature)
+was found during requirements review and deliberately left untouched, the
+same precedent as `/admin/attendance` during Phase 13.
+
+`payment_plans.total_amount` is treated as a derived, server-maintained
+cache — never a field Admin edits directly — recomputed from
+`sum(installments.amount)` after every installment create/edit/remove
+(`lib/data/payment-plans.ts`'s own `recomputePlanTotal`), the same
+"never let a cache drift from its source rows" discipline
+`enrollments.amount_paid_cache`/`outstanding_balance_cache` already use
+elsewhere in this codebase. This also resolves what would otherwise be an
+invented "does the submitted total match the sum of installments" business
+rule (the brief's own §11 warning against guessing a total-matching
+formula): there is nothing to validate, since the total is never
+independently submitted.
+
+Every mutation is its own small, independently-submittable action (create
+plan, add one installment, edit one installment, waive one installment,
+remove one installment), matching this codebase's established
+one-control-per-form convention (`EnrollmentStatusControl`,
+`EnrollmentBatchAssignmentControl`) rather than one large multi-row form —
+this also avoids an HTML nested-`<form>` problem a single "edit everything"
+form would have created for the per-row Waive/Remove buttons.
+
+Installment status is mostly derived on read
+(`lib/domain/payment-plans.ts`'s `deriveInstallmentDisplayStatus`), per this
+phase's own DoD wording ("status derivation ... as a computed view rather
+than a manually maintained field where possible"): the stored `status`
+column stays at its DB default (`upcoming`) for every installment this
+phase creates, with exactly one status this phase ever writes explicitly —
+`waived`, an Admin business decision no formula can derive. `due`/
+`overdue`/`upcoming` are computed from `due_date` vs. the server's own
+current date; `partially_paid`/`paid` are computed from
+`amount_paid_cache`, which Phase 14 never writes to (structurally
+unreachable for a Phase-14-created installment until a real payment posts
+in Phase 15/16) — the derivation still handles them correctly once one
+does. An installment whose derived status is `paid` is never editable,
+waivable, or removable (conservative: nothing in Phase 14 can produce that
+state, but a future phase's payment could, and mutating a fully-paid
+installment after the fact would desync it from the real payment it was
+paid against).
+
+Hard delete of an installment IS exposed in the UI — the one deliberate
+exception to this codebase's otherwise-conservative no-hard-delete
+precedent (Phase 12's `class_sessions`, Phase 13's `attendance`): an unpaid
+installment has no financial history to lose (nothing in `payments` can
+reference it yet, by definition of "unpaid"), so removing it destroys a
+draft schedule line, not a transaction record — checked by exact id against
+the real `payments` table before every delete, never inferred from status
+alone. Hard delete of the plan itself is NOT exposed (RLS permits it at
+`payment_plans_delete_admin`, but nothing in the UI calls it).
+
+`programs.installments_allowed` — a pre-existing flag Phase 9 defined but
+never enforced anywhere — is read and enforced for the first time here:
+creating or growing a plan to more than one installment line is blocked
+when the Enrollment's Program has it set to `false`; a single-line "full
+payment" plan is never gated by it (the flag's own name describes splitting
+into installments, not whether an Enrollment may have a plan at all).
+
+Registration fee is confirmed, from `DATABASE_SCHEMA.md` §90's own formula
+(`total_payable = agreed_fee - discount_amount + registration_fee +
+tax_amount`), to already be part of `total_payable` — not a separate,
+immediately-due concept — so the brief's own worked example ("₹10,000
+registration + two ₹20,000 installments") is modeled as a 3-line plan where
+the registration fee is simply installment #1, not a distinct field or
+table.
+
+FR-31 (Confirmed Unpaid Fees / outstanding-balance sign behavior) remains
+the same unresolved discrepancy flagged during Phase 9 — see this phase's
+completion report for the full triangulation across `REQUIREMENTS.md`,
+`DATABASE_SCHEMA.md`, and the actual code. Phase 14 never reads or writes
+`amount_paid_cache`/`outstanding_balance_cache`/the outstanding-balance
+formula at all — Payment Plans are a planned schedule, entirely separate
+from the actual-payments arithmetic FR-31 concerns — so this phase neither
+resolves nor depends on resolving it.)
 
 ## Phase 15 — Razorpay Integration
 

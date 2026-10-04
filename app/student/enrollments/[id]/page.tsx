@@ -2,7 +2,12 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EnrollmentStatusBadge } from "@/components/admin/enrollments/enrollment-status-badge";
 import { formatPaiseAsINR } from "@/lib/domain/money";
-import { getMyEnrollment, getMyAttendanceForEnrollment } from "@/lib/data/student-portal";
+import {
+  getMyEnrollment,
+  getMyAttendanceForEnrollment,
+  getMyPaymentPlanForEnrollment,
+} from "@/lib/data/student-portal";
+import { StudentPaymentPlanCard } from "@/components/student/student-payment-plan-card";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +38,7 @@ export default async function StudentEnrollmentDetailPage({
 
   const enrollment = result.data;
   const attendanceResult = await getMyAttendanceForEnrollment(id);
+  const paymentPlanResult = await getMyPaymentPlanForEnrollment(id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -127,6 +133,21 @@ export default async function StudentEnrollmentDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {paymentPlanResult.ok ? (
+        <StudentPaymentPlanCard plan={paymentPlanResult.data} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment Plan</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p role="alert" className="text-destructive text-sm">
+              {paymentPlanResult.error}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

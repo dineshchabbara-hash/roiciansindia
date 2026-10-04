@@ -16,8 +16,17 @@ vi.mock("@/lib/data/enrollments", () => ({
   getEnrollmentFinancialSummary: vi.fn(),
 }));
 
+// getPaymentPlanForEnrollment has its own dedicated unit tests
+// (lib/data/__tests__/payment-plans.test.ts) — mocked here so these tests
+// only exercise this module's own ownership-scoping and trimmed-projection
+// logic, not the plan/installment query internals.
+vi.mock("@/lib/data/payment-plans", () => ({
+  getPaymentPlanForEnrollment: vi.fn(),
+}));
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getEnrollmentFinancialSummary } from "@/lib/data/enrollments";
+import { getPaymentPlanForEnrollment } from "@/lib/data/payment-plans";
 import {
   getMyStudentProfile,
   updateMyStudentProfile,
@@ -26,6 +35,7 @@ import {
   getMyUpcomingClassSessions,
   getMyAttendanceSummary,
   getMyAttendanceForEnrollment,
+  getMyPaymentPlanForEnrollment,
 } from "@/lib/data/student-portal";
 import type { StudentSelfProfileInput } from "@/lib/validation/student-self-profile";
 
@@ -465,6 +475,85 @@ describe("getMyAttendanceForEnrollment", () => {
     for (const record of result.data.records) {
       expect(record).not.toHaveProperty("notes");
       expect(record).not.toHaveProperty("markedBy");
+    }
+  });
+});
+
+describe("getMyPaymentPlanForEnrollment", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("re-verifies ownership via getMyEnrollment before reading any plan", async () => {
+    const studentsBuilder = makeBuilder({ data: { id: "student-1" }, error: null });
+    const enrollmentsBuilder = makeBuilder({ data: null, error: null });
+    mockSupabase({
+      fromTable: { students: studentsBuilder, enrollments: enrollmentsBuilder },
+    });
+
+    const result = await getMyPaymentPlanForEnrollment("someone-elses-enrollment-id");
+    expect(result).toEqual({ ok: false, error: "Enrollment not found." });
+    expect(getPaymentPlanForEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("returns null (not an error) when the enrollment has no plan yet", async () => {
+    const studentsBuilder = makeBuilder({ data: { id: "student-1" }, error: null });
+    const enrollmentsBuilder = makeBuilder({ data: enrollmentJoinRow(), error: null });
+    mockSupabase({
+      fromTable: { students: studentsBuilder, enrollments: enrollmentsBuilder },
+    });
+    vi.mocked(getPaymentPlanForEnrollment).mockResolvedValue({ ok: true, data: null });
+
+    const result = await getMyPaymentPlanForEnrollment("enr-1");
+    expect(result).toEqual({ ok: true, data: null });
+  });
+
+  it("returns a trimmed projection with no editable/storedStatus fields", async () => {
+    const studentsBuilder = makeBuilder({ data: { id: "student-1" }, error: null });
+    const enrollmentsBuilder = makeBuilder({ data: enrollmentJoinRow(), error: null });
+    mockSupabase({
+      fromTable: { students: studentsBuilder, enrollments: enrollmentsBuilder },
+    });
+    vi.mocked(getPaymentPlanForEnrollment).mockResolvedValue({
+      ok: true,
+      data: {
+        id: "plan-1",
+        enrollmentId: "enr-1",
+        totalAmount: "30000.00",
+        installments: [
+          {
+            id: "inst-1",
+            sequence: 1,
+            label: "Registration",
+            amount: "10000.00",
+            dueDate: "2026-01-01",
+            storedStatus: "upcoming",
+            displayStatus: "overdue",
+            editable: true,
+          },
+        ],
+      },
+    });
+
+    const result = await getMyPaymentPlanForEnrollment("enr-1");
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        id: "plan-1",
+        totalAmount: "30000.00",
+        installments: [
+          {
+            id: "inst-1",
+            sequence: 1,
+            label: "Registration",
+            amount: "10000.00",
+            dueDate: "2026-01-01",
+            status: "overdue",
+          },
+        ],
+      },
+    });
+    if (result.ok && result.data) {
+      expect(result.data.installments[0]).not.toHaveProperty("editable");
+      expect(result.data.installments[0]).not.toHaveProperty("storedStatus");
     }
   });
 });

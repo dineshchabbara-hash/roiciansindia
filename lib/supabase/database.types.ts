@@ -402,6 +402,13 @@ export type Database = {
           id: string;
           payment_code: string;
           enrollment_id: string;
+          // Added Phase 14 — the column already existed
+          // (20260101000007_payment_tables.sql) but this hand-authored type
+          // omitted it until a Phase 14 query needed it (see this file's own
+          // header comment: "extend this file as later phases read more
+          // tables"). Nullable, ON DELETE SET NULL — a payment is not
+          // required to be tied to a specific installment.
+          installment_id: string | null;
           total_amount: string;
           status:
             | "pending"
@@ -425,6 +432,13 @@ export type Database = {
             referencedRelation: "enrollments";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "payments_installment_id_fkey";
+            columns: ["installment_id"];
+            isOneToOne: false;
+            referencedRelation: "installments";
+            referencedColumns: ["id"];
+          },
         ];
       };
       payment_refunds: {
@@ -442,6 +456,51 @@ export type Database = {
             columns: ["payment_id"];
             isOneToOne: false;
             referencedRelation: "payments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payment_plans: {
+        Row: {
+          id: string;
+          enrollment_id: string;
+          total_amount: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["payment_plans"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["payment_plans"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "payment_plans_enrollment_id_fkey";
+            columns: ["enrollment_id"];
+            isOneToOne: true;
+            referencedRelation: "enrollments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      installments: {
+        Row: {
+          id: string;
+          payment_plan_id: string;
+          sequence: number;
+          label: string | null;
+          amount: string;
+          due_date: string;
+          status: "upcoming" | "due" | "partially_paid" | "paid" | "overdue" | "waived";
+          amount_paid_cache: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["installments"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["installments"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "installments_payment_plan_id_fkey";
+            columns: ["payment_plan_id"];
+            isOneToOne: false;
+            referencedRelation: "payment_plans";
             referencedColumns: ["id"];
           },
         ];

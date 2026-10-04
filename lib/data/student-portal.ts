@@ -3,6 +3,10 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DataResult } from "@/lib/data/dashboard";
 import { getEnrollmentFinancialSummary } from "@/lib/data/enrollments";
+import {
+  getPaymentPlanForEnrollment,
+  type PaymentPlanRow,
+} from "@/lib/data/payment-plans";
 import type { EnrollmentStatus } from "@/lib/domain/enrollments";
 import type { StudentSelfProfileInput } from "@/lib/validation/student-self-profile";
 
@@ -450,4 +454,56 @@ export async function getMyAttendanceForEnrollment(
   } catch (error) {
     return fail("Could not load attendance for this enrollment.", error);
   }
+}
+
+export type MyInstallmentRow = {
+  id: string;
+  sequence: number;
+  label: string | null;
+  amount: string;
+  dueDate: string;
+  status: PaymentPlanRow["installments"][number]["displayStatus"];
+};
+
+export type MyPaymentPlanRow = {
+  id: string;
+  totalAmount: string;
+  installments: MyInstallmentRow[];
+};
+
+// Same ownership re-check as getMyAttendanceForEnrollment above — RLS
+// (payment_plans_select_own/installments_select_own) already scopes this
+// independently, but this module never relies on RLS alone. Returns a
+// trimmed, Student-safe projection of lib/data/payment-plans.ts's own
+// PaymentPlanRow: no `editable`/`storedStatus` (internal fields with no
+// meaning for a Student, who can never mutate a plan — RLS grants Student
+// select-only on both tables), just what FR-43/FR-96 ask for: the
+// installment schedule with its computed status. `null` (no plan yet) is a
+// valid state, not an error — same convention as
+// getMyAttendanceForEnrollment's own `summary: null`.
+export async function getMyPaymentPlanForEnrollment(
+  enrollmentId: string,
+): Promise<DataResult<MyPaymentPlanRow | null>> {
+  const enrollment = await getMyEnrollment(enrollmentId);
+  if (!enrollment.ok) return enrollment;
+
+  const plan = await getPaymentPlanForEnrollment(enrollmentId);
+  if (!plan.ok) return plan;
+  if (!plan.data) return { ok: true, data: null };
+
+  return {
+    ok: true,
+    data: {
+      id: plan.data.id,
+      totalAmount: plan.data.totalAmount,
+      installments: plan.data.installments.map((i) => ({
+        id: i.id,
+        sequence: i.sequence,
+        label: i.label,
+        amount: i.amount,
+        dueDate: i.dueDate,
+        status: i.displayStatus,
+      })),
+    },
+  };
 }
