@@ -373,10 +373,16 @@ test.describe("Admin — Payment Plan management", () => {
     // proving a mutation actually persisted.
     await page.reload();
     await expect(paymentPlanCard.getByText("₹30,000.00")).toBeVisible();
-    await expect(
-      paymentPlanCard.getByText("Registration", { exact: true }),
-    ).toBeVisible();
-    await expect(paymentPlanCard.getByText("Installment 1")).toBeVisible();
+
+    // Each installment's label is rendered as an always-editable <Input>
+    // (components/admin/payment-plans/installment-row.tsx's own
+    // one-control-per-form design — the same contract test (C) below
+    // already exercises for the amount field via getByLabel(...).
+    // toHaveValue(...)), never as a plain text node, so getByText can
+    // never match it regardless of timing or data — confirmed by reading
+    // the component directly rather than assumed.
+    await expect(page.getByLabel("Label for installment 1")).toHaveValue("Registration");
+    await expect(page.getByLabel("Label for installment 2")).toHaveValue("Installment 1");
   });
 
   test("(C) Admin can edit an existing installment, and the edit persists", async ({
