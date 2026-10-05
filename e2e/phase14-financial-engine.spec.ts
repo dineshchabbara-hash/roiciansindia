@@ -134,6 +134,30 @@ async function loginAsStudent(page: Page, identity: Phase14StudentPortalIdentity
   await assertSessionPersisted(page);
 }
 
+// TEMPORARY diagnostics (same pattern as e2e/phase13-attendance.spec.ts's
+// own captureAttendanceSaveDiagnostics, used for exactly this reason during
+// the Phase 13 (G) investigation): two prior guesses at test (B)'s cause
+// (a mutation-settle race, then the fixture's Program eligibility) did not
+// resolve the failure — trace.zip/error-context.md are local to the
+// Windows machine only, so the actual rendered alert text has never
+// actually been read. This captures it directly instead of a third guess.
+// Remove once the real cause is confirmed from the next run's output.
+async function capturePaymentPlanSubmitDiagnostics(
+  page: Page,
+  label: string,
+): Promise<void> {
+  console.log(`[phase14-B-diagnostics] ${label} — URL:`, page.url());
+  const alertText = await page
+    .getByRole("alert")
+    .allTextContents()
+    .catch(() => []);
+  console.log(`[phase14-B-diagnostics] ${label} — alert role text(s):`, alertText);
+  console.log(
+    `[phase14-B-diagnostics] ${label} — BODY:`,
+    await page.locator("body").innerText(),
+  );
+}
+
 async function runCleanupSteps(
   steps: Array<{ label: string; run: () => Promise<Phase14DeleteResult> }>,
 ): Promise<void> {
@@ -348,10 +372,13 @@ test.describe("Admin — Payment Plan management", () => {
         .waitFor({ state: "hidden" }),
     ]);
 
-    // Surfaces a genuine rejection (e.g. the fixture's Program not
-    // permitting installments) as its own clear, immediate failure
+    await capturePaymentPlanSubmitDiagnostics(page, "(B) after create click");
+
+    // Surfaces a genuine rejection as its own clear, immediate failure
     // instead of the create form silently remaining and "₹30,000.00"
-    // never appearing after an unrelated-looking timeout.
+    // never appearing after an unrelated-looking timeout. See
+    // capturePaymentPlanSubmitDiagnostics above for the actual alert
+    // text/body this prints when it fails.
     await expect(page.getByRole("alert")).toHaveCount(0);
 
     await expect(paymentPlanCard.getByText("₹30,000.00")).toBeVisible();
