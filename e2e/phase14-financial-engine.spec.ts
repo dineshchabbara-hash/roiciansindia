@@ -329,6 +329,31 @@ test.describe("Admin — Payment Plan management", () => {
     });
 
     await page.getByRole("button", { name: "Create payment plan" }).click();
+
+    // The Server Action's full round trip (auth check, existing-plan
+    // check, installments_allowed check, plan insert, installments
+    // insert, audit log, revalidatePath's full page re-render) is
+    // several sequential real Supabase calls behind one click — the same
+    // "click() resolves long before the mutation+re-render settles" race
+    // class fd63d09 fixed for navigation. Waiting for a real DOM signal
+    // (the create form unmounting on success, or an error alert on a
+    // genuine rejection — e.g. installments_allowed=false on whichever
+    // Program the fixture happened to select) lets the mutation's own
+    // duration settle, using Playwright's longer default .waitFor()
+    // budget instead of racing it against the next assertion's 5000ms.
+    await Promise.race([
+      page.getByRole("alert").waitFor({ state: "visible" }),
+      page
+        .getByRole("button", { name: "Create payment plan" })
+        .waitFor({ state: "hidden" }),
+    ]);
+
+    // Surfaces a genuine rejection (e.g. the fixture's Program not
+    // permitting installments) as its own clear, immediate failure
+    // instead of the create form silently remaining and "₹30,000.00"
+    // never appearing after an unrelated-looking timeout.
+    await expect(page.getByRole("alert")).toHaveCount(0);
+
     await expect(paymentPlanCard.getByText("₹30,000.00")).toBeVisible();
 
     // Durable proof via an independent reload, not just the post-submit
@@ -356,6 +381,18 @@ test.describe("Admin — Payment Plan management", () => {
 
     const row = page.locator("li").filter({ has: amountField });
     await row.getByRole("button", { name: "Save" }).click();
+
+    // Same settle-before-assert reasoning as test (B) above: editInstallmentAction
+    // has the identical shape (auth check, editInstallment's own fetch +
+    // update + recomputePlanTotal, audit log, revalidatePath) behind one
+    // click. Unlike the create form, this row never unmounts on success,
+    // so the terminal signal is either the error alert or the edited
+    // amount itself actually landing — whichever happens first.
+    await Promise.race([
+      page.getByRole("alert").waitFor({ state: "visible" }),
+      page.getByText("₹12,000.00").waitFor({ state: "visible" }),
+    ]);
+    await expect(page.getByRole("alert")).toHaveCount(0);
 
     await expect(page.getByText("₹12,000.00")).toBeVisible();
 
