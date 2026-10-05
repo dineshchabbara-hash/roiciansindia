@@ -303,31 +303,46 @@ export type ExistingProgramWithBatch = {
   batchName: string;
 };
 
+// Pre-acceptance review correction: this used to pick the first existing
+// Batch/Program pair with no eligibility filter at all. That is safe for
+// every use except the Admin "create a plan" test's own 2-line submission
+// (components/admin/payment-plans/create-payment-plan-form.tsx's UI flow),
+// which lib/data/payment-plans.ts's own createPaymentPlanForEnrollment
+// correctly rejects with a formError whenever the chosen Program has
+// installments_allowed=false — proven the real cause of a live Windows
+// failure (a rendered alert, not a timeout) once the dev project's first
+// Batch by id happened to belong to such a Program. Filtering server-side
+// for installments_allowed=true (the same `!inner` embed + dot-filter
+// pattern lib/data/enrollments.ts's own FR-31 balance calculation already
+// uses against `payments`) makes every Phase 14 fixture caller use a
+// genuinely eligible Program — harmless for the Student describe block's
+// own direct-inserted single-line plans, which were never gated by this
+// flag either way. Never toggles the flag on real data; if no eligible
+// Program/Batch exists at all, this returns null and the existing caller
+// already throws a clear "No existing Batch was found" error rather than
+// silently using an ineligible one.
 export async function findExistingProgramWithBatch(): Promise<ExistingProgramWithBatch | null> {
   const supabase = adminClient();
   const { data: batches, error: batchesError } = await supabase
     .from("batches")
-    .select("id, name, program_id")
+    .select("id, name, program_id, program:programs!inner(name, installments_allowed)")
+    .eq("program.installments_allowed", true)
     .order("id", { ascending: true })
     .limit(1);
   if (batchesError) {
     throw new Error(`Could not look up an existing batch: ${batchesError.message}`);
   }
-  const rows = (batches ?? []) as Array<{ id: string; name: string; program_id: string }>;
+  const rows = (batches ?? []) as unknown as Array<{
+    id: string;
+    name: string;
+    program_id: string;
+    program: { name: string; installments_allowed: boolean } | null;
+  }>;
   if (rows.length < 1) return null;
-
-  const { data: program, error: programError } = await supabase
-    .from("programs")
-    .select("id, name")
-    .eq("id", rows[0].program_id)
-    .maybeSingle();
-  if (programError) {
-    throw new Error(`Could not look up the batch's program: ${programError.message}`);
-  }
 
   return {
     programId: rows[0].program_id,
-    programName: program?.name ?? "",
+    programName: rows[0].program?.name ?? "",
     batchId: rows[0].id,
     batchName: rows[0].name,
   };
