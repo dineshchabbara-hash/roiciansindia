@@ -112,6 +112,15 @@ async function assertSessionPersisted(page: Page) {
 async function loginAsAdmin(page: Page, identity: Phase14AdminIdentity) {
   await login(page, "/login/admin", identity.email, identity.password);
   await expect(page).toHaveURL(/\/admin$/);
+  // The URL updates as soon as Next's client router applies the sign-in
+  // Server Action's redirect() — it does not mean the destination route's
+  // own authenticated server render (an RSC Promise.all of several data
+  // calls, with no Suspense boundary) has finished and reached the browser.
+  // Waiting for the page's own 'load' event here (a real, unbounded-by-the-
+  // next-assertion's-5s-budget signal) before polling for the heading keeps
+  // that render's full duration from having to fit inside the heading
+  // check's own default timeout.
+  await page.waitForLoadState("load");
   await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
   await assertSessionPersisted(page);
 }
@@ -119,6 +128,8 @@ async function loginAsAdmin(page: Page, identity: Phase14AdminIdentity) {
 async function loginAsStudent(page: Page, identity: Phase14StudentPortalIdentity) {
   await login(page, "/login/student", identity.email, identity.password);
   await expect(page).toHaveURL(/\/student$/);
+  // Same reasoning as loginAsAdmin above.
+  await page.waitForLoadState("load");
   await expect(page.getByRole("heading", { name: /^Welcome/, level: 1 })).toBeVisible();
   await assertSessionPersisted(page);
 }
