@@ -284,8 +284,20 @@ test.describe("Admin — Payment Plan management", () => {
     await loginAsAdmin(page, admin);
     await page.goto(`/admin/enrollments/${enrollmentForCreateId}`);
 
-    await expect(page.getByRole("heading", { name: "Payment Plan" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create payment plan" })).toBeVisible();
+    // "Payment Plan" is a shadcn CardTitle (components/ui/card.tsx renders
+    // it as a plain <div data-slot="card-title">, with no implicit ARIA
+    // heading role) — getByRole("heading", ...) can never match it,
+    // regardless of timing or data. Scoped to the card itself, the same
+    // established idiom test (B)/(C) below already use and every other
+    // Card-section assertion in this codebase relies on; getByRole is
+    // reserved for actual page-level <h1> elements (Dashboard/Welcome).
+    const paymentPlanCard = page.locator('[data-slot="card"]').filter({
+      has: page.locator('[data-slot="card-title"]:text-is("Payment Plan")'),
+    });
+    await expect(paymentPlanCard).toBeVisible();
+    await expect(
+      paymentPlanCard.getByRole("button", { name: "Create payment plan" }),
+    ).toBeVisible();
   });
 
   test("(B) Admin can create a payment plan through the UI, and the total persists", async ({
@@ -466,7 +478,11 @@ test.describe("Student — Payment Plan visibility", () => {
     const paymentPlanCard = page.locator('[data-slot="card"]').filter({
       has: page.locator('[data-slot="card-title"]:text-is("Payment Plan")'),
     });
-    await expect(page.getByRole("heading", { name: "Payment Plan" })).toBeVisible();
+    // Same correction as test (A) above: "Payment Plan" is a CardTitle
+    // (a plain div, no ARIA heading role) on the Student card too
+    // (components/student/student-payment-plan-card.tsx) — assert the
+    // scoped card itself, not a nonexistent heading role.
+    await expect(paymentPlanCard).toBeVisible();
     await expect(paymentPlanCard.getByText("₹20,000.00")).toBeVisible();
     await expect(
       paymentPlanCard.getByText("Registration", { exact: true }),
