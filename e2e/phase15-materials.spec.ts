@@ -265,7 +265,27 @@ async function clickViewAndVerifySignedFile(
   const url = response.url();
   expect(response.status(), `signed URL request failed: ${url}`).toBe(200);
   expect(response.headers()["content-type"] ?? "").toContain("application/pdf");
-  const body = await response.body();
+
+  // Root-caused against a second real Windows run: response.body() reads
+  // the buffered body via CDP's Network.getResponseBody, which requires
+  // Chromium to still hold that resource in its network cache. For a
+  // NAVIGATION response specifically (as opposed to a subresource fetch/
+  // XHR), Chromium can evict or hand off the resource — e.g. to its
+  // internal PDF viewer, the same handoff this helper's own header comment
+  // already documents — before the body becomes retrievable that way,
+  // producing "Protocol error (Network.getResponseBody): No resource with
+  // given identifier found" even though status/content-type above (read
+  // from response metadata, not the body) succeeded. A separate,
+  // independent re-fetch of the exact same signed URL via Playwright's own
+  // API request context has no such dependency — it is a plain HTTP
+  // request outside the browser's navigation/rendering pipeline entirely —
+  // and gives the same real evidence this test needs without relying on a
+  // CDP capability that navigation responses don't reliably support.
+  const verification = await page.request.get(url);
+  expect(verification.ok(), `independent re-fetch of the signed URL failed: ${url}`).toBe(
+    true,
+  );
+  const body = await verification.body();
   expect(
     body.equals(expectedBytes),
     "signed URL did not serve the exact uploaded file bytes",
