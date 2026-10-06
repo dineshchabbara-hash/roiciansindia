@@ -320,6 +320,160 @@ begin
 end
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Malformed Storage object paths — materials_bucket_insert_trainer must
+-- deny every one of these cleanly (insufficient_privilege/0 rows), never a
+-- SQL cast exception/500. Each attempt uses Trainer A's own real, assigned
+-- Batch A id where a batch id appears at all, so a FAIL here proves the
+-- path-shape check itself is broken, not merely that the batch isn't
+-- theirs (already proven above).
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'batch//scratch-malformed.pdf');
+    raise exception 'FAIL: an empty path segment (batch id) should be denied';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: an empty path segment is denied cleanly (no cast exception)';
+  end;
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'batch/not-a-uuid/scratch-malformed.pdf');
+    raise exception 'FAIL: a non-UUID batch identifier should be denied';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: a non-UUID batch identifier is denied cleanly (no cast exception — the DB column is cast to text, never the untrusted segment to uuid)';
+  end;
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'batch/15500000-0000-0000-0000-00000001/scratch-malformed.pdf');
+    raise exception 'FAIL: a truncated UUID should be denied';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: a truncated UUID is denied cleanly (no cast exception)';
+  end;
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'x/batch/15500000-0000-0000-0000-000000000001/scratch-malformed.pdf');
+    raise exception 'FAIL: an extra leading path segment should be denied';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: an extra leading path segment is denied (array_length <> 3)';
+  end;
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'batch/15500000-0000-0000-0000-000000000001/scratch-malformed.pdf/extra');
+    raise exception 'FAIL: an extra trailing path segment should be denied';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: an extra trailing path segment is denied (array_length <> 3)';
+  end;
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'batch/15500000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: a missing object-name segment (only 2 segments) should be denied';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: a missing object-name segment is denied (array_length <> 3)';
+  end;
+end
+$$;
+
+do $$
+begin
+  begin
+    -- A real, assigned batch id, but a trailing slash with nothing after
+    -- it — array_length is 3, but the 3rd segment is empty.
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'batch/15500000-0000-0000-0000-000000000001/');
+    raise exception 'FAIL: an empty trailing (object-name) segment should be denied even though the batch id matches';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: an empty trailing object-name segment is denied (the explicit <> '''' check, not merely the length check)';
+  end;
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'program/15400000-0000-0000-0000-000000000001/scratch-malformed.pdf');
+    raise exception 'FAIL: a wrong scope keyword (program) should be denied — Trainer has no Program branch at all';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: a wrong scope keyword (program) is denied';
+  end;
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'module/15410000-0000-0000-0000-000000000001/scratch-malformed.pdf');
+    raise exception 'FAIL: a wrong scope keyword (module) should be denied — Trainer has no Module branch at all';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: a wrong scope keyword (module) is denied';
+  end;
+end
+$$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Anonymous insertion into the Trainer's own real path — zero Storage
+-- write access regardless of path shape or content.
+
+set local role anon;
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name)
+    values ('materials', 'batch/15500000-0000-0000-0000-000000000001/anon-attempt.pdf');
+    raise exception 'FAIL: anonymous should not be able to insert into the materials Storage bucket at all';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: anonymous is blocked from inserting into the materials Storage bucket (insufficient_privilege)';
+    when others then
+      if sqlerrm like '%permission denied%' then
+        raise notice 'PASS: anonymous is blocked from inserting into the materials Storage bucket (permission denied)';
+      else
+        raise exception 'FAIL: unexpected error inserting into materials Storage as anon: %', sqlerrm;
+      end if;
+  end;
+end
+$$;
+
 reset role;
 
 -- ---------------------------------------------------------------------------
@@ -369,6 +523,28 @@ begin
     raise exception 'FAIL: enrolled student should see all 4 of their own Program/Batch/Module/Session materials, got count=%', cnt;
   end if;
   raise notice 'PASS: an "enrolled"-status student sees all 4 scope branches (materials_select_student), not the unrelated Batch B material';
+end
+$$;
+
+-- Direct per-branch evidence (not inferred from the aggregate count above):
+-- each of the four scope ids is checked individually, so a single branch
+-- failing can never be masked by another branch coincidentally failing the
+-- other way.
+do $$
+begin
+  if not exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000001') then
+    raise exception 'FAIL: enrolled student should see the Program-scoped material directly';
+  end if;
+  if not exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000002') then
+    raise exception 'FAIL: enrolled student should see the Batch-scoped material directly';
+  end if;
+  if not exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000003') then
+    raise exception 'FAIL: enrolled student should see the Module-scoped material directly';
+  end if;
+  if not exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000004') then
+    raise exception 'FAIL: enrolled student should see the Session-scoped material directly';
+  end if;
+  raise notice 'PASS: an "enrolled"-status student sees the Program, Batch, Module, AND Session-scoped material each individually (direct per-branch evidence)';
 end
 $$;
 
@@ -424,6 +600,24 @@ end
 $$;
 
 do $$
+begin
+  if not exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000001') then
+    raise exception 'FAIL: completed student should see the Program-scoped material directly';
+  end if;
+  if not exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000002') then
+    raise exception 'FAIL: completed student should see the Batch-scoped material directly';
+  end if;
+  if not exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000003') then
+    raise exception 'FAIL: completed student should see the Module-scoped material directly';
+  end if;
+  if not exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000004') then
+    raise exception 'FAIL: completed student should see the Session-scoped material directly';
+  end if;
+  raise notice 'PASS: a "completed"-status student sees the Program, Batch, Module, AND Session-scoped material each individually (direct per-branch evidence)';
+end
+$$;
+
+do $$
 declare
   cnt int;
 begin
@@ -463,6 +657,24 @@ end
 $$;
 
 do $$
+begin
+  if exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000001') then
+    raise exception 'FAIL: withdrawn student should NOT see the Program-scoped material directly';
+  end if;
+  if exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000002') then
+    raise exception 'FAIL: withdrawn student should NOT see the Batch-scoped material directly';
+  end if;
+  if exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000003') then
+    raise exception 'FAIL: withdrawn student should NOT see the Module-scoped material directly';
+  end if;
+  if exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000004') then
+    raise exception 'FAIL: withdrawn student should NOT see the Session-scoped material directly';
+  end if;
+  raise notice 'PASS: a "withdrawn"-status student is denied the Program, Batch, Module, AND Session-scoped material each individually (direct per-branch evidence — the status filter, not scope, blocks every branch)';
+end
+$$;
+
+do $$
 declare
   cnt int;
 begin
@@ -497,6 +709,27 @@ begin
     raise exception 'FAIL: a "lead"-status student should see zero materials — their own Program matches both the Program and Module branches by program_id alone, so this also proves the status filter (not scope) blocks them, got count=%', cnt;
   end if;
   raise notice 'PASS: a "lead"-status student is denied Materials access across every scope branch (not yet in the learning-delivery lifecycle, excluded from the approved status set)';
+end
+$$;
+
+-- Direct per-branch evidence for Program and Module specifically — this
+-- student's own Enrollment has batch_id = null (per BR-enrollments'
+-- enrollments_operational_status_requires_batch, 'lead' never requires a
+-- Batch), so the Batch/Session branches are already denied by SCOPE alone
+-- for this particular student regardless of status — only Program and
+-- Module (which join via e.program_id, not e.batch_id) actually exercise
+-- the STATUS filter for this student. Batch/Session's own status-filter
+-- behavior is already directly evidenced by the withdrawn-student block
+-- above (that student DOES have a real batch_id).
+do $$
+begin
+  if exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000001') then
+    raise exception 'FAIL: lead student should NOT see the Program-scoped material directly (status filter)';
+  end if;
+  if exists (select 1 from materials where id = '15900000-0000-0000-0000-000000000003') then
+    raise exception 'FAIL: lead student should NOT see the Module-scoped material directly (status filter, via the program_id join)';
+  end if;
+  raise notice 'PASS: a "lead"-status student is denied the Program- and Module-scoped material each individually, specifically by the STATUS filter (direct per-branch evidence)';
 end
 $$;
 

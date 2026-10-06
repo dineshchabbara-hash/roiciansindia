@@ -57,30 +57,49 @@ create policy materials_bucket_delete_admin on storage.objects
 -- matching materials' own table policies (no materials_update_trainer /
 -- materials_delete_trainer exists).
 
--- split_part(name, '/', n), not the Supabase-extension-only
--- storage.foldername() helper — identical result for this fixed 2-segment
--- prefix, and portable to the plain-Postgres local test stub
--- (supabase/tests/auth_schema_stub.sql) this policy must also apply
--- against, same table/column shape either way.
+-- Pre-acceptance security review correction: the original policy used
+-- split_part(name, '/', n) to read segments 1/2 but never checked how many
+-- segments the name actually had — a 2-segment name ('batch/<id>', no
+-- object suffix at all) or a 4+-segment name (an extra leading/trailing
+-- segment, e.g. 'x/batch/<id>/y' or 'batch/<id>/y/z') would both still
+-- satisfy segments 1/2 and be allowed, even though neither is a real
+-- application-generated path (buildMaterialObjectPath,
+-- lib/domain/materials.ts, always emits exactly 3 segments — the
+-- sanitized filename segment can never itself contain '/', since
+-- sanitizeFileNameForStorage replaces it with '_'). Corrected to
+-- string_to_array(name, '/') with an explicit exact-3-segments check —
+-- core PostgreSQL (not the Supabase-extension-only storage.foldername()
+-- helper, and strictly more precise than plain split_part, which has no
+-- segment-count check at all), portable to the plain-Postgres local test
+-- stub (supabase/tests/auth_schema_stub.sql) this policy must also apply
+-- against. Every segment comparison still casts the trusted DB column TO
+-- text (never the untrusted path segment TO uuid), so a malformed/
+-- truncated/non-UUID segment safely fails the comparison rather than
+-- throwing a cast exception — see supabase/tests/phase15_materials_test.sql
+-- for the full malformed-path test matrix (empty segment, non-UUID,
+-- truncated UUID, extra leading/trailing segment, double slash, wrong
+-- scope keyword, anonymous insertion).
 create policy materials_bucket_insert_trainer on storage.objects
   for insert with check (
     bucket_id = 'materials'
+    and array_length(string_to_array(name, '/'), 1) = 3
+    and (string_to_array(name, '/'))[3] <> ''
     and (
       (
-        split_part(name, '/', 1) = 'batch'
+        (string_to_array(name, '/'))[1] = 'batch'
         and exists (
           select 1 from batch_trainers bt
           where bt.trainer_id = current_trainer_id()
-            and bt.batch_id::text = split_part(name, '/', 2)
+            and bt.batch_id::text = (string_to_array(name, '/'))[2]
         )
       )
       or (
-        split_part(name, '/', 1) = 'session'
+        (string_to_array(name, '/'))[1] = 'session'
         and exists (
           select 1 from class_sessions cs
           join batch_trainers bt on bt.batch_id = cs.batch_id
           where bt.trainer_id = current_trainer_id()
-            and cs.id::text = split_part(name, '/', 2)
+            and cs.id::text = (string_to_array(name, '/'))[2]
         )
       )
     )
