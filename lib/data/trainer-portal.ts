@@ -968,16 +968,17 @@ export async function createMyMaterial(
 
   try {
     const supabase = await createSupabaseServerClient();
-    // materials.uploaded_by has no FK constraint (it is a polymorphic
-    // column, disambiguated only by the paired uploaded_by_type) — the
-    // caller's own auth_user_id is used consistently for both this
-    // Trainer path and the Admin path (lib/actions/materials.ts), rather
-    // than a role-specific profile id neither this column nor any
-    // existing precedent actually requires.
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { ok: false, error: "Not signed in." };
+    // materials.uploaded_by has no FK constraint, but the project's own
+    // existing precedent for this exact column shape — student_documents.
+    // uploaded_by/uploaded_by_type (DATABASE_SCHEMA.md §4, same "uuid not
+    // null" + role-check-constraint pairing) — is populated with the
+    // caller's role-specific profile id (lib/actions/students.ts passes
+    // ctx.profileId, i.e. admins.id, to uploadStudentDocument), never the
+    // raw auth_user_id. Materials follows that same established contract:
+    // uploaded_by is the trainers.id row, resolved the same way every
+    // other Trainer-scoped function in this file already does.
+    const trainerId = await resolveMyTrainerId(supabase);
+    if (!trainerId.ok) return trainerId;
 
     const materialScope: MaterialScope =
       scope.type === "batch"
@@ -988,7 +989,7 @@ export async function createMyMaterial(
       scope: materialScope,
       data,
       file,
-      uploadedBy: user.id,
+      uploadedBy: trainerId.data,
       uploadedByType: "trainer",
     });
   } catch (error) {

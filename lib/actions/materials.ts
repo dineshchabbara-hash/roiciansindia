@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { isAdminOrSuperAdmin } from "@/lib/domain/rbac";
-import { createMaterialRecord, getMaterialAccessUrl } from "@/lib/data/materials";
+import {
+  createMaterialRecord,
+  getMaterialAccessUrl,
+  listProgramModules,
+} from "@/lib/data/materials";
 import { writeAuditLog } from "@/lib/data/audit-log";
 import {
   parseCreateMaterialFormData,
@@ -95,11 +99,21 @@ async function createMaterialForScope(
   const fileResult = await extractAndValidateFile(formData, parsed.data.materialType);
   if (!fileResult.ok) return { formError: fileResult.error };
 
+  // materials.uploaded_by follows the same established contract as
+  // student_documents.uploaded_by (DATABASE_SCHEMA.md §4): the caller's
+  // role-specific profile id (admins.id here), never the raw auth_user_id
+  // — see lib/actions/students.ts's own uploadDocumentAction, which passes
+  // ctx.profileId for the identical "uuid not null" + role-check-
+  // constraint column pairing.
+  if (!ctx.profileId) {
+    return { formError: "Your admin profile could not be resolved." };
+  }
+
   const result = await createMaterialRecord({
     scope: scopeResult.scope,
     data: parsed.data,
     file: fileResult.file,
-    uploadedBy: ctx.authUserId,
+    uploadedBy: ctx.profileId,
     uploadedByType: "admin",
   });
   if (!result.ok) return { formError: result.error };
@@ -131,6 +145,25 @@ export async function createProgramMaterialAction(
   // non-empty, but the form itself (Program detail page) never submits
   // both: the Module picker clears/disables the implicit Program scope.
   const moduleId = (formData.get("moduleId") as string | null)?.trim() || null;
+
+  // Audit finding: a submitted moduleId was previously trusted outright —
+  // the Module <select> on this page only ever lists this Program's own
+  // Modules (listProgramModules(programId)), so normal use can't produce a
+  // mismatch, but a tampered direct POST could submit a moduleId belonging
+  // to an entirely different Program. is_admin_or_super() already grants
+  // Admin unrestricted write access to ANY scope (materials_write_admin
+  // has no scope restriction at all), so this was never an authorization
+  // gap — but it is a real data-integrity one: a material could otherwise
+  // land on an unrelated Program's Module while this page revalidates and
+  // behaves as if it belongs here. Re-verified server-side against the
+  // actual relationship, never the browser dropdown alone.
+  if (moduleId) {
+    const modulesResult = await listProgramModules(programId);
+    if (!modulesResult.ok || !modulesResult.data.some((m) => m.id === moduleId)) {
+      return { formError: "Selected module does not belong to this program." };
+    }
+  }
+
   return createMaterialForScope(
     {
       programId: moduleId ? null : programId,

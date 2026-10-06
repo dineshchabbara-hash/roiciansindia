@@ -30,8 +30,10 @@ import {
   getMyUpcomingClassSessions,
   getMyEligibleRosterForSession,
   markMyAttendanceForSession,
+  createMyMaterial,
 } from "@/lib/data/trainer-portal";
 import type { ClassSessionInput } from "@/lib/validation/class-sessions";
+import type { CreateMaterialInput } from "@/lib/validation/materials";
 
 const AUTH_USER = { id: "auth-user-1" };
 
@@ -868,5 +870,81 @@ describe("markMyAttendanceForSession", () => {
         new_status: "present",
       }),
     );
+  });
+});
+
+function baseMaterialInput(): CreateMaterialInput {
+  return {
+    title: "Session notes",
+    description: null,
+    materialType: "link",
+    externalUrl: "https://example.com/doc",
+    programId: null,
+    batchId: null,
+    moduleId: null,
+    classSessionId: null,
+  };
+}
+
+describe("createMyMaterial", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // Phase 15 audit finding: this previously used the caller's raw
+  // auth_user_id for materials.uploaded_by, on the mistaken belief that no
+  // existing precedent required a role-specific profile id. It does —
+  // student_documents.uploaded_by (DATABASE_SCHEMA.md §4, the identical
+  // "uuid not null" + role-check-constraint column shape) is populated
+  // with the caller's admins.id/trainers.id profile id, never the raw
+  // auth_user_id (lib/actions/students.ts passes ctx.profileId). This test
+  // pins materials.uploaded_by to that same contract going forward.
+  it("verifies Batch ownership and sets uploaded_by to the caller's own resolved trainers.id, not the raw auth_user_id", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: batchJoinRow(), error: null });
+    const materialsBuilder = makeBuilder({ data: { id: "mat-1" }, error: null });
+    mockSupabase({
+      authUser: { id: "auth-user-distinct-from-trainer-id" },
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        materials: materialsBuilder,
+      },
+    });
+
+    const result = await createMyMaterial(
+      { type: "batch", batchId: "batch-1" },
+      baseMaterialInput(),
+      null,
+    );
+
+    expect(result).toEqual({ ok: true, data: { id: "mat-1" } });
+    expect(materialsBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batch_id: "batch-1",
+        uploaded_by: "trainer-1",
+        uploaded_by_type: "trainer",
+      }),
+    );
+  });
+
+  it("refuses to create a material for a Batch the caller is not assigned to", async () => {
+    const trainersBuilder = makeBuilder({ data: { id: "trainer-1" }, error: null });
+    const batchTrainersBuilder = makeBuilder({ data: null, error: null });
+    const materialsBuilder = makeBuilder({ data: { id: "mat-1" }, error: null });
+    mockSupabase({
+      fromTable: {
+        trainers: trainersBuilder,
+        batch_trainers: batchTrainersBuilder,
+        materials: materialsBuilder,
+      },
+    });
+
+    const result = await createMyMaterial(
+      { type: "batch", batchId: "unassigned-batch" },
+      baseMaterialInput(),
+      null,
+    );
+
+    expect(result).toEqual({ ok: false, error: "Batch not found." });
+    expect(materialsBuilder.insert).not.toHaveBeenCalled();
   });
 });

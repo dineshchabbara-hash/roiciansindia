@@ -16,6 +16,7 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("@/lib/data/materials", () => ({
   createMaterialRecord: vi.fn(),
   getMaterialAccessUrl: vi.fn(),
+  listProgramModules: vi.fn(),
 }));
 
 vi.mock("@/lib/data/audit-log", () => ({
@@ -33,7 +34,11 @@ import {
   getMaterialAccessUrlAction,
 } from "@/lib/actions/materials";
 import { getCurrentUserContext } from "@/lib/auth/session";
-import { createMaterialRecord, getMaterialAccessUrl } from "@/lib/data/materials";
+import {
+  createMaterialRecord,
+  getMaterialAccessUrl,
+  listProgramModules,
+} from "@/lib/data/materials";
 
 const adminContext = {
   authUserId: "admin-auth-1",
@@ -108,29 +113,69 @@ describe("createProgramMaterialAction", () => {
     expect(createMaterialRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         scope: { type: "program", id: "prog-1" },
-        uploadedBy: adminContext.authUserId,
+        uploadedBy: adminContext.profileId,
         uploadedByType: "admin",
       }),
     );
   });
 
-  it("scopes to the Module instead of the bound Program when moduleId is submitted", async () => {
+  it("scopes to the Module instead of the bound Program when moduleId is submitted and actually belongs to that Program", async () => {
     vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    const moduleId = "11111111-1111-4111-8111-111111111111";
+    vi.mocked(listProgramModules).mockResolvedValue({
+      ok: true,
+      data: [{ id: moduleId, title: "Module 1" }],
+    });
     vi.mocked(createMaterialRecord).mockResolvedValue({
       ok: true,
       data: { id: "mat-2" },
     });
 
-    const moduleId = "11111111-1111-4111-8111-111111111111";
     const result = await createProgramMaterialAction(
       "prog-1",
       {},
       linkFormData({ moduleId }),
     );
     expect(result).toEqual({ success: true });
+    expect(listProgramModules).toHaveBeenCalledWith("prog-1");
     expect(createMaterialRecord).toHaveBeenCalledWith(
       expect.objectContaining({ scope: { type: "module", id: moduleId } }),
     );
+  });
+
+  it("rejects a moduleId that does not belong to the bound Program (tampered direct POST), before reaching the data layer", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    const unrelatedModuleId = "22222222-2222-4222-8222-222222222222";
+    // listProgramModules(programId) lists THIS program's own modules only
+    // — the submitted moduleId does not appear in it.
+    vi.mocked(listProgramModules).mockResolvedValue({
+      ok: true,
+      data: [{ id: "11111111-1111-4111-8111-111111111111", title: "A real module" }],
+    });
+
+    const result = await createProgramMaterialAction(
+      "prog-1",
+      {},
+      linkFormData({ moduleId: unrelatedModuleId }),
+    );
+    expect(result.formError).toBeTruthy();
+    expect(createMaterialRecord).not.toHaveBeenCalled();
+  });
+
+  it("rejects when listProgramModules itself fails, before reaching the data layer", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(adminContext);
+    vi.mocked(listProgramModules).mockResolvedValue({
+      ok: false,
+      error: "Could not load modules.",
+    });
+
+    const result = await createProgramMaterialAction(
+      "prog-1",
+      {},
+      linkFormData({ moduleId: "11111111-1111-4111-8111-111111111111" }),
+    );
+    expect(result.formError).toBeTruthy();
+    expect(createMaterialRecord).not.toHaveBeenCalled();
   });
 
   it("surfaces a data-layer error as a visible formError", async () => {
@@ -144,6 +189,16 @@ describe("createProgramMaterialAction", () => {
     expect(result).toEqual({
       formError: "Could not create the material. Please try again.",
     });
+  });
+
+  it("rejects when the admin profile id cannot be resolved, before reaching the data layer", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue({
+      ...adminContext,
+      profileId: null,
+    });
+    const result = await createProgramMaterialAction("prog-1", {}, linkFormData({}));
+    expect(result.formError).toBeTruthy();
+    expect(createMaterialRecord).not.toHaveBeenCalled();
   });
 
   it("rejects shape-invalid form data before reaching the data layer", async () => {
