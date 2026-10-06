@@ -45,7 +45,10 @@ import {
  *   B. Admin can create a Batch-scoped `file` material, and its "View"
  *      button opens a working short-lived signed Storage URL in a new tab
  *      (never a permanent public URL — no `materials` bucket object is
- *      ever reachable except through this same signed-URL path).  (describe 1)
+ *      ever reachable except through this same signed-URL path). Verified
+ *      via the actual HTTP response (status/content-type/exact bytes),
+ *      not the popup's own navigation lifecycle — see
+ *      clickViewAndVerifySignedFile's own comment for why.        (describe 1)
  *   C. Admin can scope a material to an existing Module via the Program
  *      page's own picker, and the created row is actually VISIBLE,
  *      labeled "Module: <title>" — this is also the acceptance test for
@@ -204,8 +207,14 @@ async function submitAndSettle(
 // TrainerMaterialViewButton/StudentMaterialViewButton) open a blank tab
 // synchronously, then navigate it to the resolved URL once the server
 // action resolves — a real new browser tab either way (file via signed
-// Storage URL, or link/video via the stored external_url), so this same
-// helper covers all three button components and both material kinds.
+// Storage URL, or link/video via the stored external_url).
+//
+// Used for `link`/`video` materials only (test H) — a plain https://
+// navigation to an external page is an ordinary HTML document load, which
+// Chromium's standard navigation lifecycle (and therefore waitForURL's
+// default "load" wait state) tracks reliably. See
+// clickViewAndVerifySignedFile below for `file` materials, which need a
+// different verification approach entirely.
 async function clickViewAndGetPopupUrl(
   page: Page,
   viewButton: ReturnType<Page["getByRole"]>,
@@ -216,6 +225,53 @@ async function clickViewAndGetPopupUrl(
   await popup.waitForURL((url) => url.toString() !== "about:blank", { timeout: 15000 });
   const url = popup.url();
   await popup.close();
+  return url;
+}
+
+// For `file` materials: verifies the signed Storage URL actually works,
+// rather than waiting on the popup's own navigation "load" lifecycle.
+//
+// Root-caused against a real Windows acceptance run: Chromium hands a
+// direct navigation to a PDF response off to its own internal PDF viewer/
+// download machinery, which can report the ORIGINAL navigating frame's own
+// load lifecycle as `net::ERR_ABORTED; maybe frame was detached?` even
+// though the underlying HTTP request to the signed URL succeeded and
+// served the exact correct file — a documented Playwright/Chromium
+// interaction for direct navigation to non-HTML resources, not evidence
+// the signed URL is broken. Confirmed directly against Supabase's own edge
+// logs for that run: the exact signed URL, fetched by the real Windows
+// Chromium browser, returned HTTP 200 for the exact expected object, at
+// the same moment Playwright's popup.waitForURL (load-lifecycle-based)
+// reported ERR_ABORTED for that same successful request.
+//
+// Waiting on the actual HTTP response sidesteps that unreliable
+// navigation-lifecycle tracking entirely, and is the real acceptance
+// evidence this test needs — not "a popup opened", but "the generated
+// signed access actually served the exact Material file, with the
+// Supabase-backed status/content-type/bytes to prove it".
+async function clickViewAndVerifySignedFile(
+  page: Page,
+  viewButton: ReturnType<Page["getByRole"]>,
+  expectedBytes: Buffer,
+) {
+  const popupPromise = page.waitForEvent("popup");
+  await viewButton.click();
+  const popup = await popupPromise;
+
+  const response = await popup.waitForEvent("response", {
+    predicate: (r) => r.url().includes("/storage/v1/object/sign/materials/"),
+    timeout: 15000,
+  });
+  const url = response.url();
+  expect(response.status(), `signed URL request failed: ${url}`).toBe(200);
+  expect(response.headers()["content-type"] ?? "").toContain("application/pdf");
+  const body = await response.body();
+  expect(
+    body.equals(expectedBytes),
+    "signed URL did not serve the exact uploaded file bytes",
+  ).toBe(true);
+
+  await popup.close().catch(() => {});
   return url;
 }
 
@@ -355,10 +411,11 @@ test.describe("Admin — Material management", () => {
 
     await card.locator('input[name="title"]').fill(batchMaterialTitle);
     // materialType defaults to "file" — no select needed.
+    const fixtureBytes = buildPhase15FixturePdf();
     await card.locator('input[type="file"][name="file"]').setInputFiles({
       name: "phase15-e2e-fixture.pdf",
       mimeType: "application/pdf",
-      buffer: buildPhase15FixturePdf(),
+      buffer: fixtureBytes,
     });
     await card.getByRole("button", { name: "Add material" }).click();
 
@@ -366,9 +423,10 @@ test.describe("Admin — Material management", () => {
     const row = card.locator("li").filter({ hasText: batchMaterialTitle });
     await expect(row).toBeVisible();
 
-    const url = await clickViewAndGetPopupUrl(
+    const url = await clickViewAndVerifySignedFile(
       page,
       row.getByRole("button", { name: "View" }),
+      fixtureBytes,
     );
     // A short-lived SIGNED Storage URL for this exact bucket/object — never
     // a permanent public URL (the `materials` bucket has public: false,
@@ -508,10 +566,11 @@ test.describe("Trainer — Material management", () => {
     await expect(card).toBeVisible();
 
     await card.locator('input[name="title"]').fill(sessionMaterialTitle);
+    const fixtureBytes = buildPhase15FixturePdf();
     await card.locator('input[type="file"][name="file"]').setInputFiles({
       name: "phase15-e2e-session-fixture.pdf",
       mimeType: "application/pdf",
-      buffer: buildPhase15FixturePdf(),
+      buffer: fixtureBytes,
     });
     await card.getByRole("button", { name: "Add material" }).click();
 
@@ -519,9 +578,10 @@ test.describe("Trainer — Material management", () => {
     const row = card.locator("li").filter({ hasText: sessionMaterialTitle });
     await expect(row).toBeVisible();
 
-    const url = await clickViewAndGetPopupUrl(
+    const url = await clickViewAndVerifySignedFile(
       page,
       row.getByRole("button", { name: "View" }),
+      fixtureBytes,
     );
     expect(url).toContain("/storage/v1/object/sign/materials/");
   });
