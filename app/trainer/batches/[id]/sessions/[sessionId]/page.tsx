@@ -4,7 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrainerClassSessionStatusControl } from "@/components/trainer/trainer-class-session-status-control";
+import { TrainerMaterialsCard } from "@/components/trainer/materials/trainer-materials-card";
 import { getMySession } from "@/lib/data/trainer-portal";
+import { getMaterialsForScope } from "@/lib/data/materials";
+import { createMySessionMaterialAction } from "@/lib/actions/trainer-materials";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +21,10 @@ export default async function TrainerClassSessionDetailPage({
   params: Promise<{ id: string; sessionId: string }>;
 }) {
   const { id, sessionId } = await params;
-  const result = await getMySession(id, sessionId);
+  const [result, materialsResult] = await Promise.all([
+    getMySession(id, sessionId),
+    getMaterialsForScope({ type: "session", id: sessionId }),
+  ]);
 
   if (!result.ok) {
     if (
@@ -112,6 +118,24 @@ export default async function TrainerClassSessionDetailPage({
           />
         </CardContent>
       </Card>
+
+      {materialsResult.ok ? (
+        <TrainerMaterialsCard
+          materials={materialsResult.data}
+          action={createMySessionMaterialAction.bind(null, id, session.id)}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Materials</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p role="alert" className="text-destructive text-sm">
+              {materialsResult.error}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

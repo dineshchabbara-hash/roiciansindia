@@ -4,8 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClassSessionStatusBadge } from "@/components/admin/class-sessions/class-session-status-badge";
 import { ClassSessionStatusControl } from "@/components/admin/class-sessions/class-session-status-control";
+import { MaterialsCard } from "@/components/admin/materials/materials-card";
 import { getClassSession } from "@/lib/data/class-sessions";
 import { getBatchProfile } from "@/lib/data/batches";
+import { getMaterialsForScope } from "@/lib/data/materials";
+import { createSessionMaterialAction } from "@/lib/actions/materials";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +23,10 @@ export default async function ClassSessionDetailPage({
   params: Promise<{ id: string; sessionId: string }>;
 }) {
   const { id, sessionId } = await params;
-  const [batchResult, sessionResult] = await Promise.all([
+  const [batchResult, sessionResult, materialsResult] = await Promise.all([
     getBatchProfile(id),
     getClassSession(id, sessionId),
+    getMaterialsForScope({ type: "session", id: sessionId }),
   ]);
 
   if (!batchResult.ok) {
@@ -119,6 +123,24 @@ export default async function ClassSessionDetailPage({
           />
         </CardContent>
       </Card>
+
+      {materialsResult.ok ? (
+        <MaterialsCard
+          materials={materialsResult.data}
+          action={createSessionMaterialAction.bind(null, batch.id, session.id)}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Materials</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p role="alert" className="text-destructive text-sm">
+              {materialsResult.error}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

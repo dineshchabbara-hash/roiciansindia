@@ -7,11 +7,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ProgramStatusBadge } from "@/components/admin/programs/program-status-badge";
 import { ProgramStatusControl } from "@/components/admin/programs/program-status-control";
 import { ProgramBatchesCard } from "@/components/admin/programs/program-batches-card";
+import { MaterialsCard } from "@/components/admin/materials/materials-card";
 import {
   getProgramBatches,
   getProgramProfile,
   getProgramRelatedSummary,
 } from "@/lib/data/programs";
+import {
+  getProgramMaterialsIncludingModules,
+  listProgramModules,
+} from "@/lib/data/materials";
+import { createProgramMaterialAction } from "@/lib/actions/materials";
 import { formatDecimalAsINR } from "@/lib/domain/money";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +50,36 @@ async function BatchesSection({ programId }: { programId: string }) {
   }
 
   return <ProgramBatchesCard summary={summaryResult.data} batches={batchesResult.data} />;
+}
+
+async function MaterialsSection({ programId }: { programId: string }) {
+  const [materialsResult, modulesResult] = await Promise.all([
+    getProgramMaterialsIncludingModules(programId),
+    listProgramModules(programId),
+  ]);
+
+  if (!materialsResult.ok) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Materials</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p role="alert" className="text-destructive text-sm">
+            {materialsResult.error}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <MaterialsCard
+      materials={materialsResult.data}
+      action={createProgramMaterialAction.bind(null, programId)}
+      moduleOptions={modulesResult.ok ? modulesResult.data : []}
+    />
+  );
 }
 
 export default async function ProgramProfilePage({
@@ -133,6 +169,9 @@ export default async function ProgramProfilePage({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Suspense fallback={<SectionSkeleton />}>
           <BatchesSection programId={program.id} />
+        </Suspense>
+        <Suspense fallback={<SectionSkeleton />}>
+          <MaterialsSection programId={program.id} />
         </Suspense>
       </div>
     </div>

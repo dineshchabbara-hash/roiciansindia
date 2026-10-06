@@ -8,6 +8,7 @@ import { BatchStatusBadge } from "@/components/admin/batches/batch-status-badge"
 import { BatchStatusControl } from "@/components/admin/batches/batch-status-control";
 import { BatchTrainerAssignmentsCard } from "@/components/admin/batches/batch-trainer-assignments-card";
 import { ClassSessionList } from "@/components/admin/class-sessions/class-session-list";
+import { MaterialsCard } from "@/components/admin/materials/materials-card";
 import {
   getBatchEnrollmentCount,
   getBatchProfile,
@@ -15,6 +16,8 @@ import {
   getTrainerOptions,
 } from "@/lib/data/batches";
 import { getClassSessionsForBatch } from "@/lib/data/class-sessions";
+import { getMaterialsForScope } from "@/lib/data/materials";
+import { createBatchMaterialAction } from "@/lib/actions/materials";
 import { formatDaysOfWeekForDisplay } from "@/lib/domain/batches";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +77,30 @@ async function ClassSessionsSection({ batchId }: { batchId: string }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+async function MaterialsSection({ batchId }: { batchId: string }) {
+  const result = await getMaterialsForScope({ type: "batch", id: batchId });
+  if (!result.ok) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Materials</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p role="alert" className="text-destructive text-sm">
+            {result.error}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <MaterialsCard
+      materials={result.data}
+      action={createBatchMaterialAction.bind(null, batchId)}
+    />
   );
 }
 
@@ -202,6 +229,10 @@ export default async function BatchProfilePage({
 
       <Suspense fallback={<SectionSkeleton />}>
         <ClassSessionsSection batchId={batch.id} />
+      </Suspense>
+
+      <Suspense fallback={<SectionSkeleton />}>
+        <MaterialsSection batchId={batch.id} />
       </Suspense>
     </div>
   );

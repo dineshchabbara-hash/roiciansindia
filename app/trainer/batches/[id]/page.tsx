@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrainerStudentTable } from "@/components/trainer/trainer-student-table";
 import { TrainerClassSessionList } from "@/components/trainer/trainer-class-session-list";
+import { TrainerMaterialsCard } from "@/components/trainer/materials/trainer-materials-card";
 import {
   getMyBatch,
   getMySessionsForBatch,
   getMyStudentsForBatch,
 } from "@/lib/data/trainer-portal";
+import { getMaterialsForScope } from "@/lib/data/materials";
+import { createMyBatchMaterialAction } from "@/lib/actions/trainer-materials";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +28,13 @@ export default async function TrainerBatchDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [batchResult, studentsResult, sessionsResult] = await Promise.all([
-    getMyBatch(id),
-    getMyStudentsForBatch(id),
-    getMySessionsForBatch(id),
-  ]);
+  const [batchResult, studentsResult, sessionsResult, materialsResult] =
+    await Promise.all([
+      getMyBatch(id),
+      getMyStudentsForBatch(id),
+      getMySessionsForBatch(id),
+      getMaterialsForScope({ type: "batch", id }),
+    ]);
 
   if (!batchResult.ok) {
     if (batchResult.error === "Batch not found.") {
@@ -121,6 +126,24 @@ export default async function TrainerBatchDetailPage({
           </p>
         )}
       </div>
+
+      {materialsResult.ok ? (
+        <TrainerMaterialsCard
+          materials={materialsResult.data}
+          action={createMyBatchMaterialAction.bind(null, batch.id)}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Materials</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p role="alert" className="text-destructive text-sm">
+              {materialsResult.error}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
