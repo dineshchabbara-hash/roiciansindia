@@ -7,6 +7,9 @@ import type { ClassSessionStatus } from "@/lib/domain/class-sessions";
 import type { ClassSessionInput } from "@/lib/validation/class-sessions";
 import type { AttendanceStatus } from "@/lib/domain/attendance";
 import type { AttendanceRosterEntry } from "@/lib/validation/attendance";
+import type { MaterialScope } from "@/lib/domain/materials";
+import type { CreateMaterialInput } from "@/lib/validation/materials";
+import { createMaterialRecord } from "@/lib/data/materials";
 
 /**
  * Trainer Portal data-access layer (Phase 11). Deliberately separate from
@@ -934,5 +937,61 @@ export async function markMyAttendanceForSession(
     return { ok: true, data: result };
   } catch (error) {
     return fail("Could not save attendance. Please try again.", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Materials (Phase 15) — Trainer upload only, Batch/Session scope only.
+// materials_write_trainer RLS (supabase/migrations/20260101000014_rls_
+// policies.sql) has no program/module branch at all, matching
+// batch_trainers being the only Trainer assignment model this codebase
+// has — a Trainer is never authorized to manage Program- or Module-level
+// materials, and this function never offers that path, not merely hides
+// it. getMyBatch/getMySession below re-verify assignment before any write
+// (defense in depth; Storage/table RLS enforce the same boundary
+// independently either way).
+
+export async function createMyMaterial(
+  scope:
+    | { type: "batch"; batchId: string }
+    | { type: "session"; batchId: string; sessionId: string },
+  data: CreateMaterialInput,
+  file: File | null,
+): Promise<DataResult<{ id: string }>> {
+  if (scope.type === "batch") {
+    const batch = await getMyBatch(scope.batchId);
+    if (!batch.ok) return batch;
+  } else {
+    const session = await getMySession(scope.batchId, scope.sessionId);
+    if (!session.ok) return session;
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    // materials.uploaded_by has no FK constraint (it is a polymorphic
+    // column, disambiguated only by the paired uploaded_by_type) — the
+    // caller's own auth_user_id is used consistently for both this
+    // Trainer path and the Admin path (lib/actions/materials.ts), rather
+    // than a role-specific profile id neither this column nor any
+    // existing precedent actually requires.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Not signed in." };
+
+    const materialScope: MaterialScope =
+      scope.type === "batch"
+        ? { type: "batch", id: scope.batchId }
+        : { type: "session", id: scope.sessionId };
+
+    return await createMaterialRecord({
+      scope: materialScope,
+      data,
+      file,
+      uploadedBy: user.id,
+      uploadedByType: "trainer",
+    });
+  } catch (error) {
+    return fail("Could not create the material. Please try again.", error);
   }
 }

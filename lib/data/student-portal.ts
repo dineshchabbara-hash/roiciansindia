@@ -9,6 +9,7 @@ import {
 } from "@/lib/data/payment-plans";
 import type { EnrollmentStatus } from "@/lib/domain/enrollments";
 import type { StudentSelfProfileInput } from "@/lib/validation/student-self-profile";
+import { toMaterialRow, type MaterialRow } from "@/lib/data/materials";
 
 /**
  * Student Portal data-access layer (Phase 10). Deliberately separate from
@@ -506,4 +507,69 @@ export async function getMyPaymentPlanForEnrollment(
       })),
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Materials (Phase 15) — read-only, scoped to the caller's own Enrollment.
+// Surfaces only Program- and Batch-scoped materials on the Enrollment
+// detail page (the "smallest useful UI" for this phase, not a gap — Module/
+// Session-scoped Student access is already fully authorized by
+// materials_select_student RLS and the mirrored Storage policy either way,
+// this page just doesn't have a Module or per-Session context to list them
+// under). materials_select_student (narrowed by 20260101000026 to
+// enrolled/active/on_hold/completed — never lead/applicant/withdrawn/
+// cancelled) is the real authorization boundary; this query re-verifies
+// enrollment ownership first (own id + own student_id) so even a
+// nonexistent/unrelated enrollment id gets the same safe "not found"
+// response every other Student Portal read already uses, rather than an
+// empty materials list that could otherwise look identical to "exists but
+// has nothing".
+
+export async function getMyMaterialsForEnrollment(
+  enrollmentId: string,
+): Promise<DataResult<MaterialRow[]>> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const studentId = await resolveMyStudentId(supabase);
+    if (!studentId.ok) return studentId;
+
+    const { data: enrollment, error: enrollmentError } = await supabase
+      .from("enrollments")
+      .select("id, program_id, batch_id")
+      .eq("id", enrollmentId)
+      .eq("student_id", studentId.data)
+      .maybeSingle();
+    if (enrollmentError) throw enrollmentError;
+    if (!enrollment) return { ok: false, error: "Enrollment not found." };
+
+    const orParts = [`program_id.eq.${enrollment.program_id}`];
+    if (enrollment.batch_id) orParts.push(`batch_id.eq.${enrollment.batch_id}`);
+
+    const { data, error } = await supabase
+      .from("materials")
+      .select(
+        "id, title, description, material_type, file_path, external_url, uploaded_by_type, created_at",
+      )
+      .or(orParts.join(","))
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+
+    return {
+      ok: true,
+      data: (
+        (data ?? []) as Array<{
+          id: string;
+          title: string;
+          description: string | null;
+          material_type: MaterialRow["materialType"];
+          file_path: string | null;
+          external_url: string | null;
+          uploaded_by_type: "admin" | "trainer";
+          created_at: string;
+        }>
+      ).map(toMaterialRow),
+    };
+  } catch (error) {
+    return fail("Could not load materials.", error);
+  }
 }

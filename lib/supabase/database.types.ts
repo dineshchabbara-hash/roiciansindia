@@ -460,6 +460,78 @@ export type Database = {
           },
         ];
       };
+      program_modules: {
+        Row: {
+          id: string;
+          program_id: string;
+          title: string;
+          description: string | null;
+          sequence: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["program_modules"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["program_modules"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "program_modules_program_id_fkey";
+            columns: ["program_id"];
+            isOneToOne: false;
+            referencedRelation: "programs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      materials: {
+        Row: {
+          id: string;
+          program_id: string | null;
+          batch_id: string | null;
+          module_id: string | null;
+          class_session_id: string | null;
+          title: string;
+          description: string | null;
+          material_type: "file" | "link" | "video";
+          file_path: string | null;
+          external_url: string | null;
+          uploaded_by: string;
+          uploaded_by_type: "admin" | "trainer";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["materials"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["materials"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "materials_program_id_fkey";
+            columns: ["program_id"];
+            isOneToOne: false;
+            referencedRelation: "programs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "materials_batch_id_fkey";
+            columns: ["batch_id"];
+            isOneToOne: false;
+            referencedRelation: "batches";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "materials_module_id_fkey";
+            columns: ["module_id"];
+            isOneToOne: false;
+            referencedRelation: "program_modules";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "materials_class_session_id_fkey";
+            columns: ["class_session_id"];
+            isOneToOne: false;
+            referencedRelation: "class_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payment_plans: {
         Row: {
           id: string;
