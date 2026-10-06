@@ -393,8 +393,24 @@ test.describe("Admin — Payment Plan management", () => {
     await loginAsAdmin(page, admin);
     await page.goto(`/admin/enrollments/${enrollmentForEditId}`);
 
+    // The editable Amount input's defaultValue is the raw
+    // installment.amount value (lib/data/payment-plans.ts:66, a direct
+    // `row.amount` pass-through, no formatting) — never routed through
+    // formatDecimalAsINR, which exists specifically to always show 2
+    // decimals and is for display text, not an editable field's value.
+    // lib/domain/money.ts's own header comment already documents why:
+    // Postgres's row_to_json/json_agg (what PostgREST's response is
+    // built from) emits `numeric(12,2)` as a bare, unquoted JSON number
+    // (e.g. `10000.00`), which `JSON.parse` collapses to the JS number
+    // `10000` — trailing zeros are not representable in a JS double.
+    // React's defaultValue then stringifies that number for the DOM,
+    // producing "10000", not "10000.00". MONEY_PATTERN itself already
+    // anticipates this exact shape ("50000 if unscaled", per its own
+    // comment in lib/validation/payment-plans.ts) — this is intentional,
+    // already-documented wire behavior elsewhere in this codebase, not a
+    // defect to fix in the component.
     const amountField = page.getByLabel("Amount for installment 1");
-    await expect(amountField).toHaveValue("10000.00");
+    await expect(amountField).toHaveValue("10000");
     await amountField.fill("12000.00");
 
     const row = page.locator("li").filter({ has: amountField });
@@ -420,7 +436,11 @@ test.describe("Admin — Payment Plan management", () => {
     await expect(page.getByText("₹12,000.00")).toBeVisible();
 
     await page.reload();
-    await expect(page.getByLabel("Amount for installment 1")).toHaveValue("12000.00");
+    // Same quirk as the pre-edit assertion above — the edited amount was
+    // submitted as "12000.00", but a fresh server render reads it back
+    // through the identical row_to_json -> JSON.parse path, collapsing
+    // it to the JS number 12000 for this re-rendered input's value.
+    await expect(page.getByLabel("Amount for installment 1")).toHaveValue("12000");
     await expect(page.getByText("₹12,000.00")).toBeVisible();
   });
 });
