@@ -511,19 +511,35 @@ export async function getMyPaymentPlanForEnrollment(
 
 // ---------------------------------------------------------------------------
 // Materials (Phase 15) — read-only, scoped to the caller's own Enrollment.
-// Surfaces only Program- and Batch-scoped materials on the Enrollment
-// detail page (the "smallest useful UI" for this phase, not a gap — Module/
-// Session-scoped Student access is already fully authorized by
-// materials_select_student RLS and the mirrored Storage policy either way,
-// this page just doesn't have a Module or per-Session context to list them
-// under). materials_select_student (narrowed by 20260101000026 to
-// enrolled/active/on_hold/completed — never lead/applicant/withdrawn/
-// cancelled) is the real authorization boundary; this query re-verifies
-// enrollment ownership first (own id + own student_id) so even a
-// nonexistent/unrelated enrollment id gets the same safe "not found"
-// response every other Student Portal read already uses, rather than an
-// empty materials list that could otherwise look identical to "exists but
-// has nothing".
+// Surfaces ALL FOUR scope branches an eligible Student may be authorized
+// for (Program, Batch, Module-of-their-Program, Session-of-their-Batch) in
+// one coherent section on the Enrollment detail page — not just Program/
+// Batch. FR-70 allows Admin/Trainer to scope a material to any of the four;
+// FR-71 requires Student access to materials be usable, not merely RLS-true
+// with no way to discover them, so a Module/Session-scoped material an
+// eligible Student is authorized for (materials_select_student,
+// 20260101000026) must actually be reachable here too, same architecture
+// as lib/data/materials.ts's own getProgramMaterialsIncludingModules (Admin
+// Program page) — no new route, one existing page, every authorized scope
+// merged into one list. materials_select_student (enrolled/active/on_hold/
+// completed only) is the real authorization boundary throughout; this
+// query re-verifies enrollment ownership first (own id + own student_id)
+// so even a nonexistent/unrelated enrollment id gets the same safe
+// "not found" response every other Student Portal read already uses.
+
+const MATERIAL_COLUMNS =
+  "id, title, description, material_type, file_path, external_url, uploaded_by_type, created_at";
+
+type MaterialQueryRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  material_type: MaterialRow["materialType"];
+  file_path: string | null;
+  external_url: string | null;
+  uploaded_by_type: "admin" | "trainer";
+  created_at: string;
+};
 
 export async function getMyMaterialsForEnrollment(
   enrollmentId: string,
@@ -542,32 +558,96 @@ export async function getMyMaterialsForEnrollment(
     if (enrollmentError) throw enrollmentError;
     if (!enrollment) return { ok: false, error: "Enrollment not found." };
 
+    // Module/Session ids (and their display labels) are resolved from the
+    // Enrollment's own Program/Batch (never from the caller) — the same
+    // trusted-relationship discipline every scope lookup in this codebase
+    // already uses.
+    const [modulesResult, sessionsResult] = await Promise.all([
+      supabase
+        .from("program_modules")
+        .select("id, title")
+        .eq("program_id", enrollment.program_id),
+      enrollment.batch_id
+        ? supabase
+            .from("class_sessions")
+            .select("id, session_date, topic")
+            .eq("batch_id", enrollment.batch_id)
+        : Promise.resolve({
+            data: [] as Array<{ id: string; session_date: string; topic: string | null }>,
+            error: null,
+          }),
+    ]);
+    if (modulesResult.error) throw modulesResult.error;
+    if (sessionsResult.error) throw sessionsResult.error;
+    const modules = modulesResult.data ?? [];
+    const sessions = sessionsResult.data ?? [];
+    const moduleTitleById = new Map(modules.map((m) => [m.id, m.title]));
+    const sessionLabelById = new Map(
+      sessions.map((s) => [s.id, s.topic ?? s.session_date]),
+    );
+
     const orParts = [`program_id.eq.${enrollment.program_id}`];
     if (enrollment.batch_id) orParts.push(`batch_id.eq.${enrollment.batch_id}`);
 
-    const { data, error } = await supabase
+    const programBatchResult = await supabase
       .from("materials")
-      .select(
-        "id, title, description, material_type, file_path, external_url, uploaded_by_type, created_at",
-      )
-      .or(orParts.join(","))
-      .order("created_at", { ascending: false });
-    if (error) throw error;
+      .select(`${MATERIAL_COLUMNS}, program_id, batch_id`)
+      .or(orParts.join(","));
+    if (programBatchResult.error) throw programBatchResult.error;
+
+    const moduleResult =
+      modules.length > 0
+        ? await supabase
+            .from("materials")
+            .select(`${MATERIAL_COLUMNS}, module_id`)
+            .in(
+              "module_id",
+              modules.map((m) => m.id),
+            )
+        : { data: [], error: null };
+    if (moduleResult.error) throw moduleResult.error;
+
+    const sessionResult =
+      sessions.length > 0
+        ? await supabase
+            .from("materials")
+            .select(`${MATERIAL_COLUMNS}, class_session_id`)
+            .in(
+              "class_session_id",
+              sessions.map((s) => s.id),
+            )
+        : { data: [], error: null };
+    if (sessionResult.error) throw sessionResult.error;
+
+    // One Material has exactly one scope (this phase's own one-scope-per-
+    // material invariant — resolveExactlyOneScope), so a given id can only
+    // ever match one of the three queries below; the Map is a harmless
+    // safety net regardless.
+    const seen = new Map<string, MaterialRow>();
+    for (const row of (programBatchResult.data ?? []) as Array<
+      MaterialQueryRow & { program_id: string | null; batch_id: string | null }
+    >) {
+      const label = row.program_id === enrollment.program_id ? "Program" : "Batch";
+      seen.set(row.id, { ...toMaterialRow(row), scopeLabel: label });
+    }
+    for (const row of (moduleResult.data ?? []) as Array<
+      MaterialQueryRow & { module_id: string }
+    >) {
+      const label = `Module: ${moduleTitleById.get(row.module_id) ?? ""}`;
+      seen.set(row.id, { ...toMaterialRow(row), scopeLabel: label });
+    }
+    for (const row of (sessionResult.data ?? []) as Array<
+      MaterialQueryRow & { class_session_id: string }
+    >) {
+      const label = `Session: ${sessionLabelById.get(row.class_session_id) ?? ""}`;
+      seen.set(row.id, { ...toMaterialRow(row), scopeLabel: label });
+    }
 
     return {
       ok: true,
-      data: (
-        (data ?? []) as Array<{
-          id: string;
-          title: string;
-          description: string | null;
-          material_type: MaterialRow["materialType"];
-          file_path: string | null;
-          external_url: string | null;
-          uploaded_by_type: "admin" | "trainer";
-          created_at: string;
-        }>
-      ).map(toMaterialRow),
+      data: Array.from(seen.values()).sort((a, b) =>
+        a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0,
+      ),
     };
   } catch (error) {
     return fail("Could not load materials.", error);

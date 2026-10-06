@@ -556,10 +556,17 @@ test.describe("Student — Material visibility", () => {
   let student: Phase15StudentPortalIdentity | undefined;
   let pair: ExistingProgramWithBatch | undefined;
   let enrollmentId: string | undefined;
+  let moduleId: string | undefined;
+  let sessionId: string | undefined;
   let programMaterialId: string | undefined;
   let batchMaterialId: string | undefined;
+  let moduleMaterialId: string | undefined;
+  let sessionMaterialId: string | undefined;
   const programMaterialTitle = `${PHASE15_E2E_PREFIX} Student Program Material ${RUN_ID}`;
   const batchMaterialTitle = `${PHASE15_E2E_PREFIX} Student Batch Material ${RUN_ID}`;
+  const moduleMaterialTitle = `${PHASE15_E2E_PREFIX} Student Module Material ${RUN_ID}`;
+  const sessionMaterialTitle = `${PHASE15_E2E_PREFIX} Student Session Material ${RUN_ID}`;
+  const moduleTitle = `${PHASE15_E2E_PREFIX} Student Module ${RUN_ID}`;
   const programMaterialUrl = "https://example.com/phase15-student-program";
 
   test.beforeAll(async () => {
@@ -583,6 +590,18 @@ test.describe("Student — Material visibility", () => {
       batchId: pair.batchId,
       agreedFeeRupees: 15000,
     });
+    // Audit finding: Module/Session-scoped materials an eligible Student is
+    // RLS-authorized for were previously absent from this page entirely —
+    // a Module of their own Program and a Session of their own Batch prove
+    // the fix (lib/data/student-portal.ts's getMyMaterialsForEnrollment now
+    // merges all four scope branches) actually surfaces them in the
+    // browser, not just at the RLS layer.
+    moduleId = await createPhase15SyntheticModule(pair.programId, moduleTitle);
+    sessionId = await createPhase15ClassSessionDirect({
+      batchId: pair.batchId,
+      sessionDate: "2099-01-01",
+      topic: `${PHASE15_E2E_PREFIX} Student Session ${RUN_ID}`,
+    });
 
     // Marked directly rather than through the UI — this describe block is
     // only proving Student read-scoping, not Admin/Trainer creation
@@ -598,6 +617,20 @@ test.describe("Student — Material visibility", () => {
       scopeColumn: "batch_id",
       scopeId: pair.batchId,
       title: batchMaterialTitle,
+      uploadedBy: student.authUserId,
+      uploadedByType: "admin",
+    });
+    moduleMaterialId = await createPhase15MaterialDirect({
+      scopeColumn: "module_id",
+      scopeId: moduleId,
+      title: moduleMaterialTitle,
+      uploadedBy: student.authUserId,
+      uploadedByType: "admin",
+    });
+    sessionMaterialId = await createPhase15MaterialDirect({
+      scopeColumn: "class_session_id",
+      scopeId: sessionId,
+      title: sessionMaterialTitle,
       uploadedBy: student.authUserId,
       uploadedByType: "admin",
     });
@@ -621,6 +654,34 @@ test.describe("Student — Material visibility", () => {
             : Promise.resolve({ ok: true }),
       },
       {
+        label: `Module-scoped fixture material (id=${moduleMaterialId ?? "none"})`,
+        run: () =>
+          moduleMaterialId
+            ? deletePhase15MaterialIfExists(moduleMaterialId, null)
+            : Promise.resolve({ ok: true }),
+      },
+      {
+        label: `Session-scoped fixture material (id=${sessionMaterialId ?? "none"})`,
+        run: () =>
+          sessionMaterialId
+            ? deletePhase15MaterialIfExists(sessionMaterialId, null)
+            : Promise.resolve({ ok: true }),
+      },
+      {
+        label: `synthetic Module (id=${moduleId ?? "none"})`,
+        run: () =>
+          moduleId
+            ? deletePhase15SyntheticModuleIfSafe(moduleId)
+            : Promise.resolve({ ok: true }),
+      },
+      {
+        label: `class session (id=${sessionId ?? "none"})`,
+        run: () =>
+          sessionId
+            ? deletePhase15ClassSessionIfSafe(sessionId)
+            : Promise.resolve({ ok: true }),
+      },
+      {
         label: `enrollment (id=${enrollmentId ?? "none"})`,
         run: () =>
           enrollmentId
@@ -637,7 +698,7 @@ test.describe("Student — Material visibility", () => {
     ]);
   });
 
-  test("(H) Student sees their own Program- and Batch-scoped materials, and can open one via View", async ({
+  test("(H) Student sees their own Program/Batch/Module/Session-scoped materials, and can open one via View", async ({
     page,
   }) => {
     if (!student || !enrollmentId) throw new Error("beforeAll did not fully set up.");
@@ -648,6 +709,14 @@ test.describe("Student — Material visibility", () => {
     await expect(card).toBeVisible();
     await expect(card.getByText(programMaterialTitle, { exact: true })).toBeVisible();
     await expect(card.getByText(batchMaterialTitle, { exact: true })).toBeVisible();
+    // The audit-driven fix under direct test: Module/Session-scoped
+    // materials are RLS-authorized for this Student but were previously
+    // never surfaced on this page at all (lib/data/student-portal.ts's
+    // getMyMaterialsForEnrollment only queried program_id/batch_id). Both
+    // must now actually render here, not merely pass at the RLS layer.
+    await expect(card.getByText(moduleMaterialTitle, { exact: true })).toBeVisible();
+    await expect(card.getByText(sessionMaterialTitle, { exact: true })).toBeVisible();
+    await expect(card.getByText(`Module: ${moduleTitle}`)).toBeVisible();
 
     const row = card.locator("li").filter({ hasText: programMaterialTitle });
     const url = await clickViewAndGetPopupUrl(

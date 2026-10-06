@@ -36,9 +36,14 @@ export type MaterialRow = {
   uploadedByType: "admin" | "trainer";
   createdAt: string;
   // Only ever set by getProgramMaterialsIncludingModules below — undefined
-  // everywhere else (Batch/Session/Trainer/Student lists each already show
-  // one unambiguous scope, so there is nothing to label there).
+  // everywhere else (Batch/Session/Trainer lists each already show one
+  // unambiguous scope, so there is nothing to label there).
   moduleTitle?: string | null;
+  // Only ever set by lib/data/student-portal.ts's own
+  // getMyMaterialsForEnrollment, which merges all four scope branches into
+  // one list and needs a human label to disambiguate them ("Program",
+  // "Batch", "Module: <title>", "Session: <topic/date>").
+  scopeLabel?: string;
 };
 
 // Exported so lib/data/student-portal.ts's own getMyMaterialsForEnrollment

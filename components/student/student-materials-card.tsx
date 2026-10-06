@@ -37,6 +37,7 @@ export function StudentMaterialsCard({ materials }: { materials: MaterialRow[] }
                 <div className="flex min-w-0 flex-col">
                   <span className="truncate font-medium">{material.title}</span>
                   <span className="text-muted-foreground truncate text-xs">
+                    {material.scopeLabel ? `${material.scopeLabel} · ` : ""}
                     {MATERIAL_TYPE_LABELS[material.materialType]}
                     {material.displayFileName ? ` · ${material.displayFileName}` : ""}
                   </span>
