@@ -58,8 +58,28 @@ describe("resolveExactlyOneScope", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("fails when more than one is provided, even though the DB CHECK would allow it", () => {
+  it("fails when exactly two are provided, even though the DB CHECK would allow it", () => {
     const result = resolveExactlyOneScope({ ...empty, programId: "p1", batchId: "b1" });
+    expect(result.ok).toBe(false);
+  });
+
+  it("fails when exactly three are provided", () => {
+    const result = resolveExactlyOneScope({
+      ...empty,
+      programId: "p1",
+      batchId: "b1",
+      moduleId: "m1",
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("fails when all four are provided", () => {
+    const result = resolveExactlyOneScope({
+      programId: "p1",
+      batchId: "b1",
+      moduleId: "m1",
+      classSessionId: "s1",
+    });
     expect(result.ok).toBe(false);
   });
 });
@@ -123,6 +143,39 @@ describe("matchesMaterialFileSignature", () => {
   it("rejects a mismatched signature (claims .pdf, bytes are PNG)", () => {
     const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     expect(matchesMaterialFileSignature("notes.pdf", pngBytes)).toBe(false);
+  });
+
+  it("accepts the shared OLE2 signature for all three legacy Office extensions", () => {
+    // Honest limitation, verified not just asserted: doc/ppt/xls all check
+    // the IDENTICAL generic OLE2 compound-file signature — this proves
+    // "legacy Office binary container", never which specific one it is. A
+    // real .xls's bytes would pass the .doc check unchanged.
+    const ole2Bytes = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+    expect(matchesMaterialFileSignature("report.doc", ole2Bytes)).toBe(true);
+    expect(matchesMaterialFileSignature("report.ppt", ole2Bytes)).toBe(true);
+    expect(matchesMaterialFileSignature("report.xls", ole2Bytes)).toBe(true);
+  });
+
+  it("accepts the shared ZIP signature for all three OOXML extensions (and any plain zip)", () => {
+    // Same honest limitation for the OOXML trio: docx/pptx/xlsx all check
+    // the IDENTICAL generic ZIP local-file-header signature — proves
+    // "well-formed ZIP", never genuine OOXML content nor which of the
+    // three it is. An ordinary .zip's bytes would pass any of the three
+    // checks unchanged.
+    const zipBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+    expect(matchesMaterialFileSignature("report.docx", zipBytes)).toBe(true);
+    expect(matchesMaterialFileSignature("report.pptx", zipBytes)).toBe(true);
+    expect(matchesMaterialFileSignature("report.xlsx", zipBytes)).toBe(true);
+  });
+
+  it("rejects a non-OLE2 file claiming a legacy Office extension", () => {
+    const notOle2 = new Uint8Array([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    expect(matchesMaterialFileSignature("report.doc", notOle2)).toBe(false);
+  });
+
+  it("rejects a non-ZIP file claiming an OOXML extension", () => {
+    const notZip = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
+    expect(matchesMaterialFileSignature("report.docx", notZip)).toBe(false);
   });
 
   it("accepts a correct PNG signature for a .png extension", () => {
