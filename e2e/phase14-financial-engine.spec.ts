@@ -563,7 +563,20 @@ test.describe("Student — Payment Plan visibility", () => {
     // (components/student/student-payment-plan-card.tsx) — assert the
     // scoped card itself, not a nonexistent heading role.
     await expect(paymentPlanCard).toBeVisible();
-    await expect(paymentPlanCard.getByText("₹20,000.00")).toBeVisible();
+    // "Plan total" and an installment's own amount legitimately render
+    // the same formatted string whenever (as here, a single-line plan)
+    // the total equals that one installment's amount —
+    // components/student/student-payment-plan-card.tsx renders them as
+    // two separate sibling <p> elements (a "Plan total" label, then its
+    // value) ahead of the installment <ul>, so an unscoped text search
+    // for the total also matches the installment row's own "amount ·
+    // due date · status" span below it. Scoped via the stable sibling
+    // relationship the label element actually has to its value, per the
+    // real DOM structure, not an ordinal .first()/.nth().
+    const planTotalValue = paymentPlanCard
+      .getByText("Plan total", { exact: true })
+      .locator("xpath=following-sibling::p[1]");
+    await expect(planTotalValue).toHaveText("₹20,000.00");
     await expect(
       paymentPlanCard.getByText("Registration", { exact: true }),
     ).toBeVisible();
