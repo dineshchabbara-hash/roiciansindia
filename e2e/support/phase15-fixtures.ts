@@ -690,11 +690,18 @@ export async function deletePhase15SyntheticModuleIfSafe(
 // proving creation itself (already covered by this suite's own UI-driven
 // Admin/Trainer creation tests): the Student visibility test needs a real,
 // already-created material to read, not to create one through the UI.
+//
+// externalUrl is caller-supplied, not hardcoded — a caller creating several
+// fixture materials in the same test (e.g. one per scope branch) needs each
+// one to carry its OWN distinct URL, so a View-action test can assert that
+// the exact clicked material's own stored URL came back, not merely "some"
+// URL any of several same-valued fixture rows would equally satisfy.
 
 export async function createPhase15MaterialDirect(input: {
   scopeColumn: "program_id" | "batch_id" | "module_id" | "class_session_id";
   scopeId: string;
   title: string;
+  externalUrl: string;
   uploadedBy: string;
   uploadedByType: "admin" | "trainer";
 }): Promise<string> {
@@ -705,7 +712,7 @@ export async function createPhase15MaterialDirect(input: {
       [input.scopeColumn]: input.scopeId,
       title: input.title,
       material_type: "link",
-      external_url: "https://example.com/phase15-e2e-fixture",
+      external_url: input.externalUrl,
       uploaded_by: input.uploadedBy,
       uploaded_by_type: input.uploadedByType,
     })

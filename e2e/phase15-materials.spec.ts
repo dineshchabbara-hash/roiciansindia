@@ -647,7 +647,13 @@ test.describe("Student — Material visibility", () => {
   const moduleMaterialTitle = `${PHASE15_E2E_PREFIX} Student Module Material ${RUN_ID}`;
   const sessionMaterialTitle = `${PHASE15_E2E_PREFIX} Student Session Material ${RUN_ID}`;
   const moduleTitle = `${PHASE15_E2E_PREFIX} Student Module ${RUN_ID}`;
+  // Each fixture material gets its OWN distinct URL (not a shared generic
+  // one) — Test H's own assertion depends on this: it proves the clicked
+  // material's own stored URL came back, not merely "any" fixture URL.
   const programMaterialUrl = "https://example.com/phase15-student-program";
+  const batchMaterialUrl = "https://example.com/phase15-student-batch";
+  const moduleMaterialUrl = "https://example.com/phase15-student-module";
+  const sessionMaterialUrl = "https://example.com/phase15-student-session";
 
   test.beforeAll(async () => {
     if (skipSuite) return;
@@ -690,6 +696,7 @@ test.describe("Student — Material visibility", () => {
       scopeColumn: "program_id",
       scopeId: pair.programId,
       title: programMaterialTitle,
+      externalUrl: programMaterialUrl,
       uploadedBy: student.authUserId,
       uploadedByType: "admin",
     });
@@ -697,6 +704,7 @@ test.describe("Student — Material visibility", () => {
       scopeColumn: "batch_id",
       scopeId: pair.batchId,
       title: batchMaterialTitle,
+      externalUrl: batchMaterialUrl,
       uploadedBy: student.authUserId,
       uploadedByType: "admin",
     });
@@ -704,6 +712,7 @@ test.describe("Student — Material visibility", () => {
       scopeColumn: "module_id",
       scopeId: moduleId,
       title: moduleMaterialTitle,
+      externalUrl: moduleMaterialUrl,
       uploadedBy: student.authUserId,
       uploadedByType: "admin",
     });
@@ -711,6 +720,7 @@ test.describe("Student — Material visibility", () => {
       scopeColumn: "class_session_id",
       scopeId: sessionId,
       title: sessionMaterialTitle,
+      externalUrl: sessionMaterialUrl,
       uploadedBy: student.authUserId,
       uploadedByType: "admin",
     });
