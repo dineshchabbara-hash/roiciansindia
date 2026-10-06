@@ -54,7 +54,7 @@ Two sub-questions: (1) Do you have an existing certificate design/template (PDF,
 image, or description of layout, signatory name/title) we should match, or should
 we design a clean default? (2) On the public `/verify-certificate` page, should the
 full student name be shown, or a partially-masked version (e.g. "Priya S.")?
-**Default:** clean original design authored in Phase 19; full name shown on
+**Default:** clean original design authored in Phase 17; full name shown on
 verification (this is standard practice for certificate verification pages and
 matches what the brief's §29 describes) — flag now only if you want masking.
 
@@ -79,7 +79,7 @@ sequence portion is scoped per calendar year (so 2027 receipts restart at
 `000001`). **Confirm** this is the desired behavior versus a single
 never-resetting sequence across all years (e.g. `REC-000001`, `REC-000002`, …
 indefinitely) — both are legitimate business choices and this only needs
-confirming before Phase 16 (Receipts).
+confirming before Phase 21 (Receipts, Refunds & Payment Documents).
 
 ### D8. Outstanding-balance refund sign (FR-31) — confirm which direction is correct
 

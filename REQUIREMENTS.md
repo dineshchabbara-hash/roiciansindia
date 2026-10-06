@@ -210,8 +210,11 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   `lib/data/attendance.ts` functions that accept a caller-trusted batch id.)
 - FR-53 (P1): Upload materials, create assignments, review submissions, add
   feedback/marks scoped to assigned batches.
-  (Deferred to Phase 17/18 — explicitly out of Phase 11's scope. Not
-  implemented, not stubbed with fake data.)
+  (Material upload delivered in Phase 15 — Trainer scoped to their own
+  assigned Batch/Session only, no Program/Module access (see
+  IMPLEMENTATION_PLAN.md's own Phase 15 note). Assignments/submissions/
+  feedback remain deferred to Phase 16 — explicitly out of Phase 11's
+  scope. Not implemented, not stubbed with fake data.)
 - FR-54 (P0): Trainers explicitly cannot: view unrelated students, modify payments or
   fees, access Admin settings.
   (Phase 11 implementation note: verified server-side — `getMyBatch`/
@@ -279,8 +282,54 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 ### 2.8 Materials & Course Structure
 - FR-70 (P1): Upload PDFs/docs/slides/sheets/images/links/video links; attach to
   Program, Batch, Session, or Module.
+  (Phase 15 implementation note: the `materials`/`program_modules` tables
+  and every RLS policy this phase relies on
+  (materials_select_admin/select_trainer/select_student/write_admin/
+  write_trainer/update_admin/delete_admin, 20260101000014_rls_policies.sql)
+  already existed, provisioned ahead of schedule alongside the rest of the
+  schema in Phase 2 — Phase 15 is the first phase to actually write to
+  `materials` and is purely an application-layer build on top of unchanged,
+  pre-existing security, the same relationship Phase 12 had to
+  `class_sessions`. "Attach to Program, Batch, Session, or Module" is
+  implemented as exactly-one-scope-per-material, an application-layer
+  decision — not a DB rule — since the `materials_scoped` CHECK constraint
+  itself only requires at least one of the four, and no primary source
+  gives a worked multi-scope example; the DB CHECK is deliberately left
+  unchanged. Admin may scope a material to an existing Module (no Module
+  CRUD — a read-only picker over whatever `program_modules` rows already
+  exist); Trainer upload remains Batch/Session-scoped only, matching
+  `materials_write_trainer`'s own RLS shape exactly — no Program/Module
+  access was invented for Trainer this phase.)
 - FR-71 (P1): Access to materials strictly scoped to the student's active enrollment
   in the related program/batch; storage URLs are never public/guessable.
+  (Phase 15 implementation note: "active enrollment" is not defined by any
+  primary source down to the exact status set, so this is an explicit,
+  approved Phase 15 business decision, not an inference: ALLOWED —
+  `enrolled`, `active`, `on_hold`, `completed`; DENIED — `lead`,
+  `applicant`, `withdrawn`, `cancelled`. This aligns with the project's own
+  pre-existing, named "operational/student-active" status grouping
+  (`supabase/migrations/20260101000025_enrollment_batch_integrity_
+  constraints.sql`'s own comment: enrolled/active/on_hold/completed);
+  `completed` specifically was the one sub-question FR-71 itself left
+  unresolved (a completed student keeps access to their own past learning
+  materials; withdrawn/cancelled are historical/terminal and lead/applicant
+  are not yet in the learning-delivery lifecycle). Enforced as a narrowing-
+  only RLS correction to the pre-existing `materials_select_student` policy
+  (`20260101000026_materials_student_rls_active_enrollment.sql`), applied
+  identically across all four scope branches (program/batch/module/
+  session) and to the Storage bucket's own mirrored policy
+  (`20260101000027_materials_storage.sql`) — RLS is the actual
+  authorization boundary, never re-derived in application code. Storage:
+  a new private `materials` bucket (`public: false`), never a public URL;
+  access is via a short-lived signed URL
+  (`MATERIAL_SIGNED_URL_EXPIRY_SECONDS = 300`, `lib/domain/materials.ts` —
+  a named engineering default, not a business rule, never persisted,
+  changeable without a migration), minted fresh on every request through
+  the caller's own RLS-scoped session (never the service-role client), so
+  Storage RLS independently gates it even if table RLS were ever
+  misconfigured. MIME content is verified from the actual file bytes
+  (`matchesMaterialFileSignature`), never the trusted Content-Type header
+  alone, per `SECURITY_PLAN.md` §8.)
 
 ### 2.9 Assignments
 - FR-80 (P1): Assignment entity (program/batch/module, trainer, title, description,
@@ -297,7 +346,7 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   schedule the "registration fee"/"installment" types above will eventually
   post against — `payment_plans`/`installments`, pre-existing schema with no
   prior application code reading or writing either table. Actual payment
-  transactions of any of these types are explicitly Phase 15/16 scope; Phase
+  transactions of any of these types are explicitly Phase 20/21 scope; Phase
   14 never inserts into `payments`, only reads it once, by exact
   `installment_id`, to check whether an installment is safe to hard-delete.)
 - FR-91 (P0): Payment record is an **immutable transaction row** (see §21/§90 fields);

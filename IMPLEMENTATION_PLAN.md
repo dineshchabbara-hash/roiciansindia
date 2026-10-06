@@ -198,14 +198,14 @@ cache computed on create, enrollment list/detail/search/filter.
 
 **DB changes:** None beyond Phase 2 (`enrollments`); this phase implements the
 balance-computation service function (`lib/domain/enrollment-balance.ts`) used
-here and reused unchanged in Phase 14/15/16.
+here and reused unchanged in Phase 14/20/21.
 
 **Security implications:** Fee/discount overrides audited (`audit_logs`) from
 this phase forward.
 
 **Tests:** Multiple enrollments per student (§68/§69 verification); a payment
 against one enrollment never touches another enrollment's balance (§67
-verification — even though payments aren't built until Phase 14/15, this phase's
+verification — even though payments aren't built until Phase 14/20, this phase's
 balance function is unit-tested in isolation with mocked payment sums to confirm
 the isolation logic is correct before payments exist).
 
@@ -456,10 +456,10 @@ explicitly Phase 14+ and untouched.
 
 ## Phase 14 — Payment Plans / Installments
 
-**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase14-financial-engine`,
-based off `main` at `865bd3c` (the Phase 13 baseline). Not yet merged;
-awaiting manual Windows browser acceptance, then explicit approval, per the
-same gate Phase 10/11/12/13 went through.
+**Status:** COMPLETED — merged to `main` at commit `474fd41` (fast-forward
+from `claude/phase14-financial-engine`). Manual Windows browser acceptance
+confirmed 7/7 passed before merge; synthetic E2E test data cleanup verified
+via a dedicated read-only audit script.
 
 **Scope:** Admin configures a payment plan (full or installment) per enrollment;
 installment CRUD (amount/due date), status derivation
@@ -542,7 +542,7 @@ phase creates, with exactly one status this phase ever writes explicitly —
 `waived`, an Admin business decision no formula can derive.
 `partially_paid`/`paid` are computed from `amount_paid_cache`, which
 Phase 14 never writes to (structurally unreachable for a Phase-14-created
-installment until a real payment posts in Phase 15/16) — the derivation
+installment until a real payment posts in Phase 20/21) — the derivation
 still handles them correctly once one does.
 
 **Pre-acceptance review correction:** the status CHECK constraint and
@@ -621,66 +621,121 @@ formula at all — Payment Plans are a planned schedule, entirely separate
 from the actual-payments arithmetic FR-31 concerns — so this phase neither
 resolves nor depends on resolving it.)
 
-## Phase 15 — Razorpay Integration
+## Phase 15 — Materials
 
-**Scope:** Order creation route/action, Checkout client integration, signature
-verification, webhook route with idempotent processing, balance recompute on
-confirmed payment — full flow per `API_AND_INTEGRATIONS.md` §2.
+**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase15-materials`, based
+off `main` at `474fd41` (the Phase 14 baseline). Not yet merged; awaiting
+manual Windows browser acceptance, then explicit approval, per the same gate
+Phase 10/11/12/13/14 went through.
 
-**DB changes:** None beyond Phase 2 (`payments` already modeled); this phase is
-the first to actually write rows into it.
+**Scope:** Upload UI (Admin/Trainer) scoped to Program/Batch/Module/Session;
+Storage integration with a private bucket + signed URLs; Student materials
+view scoped to active enrollment.
 
-**Security implications:** Highest-scrutiny phase alongside Phase 3 — server-
-authoritative amount, signature verification, idempotency all land here. No "Pay"
-button ships before this phase is complete and tested (REQ-DEMO compliance — no
-fake Pay button in Phase 10/14 UI; those phases show plan/schedule only until
-Phase 15 wires the real action).
+**DB changes:** None beyond Phase 2 (`materials`, `program_modules`) except
+one narrowing-only RLS correction
+(`20260101000026_materials_student_rls_active_enrollment.sql`, see below) and
+one new Storage bucket + policy migration
+(`20260101000027_materials_storage.sql`).
 
-**Tests:** Valid/invalid/tampered signature cases; duplicate webhook delivery
-produces exactly one payment row and one balance update; amount mismatch is held
-for review rather than silently accepted; concurrent payments against different
-installments of the same enrollment don't race incorrectly.
+**Security implications:** File upload validation per `SECURITY_PLAN.md` §8
+(extension allow-list, size limits, MIME sniffing from actual bytes, never
+the trusted Content-Type header alone); verified a Student cannot access
+Materials for a Program/Batch/Module/Session they are not (status-)eligibly
+enrolled in, at both the table and Storage layers, via direct id/path
+tampering (`supabase/tests/phase15_materials_test.sql`); the `materials`
+Storage bucket is private (`public: false`), never a public URL.
 
-**DoD:** A test-mode Razorpay payment completes end-to-end and the enrollment's
-outstanding balance updates correctly and only for that enrollment.
+**DoD:** A student sees only materials for their own eligibly-enrolled
+Program/Batch (Module/Session access is RLS-authorized but not separately
+surfaced on the Student enrollment page — see "Known limitations" below);
+download works via a short-lived signed URL.
 
-## Phase 16 — Receipts
+(Phase 15 implementation note: the `materials`/`program_modules` tables and
+every RLS policy this phase relies on
+(materials_select_admin/select_trainer/write_admin/write_trainer/
+update_admin/delete_admin, 20260101000014_rls_policies.sql) already existed,
+provisioned ahead of schedule alongside the rest of the schema in Phase 2 —
+Phase 15 is the first phase to actually write to `materials` and is purely
+an application-layer build on top of mostly-unchanged, pre-existing
+security, the same relationship Phase 12 had to `class_sessions` and
+Phase 14 had to `payment_plans`/`installments`.
 
-**Scope:** Receipt number sequence usage (already defined in Phase 2), PDF
-generation (`@react-pdf/renderer`) triggered on confirmed payment (online or
-offline), storage in the `receipts` bucket, download in both Admin and Student
-portals, email-on-payment (requires Phase 20's email infra — if sequenced before
-Phase 20, the email send is stubbed/queued and clearly logged as pending rather
-than silently dropped; recommend pulling minimal email sending forward into this
-phase if it doesn't complicate Phase 20's fuller scope).
+**Approved Phase 15 business decision — Student "active enrollment" status
+set:** FR-71 does not define which enrollment statuses count as "active" for
+Materials access. After discovery review, the approved rule is: ALLOWED —
+`enrolled`, `active`, `on_hold`, `completed`; DENIED — `lead`, `applicant`,
+`withdrawn`, `cancelled`. This aligns with the project's own pre-existing,
+named "operational/student-active" status grouping
+(`20260101000025_enrollment_batch_integrity_constraints.sql`'s own comment);
+`completed` specifically was the one sub-question FR-71 itself left
+unresolved, and its inclusion is a deliberate, explicit Phase 15 decision
+(a completed student keeps access to their own past learning materials),
+not an inference from any primary source. Enforced as a **narrowing-only**
+correction to the pre-existing `materials_select_student` policy, applied
+identically across all four scope branches (program/batch/module/session)
+and mirrored in the Storage bucket's own `materials_bucket_select_student`
+policy — RLS is the real authorization boundary; no application query
+re-derives this filter itself.
 
-**DB changes:** None beyond Phase 2 (`receipts`).
+**Scope model — exactly one of Program/Batch/Module/Session per material:**
+the `materials_scoped` CHECK constraint only requires at least one of the
+four columns non-null; FR-70's own "Program, Batch, Session, or Module"
+wording gives no worked multi-scope example. The smallest, least-invented
+reading — exactly one scope per material — is enforced at the application
+layer only (`lib/domain/materials.ts`'s `resolveExactlyOneScope`); the DB
+CHECK is deliberately left exactly as-is, an explicit approved decision, not
+an oversight.
 
-**Security implications:** Concurrency-safe numbering verified under parallel
-payment confirmations (unit/integration test with simulated concurrent
-transactions).
+**Module scope — read-only picker, no Module CRUD:** Admin may scope a
+material to an existing Module via a picker on the Program detail page
+(`listProgramModules` — a SELECT of whatever `program_modules` rows already
+exist); Module CRUD itself stays entirely out of Phase 15's scope. Trainer
+upload remains Batch/Session-scoped only, matching `materials_write_trainer`
+RLS exactly — no Program/Module access was invented for Trainer this phase,
+since no RLS path exists for it and inventing one was explicitly forbidden.
 
-**DoD:** Every successful payment (online or offline, from Phase 14's manual-entry
-UI too) produces a real, downloadable, correctly numbered PDF receipt — no
-"Download Receipt" button appears before this phase ships.
+**No hard-delete UI for Materials:** an RLS DELETE policy
+(`materials_delete_admin`) proves the DB permits deletion, but no primary
+source (`REQUIREMENTS.md`, this plan, the brief) actually specifies a
+destructive-delete requirement for Materials — classification: unclear/not
+specified. Per this engagement's own "do not invent a destructive UI control
+when the requirement is unclear" rule, no hard-delete button is exposed
+anywhere in the Admin UI this phase, matching the DELETE policy's own
+"at the RLS layer, not exposed in the application" treatment Phase 14 used
+for `payment_plans_delete_admin`. No archive/`is_active` schema was added
+either, for the same reason — nothing requires it.
 
-## Phase 17 — Materials
+**Storage — private bucket, signed URLs, server-built paths:** a new
+`materials` Storage bucket (`public: false`); access is via a short-lived
+signed URL (`MATERIAL_SIGNED_URL_EXPIRY_SECONDS = 300`,
+`lib/domain/materials.ts` — a named engineering default, not a business
+rule, never persisted, changeable without a migration), minted fresh on
+every request through the caller's own RLS-scoped session (never the
+service-role client), so Storage RLS independently gates it even if table
+RLS were ever misconfigured. Object paths are entirely server-built
+(`{scopeType}/{scopeId}/{objectId}-{sanitizedName}` — the caller-supplied
+original filename only ever contributes a sanitized cosmetic suffix, never
+path authority) and are a defense-in-depth, trusted-identifier prefix for
+the Trainer INSERT policy only (needed because no `materials` metadata row
+exists yet at that exact moment to join against); every other Storage
+operation (SELECT) joins back to the real `materials` row and applies the
+identical authorization logic the table's own RLS policies already use —
+this file does not re-derive or duplicate that logic. MIME content is
+verified from the actual file bytes (`matchesMaterialFileSignature`), never
+the trusted Content-Type header alone, per `SECURITY_PLAN.md` §8.
 
-**Scope:** Upload UI (Admin/Trainer) scoped to program/batch/module/session;
-Storage integration with private buckets + signed URLs; Student materials view
-scoped to active enrollment.
+**Known limitations / deferred:** The Student enrollment page surfaces
+Program- and Batch-scoped materials only (the "smallest useful UI" this
+phase's own brief called for) — Module/Session-scoped materials remain
+fully RLS-authorized for an eligible Student but are not separately
+rendered on that page. No hard-delete/archive capability anywhere (see
+above). No assignments, certificates, notifications, reports, Razorpay,
+receipts, quizzes, progress-tracking, public material library, public
+material URLs, video streaming/DRM/CDN integration, or content
+recommendations — all explicitly out of Phase 15's scope and untouched.)
 
-**DB changes:** None beyond Phase 2 (`materials`).
-
-**Security implications:** File upload validation per `SECURITY_PLAN.md` §8;
-verify a student cannot access materials for a program/batch they are not
-enrolled in via direct storage-path guessing (paths are non-guessable UUID-keyed
-regardless).
-
-**DoD:** A student sees only materials for their own enrolled batches; download
-works via signed URL with expiry.
-
-## Phase 18 — Assignments
+## Phase 16 — Assignments & Submissions
 
 **Scope:** Assignment CRUD (Trainer, scoped to assigned batch), submission flow
 (Student: text/file, status), review/grading UI (Trainer), status lifecycle.
@@ -690,7 +745,7 @@ works via signed URL with expiry.
 **DoD:** A student can submit an assignment and see trainer feedback/marks; a
 trainer can only grade submissions for their own assigned batches.
 
-## Phase 19 — Certificates
+## Phase 17 — Certificates
 
 **Scope:** Certificate issuance (Admin, per completed enrollment), PDF generation,
 revoke/reissue with audit history, Student download view, public
@@ -704,11 +759,11 @@ field set defined in `API_AND_INTEGRATIONS.md` §6; rate-limited.
 **DoD:** A certificate can be issued, downloaded by the student, and verified
 publicly by number without exposing private data.
 
-## Phase 20 — Email Notifications
+## Phase 18 — Notifications
 
 **Scope:** `EmailSender` abstraction + Resend adapter, React Email templates for
-all events in `REQUIREMENTS.md` FR-110, `email_log` wiring, retrofitting Phase 15/
-16/19's send points if they were stubbed earlier, in-app `notifications` feed +
+all events in `REQUIREMENTS.md` FR-110, `email_log` wiring, retrofitting Phase 20/
+21/17's send points if they were stubbed earlier, in-app `notifications` feed +
 `NotificationDispatcher`.
 
 **DB changes:** None beyond Phase 2 (`notifications`, `email_log`).
@@ -717,7 +772,7 @@ all events in `REQUIREMENTS.md` FR-110, `email_log` wiring, retrofitting Phase 1
 actually arrive (verified against a real or sandbox provider account) with
 correct company branding pulled from Settings.
 
-## Phase 21 — Reports
+## Phase 19 — Reports & Analytics
 
 **Scope:** All report categories from `REQUIREMENTS.md` FR-120 (student,
 enrollment, payment, attendance, trainer), server-side pagination, CSV export.
@@ -727,6 +782,58 @@ needs them (evaluate with `EXPLAIN` during implementation, not speculatively).
 
 **DoD:** Each report renders from live data with working filters and a working
 CSV export that never loads the full result set into browser memory.
+
+## Phase 20 — Razorpay Integration
+
+**Scope:** Order creation route/action, Checkout client integration, signature
+verification, webhook route with idempotent processing, balance recompute on
+confirmed payment — full flow per `API_AND_INTEGRATIONS.md` §2.
+
+**DB changes:** None beyond Phase 2 (`payments` already modeled); this phase is
+the first to actually write rows into it.
+
+**Security implications:** Highest-scrutiny phase alongside Phase 3 — server-
+authoritative amount, signature verification, idempotency all land here. No "Pay"
+button ships before this phase is complete and tested (REQ-DEMO compliance — no
+fake Pay button in Phase 10/14 UI; those phases show plan/schedule only until
+Phase 20 wires the real action).
+
+**Tests:** Valid/invalid/tampered signature cases; duplicate webhook delivery
+produces exactly one payment row and one balance update; amount mismatch is held
+for review rather than silently accepted; concurrent payments against different
+installments of the same enrollment don't race incorrectly.
+
+**DoD:** A test-mode Razorpay payment completes end-to-end and the enrollment's
+outstanding balance updates correctly and only for that enrollment.
+
+(Phase 15 note: Razorpay integration was deliberately deferred past Materials/
+Assignments/Certificates/Notifications/Reports in the revised Phase 15–21
+roadmap ordering — a Phase 15–21 planning decision, not a change to this
+phase's own scope, security implications, or DoD above.)
+
+## Phase 21 — Receipts, Refunds & Payment Documents
+
+**Scope:** Receipt number sequence usage (already defined in Phase 2), PDF
+generation (`@react-pdf/renderer`) triggered on confirmed payment (online or
+offline), storage in the `receipts` bucket, download in both Admin and Student
+portals, email-on-payment (requires Phase 18's email infra — if sequenced before
+Phase 18, the email send is stubbed/queued and clearly logged as pending rather
+than silently dropped; recommend pulling minimal email sending forward into this
+phase if it doesn't complicate Phase 18's fuller scope). Refunds and other
+payment documents beyond the receipt itself (tracked in FR-90 as P1/P2
+execution) are folded into this phase's own name per the revised roadmap, but
+remain undesigned until this phase's own requirements/discovery pass — not
+expanded here speculatively.
+
+**DB changes:** None beyond Phase 2 (`receipts`).
+
+**Security implications:** Concurrency-safe numbering verified under parallel
+payment confirmations (unit/integration test with simulated concurrent
+transactions).
+
+**DoD:** Every successful payment (online or offline, from Phase 14's manual-entry
+UI too) produces a real, downloadable, correctly numbered PDF receipt — no
+"Download Receipt" button appears before this phase ships.
 
 ## Phase 22 — Public Website
 
