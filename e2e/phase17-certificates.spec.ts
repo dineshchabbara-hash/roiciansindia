@@ -158,6 +158,16 @@ async function runCleanupSteps(
 test.describe("Admin — Certificate management", () => {
   let admin: Phase17AdminIdentity | undefined;
   let student: Phase17StudentPortalIdentity | undefined;
+  // A SEPARATE Student, owning the ineligible Enrollment. `enrollments_
+  // one_per_student_batch` is a real, unweakened unique constraint on
+  // (student_id, batch_id) — the eligible and ineligible Enrollments below
+  // are both created against the SAME found Batch (findExistingCertificate
+  // EligibleProgramWithBatch returns a single real dev-project pair, never
+  // a synthetic one), so they cannot share one Student without colliding.
+  // Each Enrollment therefore gets its own uniquely owned synthetic
+  // Student, per the Phase 17 fixture-isolation principle — never a second
+  // enrollment crammed onto the same (student, batch) pair.
+  let ineligibleStudent: Phase17StudentPortalIdentity | undefined;
   let pair: ExistingCertificateEligibleProgramWithBatch | undefined;
   let eligibleEnrollmentId: string | undefined;
   let ineligibleEnrollmentId: string | undefined;
@@ -174,6 +184,13 @@ test.describe("Admin — Certificate management", () => {
       student = await createPhase17StudentPortalIdentity("ForAdmin");
     } catch (err) {
       if (err instanceof Phase17PartialStudentPortalIdentityError) student = err.partial;
+      throw err;
+    }
+    try {
+      ineligibleStudent = await createPhase17StudentPortalIdentity("ForAdminIneligible");
+    } catch (err) {
+      if (err instanceof Phase17PartialStudentPortalIdentityError)
+        ineligibleStudent = err.partial;
       throw err;
     }
     const found = await findExistingCertificateEligibleProgramWithBatch();
@@ -194,10 +211,14 @@ test.describe("Admin — Certificate management", () => {
         totalPayableRupees: 0,
         status: "completed",
       });
+    }
+    if (ineligibleStudent.studentId) {
       // Ineligible on two counts at once: not completed AND a real
-      // outstanding balance (no payment exists against it).
+      // outstanding balance (no payment exists against it) — its own
+      // Student, same Batch, so it never collides with the eligible
+      // Enrollment above.
       ineligibleEnrollmentId = await createPhase17SyntheticEnrollment({
-        studentId: student.studentId,
+        studentId: ineligibleStudent.studentId,
         programId: pair.programId,
         batchId: pair.batchId,
         totalPayableRupees: 15000,
@@ -240,6 +261,13 @@ test.describe("Admin — Certificate management", () => {
         run: () =>
           student
             ? deletePhase17StudentPortalIdentity(student)
+            : Promise.resolve({ ok: true }),
+      },
+      {
+        label: "Ineligible-enrollment student identity",
+        run: () =>
+          ineligibleStudent
+            ? deletePhase17StudentPortalIdentity(ineligibleStudent)
             : Promise.resolve({ ok: true }),
       },
     ]);
