@@ -10,6 +10,20 @@ import type { AttendanceRosterEntry } from "@/lib/validation/attendance";
 import type { MaterialScope } from "@/lib/domain/materials";
 import type { CreateMaterialInput } from "@/lib/validation/materials";
 import { createMaterialRecord } from "@/lib/data/materials";
+import type {
+  CreateAssignmentInput,
+  ReviewSubmissionInput,
+} from "@/lib/validation/assignments";
+import {
+  createAssignmentRecord,
+  getAssignmentsForBatch,
+  getSubmissionsForAssignment,
+  reviewSubmission,
+  updateAssignmentStatus,
+  type AssignmentRow,
+  type SubmissionRow,
+} from "@/lib/data/assignments";
+import type { AssignmentStatus } from "@/lib/domain/assignments";
 
 /**
  * Trainer Portal data-access layer (Phase 11). Deliberately separate from
@@ -994,5 +1008,125 @@ export async function createMyMaterial(
     });
   } catch (error) {
     return fail("Could not create the material. Please try again.", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Assignments & Submissions (Phase 16) — Trainer create/manage scoped to
+// assigned Batches only, matching assignments_write_trainer/_update_trainer
+// RLS exactly (both join through batch_trainers, no program/module branch
+// of their own — a Trainer is never authorized to create an assignment for
+// a batch they are not assigned to, and this module never offers that
+// path, not merely hides it). getMyBatch below re-verifies assignment
+// before any write (defense in depth; table/Storage RLS enforce the same
+// boundary independently either way).
+
+export async function getMyAssignmentsForBatch(
+  batchId: string,
+): Promise<DataResult<AssignmentRow[]>> {
+  const batch = await getMyBatch(batchId);
+  if (!batch.ok) return batch;
+  return getAssignmentsForBatch(batchId);
+}
+
+// Scoped by batch ownership (getMyBatch) AND the assignment's own batch_id
+// — an unassigned batch id, a nonexistent assignment id, or a genuine
+// assignment that belongs to a DIFFERENT batch than the [id] segment all
+// come back "not found" identically, the same guarantee as getMySession.
+export async function getMyAssignment(
+  batchId: string,
+  assignmentId: string,
+): Promise<DataResult<AssignmentRow>> {
+  const batch = await getMyBatch(batchId);
+  if (!batch.ok) return batch;
+
+  const result = await getAssignmentsForBatch(batchId);
+  if (!result.ok) return result;
+  const row = result.data.find((a) => a.id === assignmentId);
+  if (!row) return { ok: false, error: "Assignment not found." };
+  return { ok: true, data: row };
+}
+
+export async function createMyAssignment(
+  batchId: string,
+  data: CreateAssignmentInput,
+  file: File | null,
+): Promise<DataResult<{ id: string }>> {
+  const batch = await getMyBatch(batchId);
+  if (!batch.ok) return batch;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const trainerId = await resolveMyTrainerId(supabase);
+    if (!trainerId.ok) return trainerId;
+
+    return await createAssignmentRecord({
+      programId: batch.data.programId,
+      batchId,
+      // Always the caller's own resolved trainer id — never a value the
+      // browser could submit — so a Trainer can never attribute an
+      // assignment to a different Trainer, the same discipline
+      // createMyClassSession already uses for trainer_id.
+      trainerId: trainerId.data,
+      data,
+      file,
+    });
+  } catch (error) {
+    return fail("Could not create the assignment. Please try again.", error);
+  }
+}
+
+export async function updateMyAssignmentStatus(
+  batchId: string,
+  assignmentId: string,
+  status: AssignmentStatus,
+): Promise<DataResult<null>> {
+  const assignment = await getMyAssignment(batchId, assignmentId);
+  if (!assignment.ok) return assignment;
+  return updateAssignmentStatus(assignmentId, status);
+}
+
+export async function getMySubmissionsForAssignment(
+  batchId: string,
+  assignmentId: string,
+): Promise<DataResult<SubmissionRow[]>> {
+  const assignment = await getMyAssignment(batchId, assignmentId);
+  if (!assignment.ok) return assignment;
+  return getSubmissionsForAssignment(assignmentId);
+}
+
+export async function reviewMySubmission(
+  batchId: string,
+  assignmentId: string,
+  submissionId: string,
+  input: ReviewSubmissionInput,
+): Promise<DataResult<null>> {
+  const assignment = await getMyAssignment(batchId, assignmentId);
+  if (!assignment.ok) return assignment;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const trainerId = await resolveMyTrainerId(supabase);
+    if (!trainerId.ok) return trainerId;
+
+    // Re-verify the submission itself actually belongs to this exact
+    // assignment — a submissionId for a different assignment (even one
+    // this same Trainer is otherwise authorized to review) must not be
+    // reachable through this assignment's own review action.
+    const submissions = await getSubmissionsForAssignment(assignmentId);
+    if (!submissions.ok) return submissions;
+    if (!submissions.data.some((s) => s.id === submissionId)) {
+      return { ok: false, error: "Submission not found." };
+    }
+
+    return await reviewSubmission({
+      submissionId,
+      marks: input.marks,
+      trainerFeedback: input.trainerFeedback,
+      nextStatus: input.nextStatus,
+      reviewerTrainerId: trainerId.data,
+    });
+  } catch (error) {
+    return fail("Could not save the review. Please try again.", error);
   }
 }

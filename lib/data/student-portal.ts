@@ -10,6 +10,18 @@ import {
 import type { EnrollmentStatus } from "@/lib/domain/enrollments";
 import type { StudentSelfProfileInput } from "@/lib/validation/student-self-profile";
 import { toMaterialRow, type MaterialRow } from "@/lib/data/materials";
+import {
+  getAssignmentsForBatch,
+  ASSIGNMENT_SUBMISSIONS_BUCKET,
+  type AssignmentRow,
+} from "@/lib/data/assignments";
+import {
+  buildAssignmentSubmissionPath,
+  resolveSubmissionStatusForNow,
+  assignmentDisplayFileName,
+} from "@/lib/domain/assignments";
+import type { SubmissionStatus } from "@/lib/domain/assignments";
+import type { SubmitAssignmentInput } from "@/lib/validation/assignments";
 
 /**
  * Student Portal data-access layer (Phase 10). Deliberately separate from
@@ -651,5 +663,240 @@ export async function getMyMaterialsForEnrollment(
     };
   } catch (error) {
     return fail("Could not load materials.", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Assignments & Submissions (Phase 16) — read-only assignment list scoped
+// to the caller's own Enrollment, plus the caller's own submission state
+// for each. assignments_select_student (pre-existing, unchanged by this
+// phase — see the Phase 16 report's own "known limitations" section for
+// the exact scope of what was and was not re-verified here) is the real
+// authorization boundary for which Assignment rows this query can even
+// see; this function re-verifies enrollment ownership first (own id + own
+// student_id) so even a nonexistent/unrelated enrollment id gets the same
+// safe "not found" every other Student Portal read already uses.
+
+export type MySubmissionSummary = {
+  id: string;
+  status: SubmissionStatus;
+  submittedAt: string | null;
+  textResponse: string | null;
+  fileDisplayName: string | null;
+  marks: number | null;
+  trainerFeedback: string | null;
+  reviewedAt: string | null;
+};
+
+export type MyAssignmentRow = AssignmentRow & {
+  mySubmission: MySubmissionSummary | null;
+};
+
+type MySubmissionQueryRow = {
+  id: string;
+  assignment_id: string;
+  status: SubmissionStatus;
+  submitted_at: string | null;
+  text_response: string | null;
+  file_path: string | null;
+  // numeric(6,2) — PostgREST string, see lib/data/assignments.ts's own
+  // AssignmentQueryRow.max_marks comment.
+  marks: string | null;
+  trainer_feedback: string | null;
+  reviewed_at: string | null;
+};
+
+export async function getMyAssignmentsForEnrollment(
+  enrollmentId: string,
+): Promise<DataResult<MyAssignmentRow[]>> {
+  const enrollment = await getMyEnrollment(enrollmentId);
+  if (!enrollment.ok) return enrollment;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const studentId = await resolveMyStudentId(supabase);
+    if (!studentId.ok) return studentId;
+
+    const { data: enrollmentRow, error: enrollmentError } = await supabase
+      .from("enrollments")
+      .select("batch_id")
+      .eq("id", enrollmentId)
+      .eq("student_id", studentId.data)
+      .maybeSingle();
+    if (enrollmentError) throw enrollmentError;
+    // A lead/applicant Enrollment has no batch_id yet (20260101000025) —
+    // there is nothing to show, not an error, same convention as
+    // getMyPaymentPlanForEnrollment's own `null` state.
+    if (!enrollmentRow?.batch_id) return { ok: true, data: [] };
+
+    const assignmentsResult = await getAssignmentsForBatch(enrollmentRow.batch_id);
+    if (!assignmentsResult.ok) return assignmentsResult;
+    if (assignmentsResult.data.length === 0) return { ok: true, data: [] };
+
+    const { data: submissions, error: submissionsError } = await supabase
+      .from("assignment_submissions")
+      .select(
+        "id, assignment_id, status, submitted_at, text_response, file_path, marks, trainer_feedback, reviewed_at",
+      )
+      .eq("enrollment_id", enrollmentId);
+    if (submissionsError) throw submissionsError;
+
+    const submissionByAssignment = new Map(
+      ((submissions ?? []) as MySubmissionQueryRow[]).map((row) => [
+        row.assignment_id,
+        {
+          id: row.id,
+          status: row.status,
+          submittedAt: row.submitted_at,
+          textResponse: row.text_response,
+          fileDisplayName: row.file_path
+            ? assignmentDisplayFileName(row.file_path)
+            : null,
+          marks: row.marks === null ? null : Number(row.marks),
+          trainerFeedback: row.trainer_feedback,
+          reviewedAt: row.reviewed_at,
+        } satisfies MySubmissionSummary,
+      ]),
+    );
+
+    return {
+      ok: true,
+      data: assignmentsResult.data.map((assignment) => ({
+        ...assignment,
+        mySubmission: submissionByAssignment.get(assignment.id) ?? null,
+      })),
+    };
+  } catch (error) {
+    return fail("Could not load assignments.", error);
+  }
+}
+
+/**
+ * Creates or updates the caller's OWN submission for one Assignment.
+ * `enrollment_id` is never accepted from the caller (REQUIREMENTS §8/§9 of
+ * the Phase 16 brief: "never trust browser-supplied ... enrollment_id ...
+ * server must derive/reverify ownership") — it is re-derived here from the
+ * caller's own resolved student id and the assignment's own batch_id, the
+ * identical server-side derivation 20260101000028's own table-level fix
+ * now also requires at the DB layer. One row per (assignment_id,
+ * enrollment_id) — the table's own unique constraint — so a second call
+ * updates the same row in place (resubmission), never inserts a second
+ * one; this is Phase 16's own approved interpretation of "once reviewed,
+ * further edits are blocked until the reviewer explicitly asks for a
+ * resubmission" (status = 'reviewed'), not a DB rule, documented the same
+ * way lib/domain/materials.ts documents its own approved, non-DB
+ * interpretations.
+ */
+export async function submitMyAssignment(
+  assignmentId: string,
+  input: SubmitAssignmentInput,
+  file: File | null,
+): Promise<DataResult<{ id: string }>> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const studentId = await resolveMyStudentId(supabase);
+    if (!studentId.ok) return studentId;
+
+    const { data: assignment, error: assignmentError } = await supabase
+      .from("assignments")
+      .select("id, batch_id, due_date")
+      .eq("id", assignmentId)
+      .maybeSingle();
+    if (assignmentError) throw assignmentError;
+    if (!assignment) return { ok: false, error: "Assignment not found." };
+
+    const { data: enrollment, error: enrollmentError } = await supabase
+      .from("enrollments")
+      .select("id")
+      .eq("batch_id", assignment.batch_id)
+      .eq("student_id", studentId.data)
+      .maybeSingle();
+    if (enrollmentError) throw enrollmentError;
+    if (!enrollment) return { ok: false, error: "Assignment not found." };
+
+    const { data: existing, error: existingError } = await supabase
+      .from("assignment_submissions")
+      .select("id, status, file_path")
+      .eq("assignment_id", assignmentId)
+      .eq("enrollment_id", enrollment.id)
+      .maybeSingle();
+    if (existingError) throw existingError;
+
+    if (existing?.status === "reviewed") {
+      return {
+        ok: false,
+        error:
+          "This submission has already been reviewed. Ask your trainer to request a resubmission before submitting again.",
+      };
+    }
+
+    if (!input.textResponse && !file && !existing?.file_path) {
+      return { ok: false, error: "Enter a response or attach a file." };
+    }
+
+    let filePath = existing?.file_path ?? null;
+    if (file) {
+      const objectId = crypto.randomUUID();
+      const newPath = buildAssignmentSubmissionPath(
+        assignmentId,
+        studentId.data,
+        objectId,
+        file.name,
+      );
+      const { error: uploadError } = await supabase.storage
+        .from(ASSIGNMENT_SUBMISSIONS_BUCKET)
+        .upload(newPath, file, { contentType: file.type || undefined });
+      if (uploadError) throw uploadError;
+      filePath = newPath;
+    }
+
+    const status = resolveSubmissionStatusForNow(assignment.due_date);
+    const row = {
+      assignment_id: assignmentId,
+      enrollment_id: enrollment.id,
+      student_id: studentId.data,
+      submitted_at: new Date().toISOString(),
+      text_response: input.textResponse,
+      file_path: filePath,
+      status,
+    };
+
+    const previousFilePath = existing?.file_path ?? null;
+
+    if (existing) {
+      const { error: updateError } = await supabase
+        .from("assignment_submissions")
+        .update(row)
+        .eq("id", existing.id);
+      if (updateError) {
+        if (file && filePath && filePath !== previousFilePath) {
+          await supabase.storage.from(ASSIGNMENT_SUBMISSIONS_BUCKET).remove([filePath]);
+        }
+        throw updateError;
+      }
+      if (file && previousFilePath && previousFilePath !== filePath) {
+        // Exact prior object only — never a prefix/bucket-wide delete.
+        await supabase.storage
+          .from(ASSIGNMENT_SUBMISSIONS_BUCKET)
+          .remove([previousFilePath]);
+      }
+      return { ok: true, data: { id: existing.id } };
+    }
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("assignment_submissions")
+      .insert(row)
+      .select("id")
+      .single();
+    if (insertError) {
+      if (filePath) {
+        await supabase.storage.from(ASSIGNMENT_SUBMISSIONS_BUCKET).remove([filePath]);
+      }
+      throw insertError;
+    }
+
+    return { ok: true, data: { id: inserted.id } };
+  } catch (error) {
+    return fail("Could not submit your assignment. Please try again.", error);
   }
 }

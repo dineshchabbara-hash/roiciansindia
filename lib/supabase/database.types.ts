@@ -532,6 +532,111 @@ export type Database = {
           },
         ];
       };
+      assignments: {
+        Row: {
+          id: string;
+          program_id: string;
+          batch_id: string;
+          module_id: string | null;
+          trainer_id: string;
+          title: string;
+          description: string | null;
+          attachment_path: string | null;
+          assigned_date: string;
+          due_date: string;
+          max_marks: string | null;
+          status: "active" | "closed";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["assignments"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["assignments"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "assignments_program_id_fkey";
+            columns: ["program_id"];
+            isOneToOne: false;
+            referencedRelation: "programs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assignments_batch_id_fkey";
+            columns: ["batch_id"];
+            isOneToOne: false;
+            referencedRelation: "batches";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assignments_module_id_fkey";
+            columns: ["module_id"];
+            isOneToOne: false;
+            referencedRelation: "program_modules";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assignments_trainer_id_fkey";
+            columns: ["trainer_id"];
+            isOneToOne: false;
+            referencedRelation: "trainers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      assignment_submissions: {
+        Row: {
+          id: string;
+          assignment_id: string;
+          enrollment_id: string;
+          student_id: string;
+          submitted_at: string | null;
+          text_response: string | null;
+          file_path: string | null;
+          status:
+            | "not_submitted"
+            | "submitted"
+            | "late"
+            | "reviewed"
+            | "resubmission_requested";
+          marks: string | null;
+          trainer_feedback: string | null;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["assignment_submissions"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["assignment_submissions"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "assignment_submissions_assignment_id_fkey";
+            columns: ["assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "assignments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assignment_submissions_enrollment_id_fkey";
+            columns: ["enrollment_id"];
+            isOneToOne: false;
+            referencedRelation: "enrollments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assignment_submissions_student_id_fkey";
+            columns: ["student_id"];
+            isOneToOne: false;
+            referencedRelation: "students";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assignment_submissions_reviewed_by_fkey";
+            columns: ["reviewed_by"];
+            isOneToOne: false;
+            referencedRelation: "trainers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payment_plans: {
         Row: {
           id: string;
