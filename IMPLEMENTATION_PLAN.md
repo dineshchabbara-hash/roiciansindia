@@ -770,6 +770,19 @@ _own`, `assignment_submissions_write_admin/_own`,
   condition, grants nothing new.
 - `20260101000029_assignments_storage.sql` — two new private Storage buckets,
   `assignment-attachments` and `assignment-submissions` (see below).
+- `20260101000030_assignments_student_rls_active_enrollment.sql` — a
+  **narrowing-only** business-rule correction, added after an explicit
+  pre-browser-testing checkpoint (neither REQUIREMENTS.md nor
+  USER_ROLES_AND_PERMISSIONS.md name an enrollment-status set for
+  Assignment visibility/submission at all — a genuine primary-source gap,
+  reported rather than silently resolved). Approved decision: mirror
+  Materials' own `20260101000026` status set exactly for BOTH permissions —
+  VIEW assignments and CREATE/UPDATE (resubmit) a submission are both
+  ALLOWED for `enrolled`/`active`/`on_hold`/`completed`, DENIED for
+  `lead`/`applicant`/`withdrawn`/`cancelled`. `assignment_submissions_
+  select_own` (viewing one's OWN past submission/grade) was deliberately
+  left UNCHANGED/status-unfiltered by the same explicit decision — a
+  permanent academic record, not re-gated by a later status change.
 
 **Security implications:** File upload validation reuses `SECURITY_PLAN.md`
 §8's policy verbatim (extension allow-list, 10MB document/5MB image size
@@ -872,18 +885,19 @@ either table at all), but no primary source specifies a destructive-delete
 requirement, so no hard-delete button is exposed anywhere in the application,
 matching Phase 14/15's own identical treatment of their own DELETE policies.
 
-**Known limitations / ambiguities (reported, not silently resolved):**
-- `assignments_select_student` (pre-existing, Phase 2, unchanged by this
-  phase) has **no enrollment-status filter at all** — unlike Materials'
-  `materials_select_student` (narrowed in `20260101000026` to enrolled/
-  active/on_hold/completed), a Student with ANY enrollment status whose
-  `batch_id` still matches (including a historical `withdrawn`/`cancelled`
-  enrollment, which the schema does not null out on withdrawal) can see that
-  batch's Assignments. This phase deliberately did **not** copy Materials'
-  status rule onto Assignments without a primary-source basis for doing so
-  (per this phase's own explicit instruction), and did not invent a new
-  restriction either — reported here for an explicit decision, left
-  unchanged pending that decision.
+**RESOLVED by explicit checkpoint decision (was a known limitation, now
+closed):** `assignments_select_student` and `assignment_submissions_write_own`/
+`_update_own` originally had no enrollment-status filter at all (a genuine
+primary-source gap — reported rather than silently resolved). After an
+explicit pre-browser-testing checkpoint, the approved decision is: VIEW and
+SUBMIT both use the SAME status set as Materials
+(`enrolled`/`active`/`on_hold`/`completed` allowed;
+`lead`/`applicant`/`withdrawn`/`cancelled` denied), enforced by
+`20260101000030_assignments_student_rls_active_enrollment.sql`; viewing
+one's OWN past submission (`assignment_submissions_select_own`) stays
+status-unfiltered by the same explicit decision. Proven at the RLS layer by
+`supabase/tests/phase16_assignments_test.sql`'s own withdrawn/completed
+Student sections.
 - Admin's assignment-creation form requires picking a Trainer from that
   Batch's own assigned trainers (`getBatchTrainerAssignments`) — an
   application-layer convenience/data-integrity choice (consistent attribution

@@ -43,14 +43,18 @@ insert into auth.users (id, email) values
   ('16000000-0000-0000-0000-000000000002', 'phase16-trainer-a@validation.local'),
   ('16000000-0000-0000-0000-000000000003', 'phase16-trainer-b@validation.local'),
   ('16000000-0000-0000-0000-000000000004', 'phase16-student-x@validation.local'),
-  ('16000000-0000-0000-0000-000000000005', 'phase16-student-y@validation.local');
+  ('16000000-0000-0000-0000-000000000005', 'phase16-student-y@validation.local'),
+  ('16000000-0000-0000-0000-000000000006', 'phase16-student-withdrawn@validation.local'),
+  ('16000000-0000-0000-0000-000000000007', 'phase16-student-completed@validation.local');
 
 insert into user_roles (auth_user_id, role) values
   ('16000000-0000-0000-0000-000000000001', 'admin'),
   ('16000000-0000-0000-0000-000000000002', 'trainer'),
   ('16000000-0000-0000-0000-000000000003', 'trainer'),
   ('16000000-0000-0000-0000-000000000004', 'student'),
-  ('16000000-0000-0000-0000-000000000005', 'student');
+  ('16000000-0000-0000-0000-000000000005', 'student'),
+  ('16000000-0000-0000-0000-000000000006', 'student'),
+  ('16000000-0000-0000-0000-000000000007', 'student');
 
 insert into admins (id, auth_user_id, first_name, last_name, email, role_level) values
   ('16100000-0000-0000-0000-000000000001', '16000000-0000-0000-0000-000000000001', 'Phase16', 'Admin', 'phase16-admin@validation.local', 'admin');
@@ -61,7 +65,9 @@ insert into trainers (id, auth_user_id, first_name, last_name, email) values
 
 insert into students (id, auth_user_id, first_name, last_name, phone, email) values
   ('16300000-0000-0000-0000-000000000001', '16000000-0000-0000-0000-000000000004', 'Phase16', 'StudentX', '9990016001', 'phase16-student-x@validation.local'),
-  ('16300000-0000-0000-0000-000000000002', '16000000-0000-0000-0000-000000000005', 'Phase16', 'StudentY', '9990016002', 'phase16-student-y@validation.local');
+  ('16300000-0000-0000-0000-000000000002', '16000000-0000-0000-0000-000000000005', 'Phase16', 'StudentY', '9990016002', 'phase16-student-y@validation.local'),
+  ('16300000-0000-0000-0000-000000000003', '16000000-0000-0000-0000-000000000006', 'Phase16', 'StudentWithdrawn', '9990016003', 'phase16-student-withdrawn@validation.local'),
+  ('16300000-0000-0000-0000-000000000004', '16000000-0000-0000-0000-000000000007', 'Phase16', 'StudentCompleted', '9990016004', 'phase16-student-completed@validation.local');
 
 insert into programs (id, program_code, name, regular_fee, registration_fee, status) values
   ('16400000-0000-0000-0000-000000000001', 'PHASE16-PROG', 'Phase 16 Program', 25000.00, 0, 'active');
@@ -80,9 +86,15 @@ insert into batch_trainers (id, batch_id, trainer_id, is_primary) values
   ('16600000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', '16200000-0000-0000-0000-000000000001', true),
   ('16600000-0000-0000-0000-000000000002', '16500000-0000-0000-0000-000000000002', '16200000-0000-0000-0000-000000000002', true);
 
+-- Student Withdrawn and Student Completed both sit in Batch A (same
+-- batch as Student X/Assignment A) — the status filter, not batch
+-- membership, is what the checkpoint's own approved decision (mirroring
+-- Materials' 20260101000026) must be proven to deny/allow on.
 insert into enrollments (id, student_id, program_id, batch_id, regular_fee, agreed_fee, total_payable, status) values
   ('16700000-0000-0000-0000-000000000001', '16300000-0000-0000-0000-000000000001', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'enrolled'),
-  ('16700000-0000-0000-0000-000000000002', '16300000-0000-0000-0000-000000000002', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000002', 25000.00, 25000.00, 25000.00, 'enrolled');
+  ('16700000-0000-0000-0000-000000000002', '16300000-0000-0000-0000-000000000002', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000002', 25000.00, 25000.00, 25000.00, 'enrolled'),
+  ('16700000-0000-0000-0000-000000000003', '16300000-0000-0000-0000-000000000003', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'withdrawn'),
+  ('16700000-0000-0000-0000-000000000004', '16300000-0000-0000-0000-000000000004', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'completed');
 
 -- Assignment 1 (Batch A, Trainer A) and Assignment 2 (Batch B, Trainer B) —
 -- the cross-batch pair every isolation test below is built around.
@@ -96,6 +108,14 @@ insert into assignments (id, program_id, batch_id, trainer_id, title, due_date, 
 insert into assignment_submissions (id, assignment_id, enrollment_id, student_id, text_response, status) values
   ('16900000-0000-0000-0000-000000000001', '16800000-0000-0000-0000-000000000001', '16700000-0000-0000-0000-000000000001', '16300000-0000-0000-0000-000000000001', 'Student X''s own answer', 'submitted'),
   ('16900000-0000-0000-0000-000000000002', '16800000-0000-0000-0000-000000000002', '16700000-0000-0000-0000-000000000002', '16300000-0000-0000-0000-000000000002', 'Student Y''s own answer', 'submitted');
+
+-- Student Withdrawn's own submission, made back when their enrollment was
+-- still active — proves assignment_submissions_select_own is deliberately
+-- UNCHANGED by the status-eligibility fix below (a permanent academic
+-- record, per the approved checkpoint decision), even once their
+-- enrollment later became 'withdrawn'.
+insert into assignment_submissions (id, assignment_id, enrollment_id, student_id, text_response, status) values
+  ('16900000-0000-0000-0000-000000000003', '16800000-0000-0000-0000-000000000001', '16700000-0000-0000-0000-000000000003', '16300000-0000-0000-0000-000000000003', 'Student Withdrawn''s own past answer', 'reviewed');
 
 -- Pre-existing Storage objects backing one attachment and one submission
 -- file, so the Storage SELECT policies (which join storage.objects to the
@@ -242,7 +262,11 @@ begin
   if new_id is null then
     raise exception 'FAIL: trainer A should be able to insert an assignment scoped to their own Batch A';
   end if;
-  delete from assignments where id = new_id;
+  -- No assignments_delete_trainer policy exists (by design — see this
+  -- file's own header comment), so a Trainer-session DELETE here would
+  -- silently affect 0 rows rather than actually remove it. Left in place
+  -- deliberately; cleaned up by this whole file's own closing ROLLBACK,
+  -- not by an ineffective delete attempt.
   raise notice 'PASS: trainer A can insert an assignment scoped to their own assigned batch (assignments_write_trainer)';
 end
 $$;
@@ -642,6 +666,117 @@ begin
     when insufficient_privilege or others then
       raise notice 'PASS: student X is blocked from inserting into assignment-attachments entirely (no Student insert policy exists, by design)';
   end;
+end
+$$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Student Withdrawn — enrolled in Batch A, status 'withdrawn'. Proves
+-- 20260101000030's own approved checkpoint decision: VIEW and SUBMIT are
+-- both denied by status (even though batch_id still matches — migration
+-- 25's own comment confirms a withdrawn enrollment keeps its batch_id),
+-- while the student's OWN pre-existing submission remains visible
+-- (assignment_submissions_select_own deliberately unchanged).
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"16000000-0000-0000-0000-000000000006","role":"authenticated"}';
+
+do $$
+declare
+  cnt int;
+begin
+  select count(*) into cnt from assignments
+  where id in ('16800000-0000-0000-0000-000000000001', '16800000-0000-0000-0000-000000000003');
+  if cnt <> 0 then
+    raise exception 'FAIL: a withdrawn-status student should see zero of Batch A''s own two assignments, got count=%', cnt;
+  end if;
+  raise notice 'PASS: a withdrawn-status student is denied Assignment visibility (20260101000030 — status filter, not batch, blocks it)';
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into assignment_submissions (assignment_id, enrollment_id, student_id, text_response)
+    values ('16800000-0000-0000-0000-000000000001', '16700000-0000-0000-0000-000000000003', '16300000-0000-0000-0000-000000000003', 'Should be denied by status');
+    raise exception 'FAIL: a withdrawn-status student should not be able to insert a new submission';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: a withdrawn-status student is blocked from inserting a new submission (20260101000030)';
+  end;
+end
+$$;
+
+-- Unlike the cross-student update-denial cases above (where USING itself
+-- already excludes the row, so Postgres simply affects 0 rows), this
+-- row genuinely IS the caller's own (student_id matches USING), so
+-- Postgres selects it for update and only THEN evaluates WITH CHECK
+-- against the post-update row — which now fails the status filter,
+-- raising a real "new row violates row-level security policy" error
+-- rather than a silent no-op.
+do $$
+begin
+  begin
+    update assignment_submissions set text_response = 'Should be denied by status'
+      where id = '16900000-0000-0000-0000-000000000003';
+    raise exception 'FAIL: a withdrawn-status student should not be able to update their own submission once withdrawn';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: a withdrawn-status student is blocked (RLS policy violation on WITH CHECK) from updating their own submission (20260101000030)';
+  end;
+end
+$$;
+
+do $$
+declare
+  cnt int;
+begin
+  select count(*) into cnt from assignment_submissions where id = '16900000-0000-0000-0000-000000000003';
+  if cnt <> 1 then
+    raise exception 'FAIL: a withdrawn-status student should still see their OWN pre-existing submission (select_own is deliberately status-unfiltered), got count=%', cnt;
+  end if;
+  raise notice 'PASS: a withdrawn-status student still sees their own past submission/grade — a permanent academic record (assignment_submissions_select_own, intentionally unchanged)';
+end
+$$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Student Completed — enrolled in Batch A, status 'completed'. Proves the
+-- other half of the approved checkpoint decision: 'completed' is in the
+-- SAME allowed set as 'enrolled'/'active'/'on_hold' for both VIEW and
+-- SUBMIT (explicitly chosen, not the narrower "enrolled+active only"
+-- alternative).
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"16000000-0000-0000-0000-000000000007","role":"authenticated"}';
+
+do $$
+declare
+  cnt int;
+begin
+  select count(*) into cnt from assignments
+  where id in ('16800000-0000-0000-0000-000000000001', '16800000-0000-0000-0000-000000000003');
+  if cnt <> 2 then
+    raise exception 'FAIL: a completed-status student should still see both of Batch A''s own two assignments, got count=%', cnt;
+  end if;
+  raise notice 'PASS: a completed-status student retains Assignment visibility (20260101000030 — completed is in the approved allowed set)';
+end
+$$;
+
+do $$
+declare
+  new_id uuid;
+begin
+  insert into assignment_submissions (assignment_id, enrollment_id, student_id, text_response)
+  values ('16800000-0000-0000-0000-000000000003', '16700000-0000-0000-0000-000000000004', '16300000-0000-0000-0000-000000000004', 'Completed student can still submit')
+  returning id into new_id;
+  if new_id is null then
+    raise exception 'FAIL: a completed-status student should still be able to submit (completed is in the approved allowed set)';
+  end if;
+  delete from assignment_submissions where id = new_id;
+  raise notice 'PASS: a completed-status student can still submit (20260101000030 — completed is in the approved allowed set, same as VIEW)';
 end
 $$;
 

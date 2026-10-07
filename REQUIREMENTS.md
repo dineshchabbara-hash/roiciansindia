@@ -370,12 +370,14 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   anywhere — `resolveSubmissionStatusForNow` (`lib/domain/assignments.ts`)
   mechanically picks `submitted` vs `late` by comparing the server's own
   current UTC date to `due_date`; a submission is never blocked after the
-  due date. `assignments_select_student` (pre-existing, Phase 2, unchanged)
-  has no enrollment-status filter at all, unlike Materials' own narrowed
-  `materials_select_student` — this was deliberately NOT copied onto
-  Assignments without a primary-source basis, and is reported as a known
-  limitation in IMPLEMENTATION_PLAN.md's own Phase 16 note rather than
-  silently resolved either way.)
+  due date. `assignments_select_student`/`assignment_submissions_write_own`/
+  `_update_own` originally had no enrollment-status filter at all — reported
+  as a primary-source gap rather than silently copying Materials' own rule,
+  then resolved by an explicit pre-browser-testing checkpoint decision: use
+  the identical status set as Materials for both VIEW and SUBMIT
+  (`20260101000030_assignments_student_rls_active_enrollment.sql`); viewing
+  one's own past submission stays status-unfiltered by the same decision.
+  See IMPLEMENTATION_PLAN.md's own Phase 16 note.)
 
 ### 2.10 Payments
 - FR-90 (P0): Payment types: registration fee, full payment, installment, partial,
