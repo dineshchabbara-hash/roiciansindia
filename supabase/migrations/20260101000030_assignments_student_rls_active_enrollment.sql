@@ -2,16 +2,24 @@
 -- decision (not an inference): neither REQUIREMENTS.md (FR-80/81/82) nor
 -- USER_ROLES_AND_PERMISSIONS.md's own permission matrix name an
 -- enrollment-status set for Assignment visibility or submission ability —
--- a genuine primary-source gap, reported and resolved by explicit decision
--- rather than silently copied from Materials' own FR-71 rule.
+-- a genuine primary-source gap, reported and resolved by explicit decision.
 --
--- Approved status set — identical to Materials' own
--- 20260101000026_materials_student_rls_active_enrollment.sql, by explicit
--- choice (not by default):
---   VIEW assignments:              ALLOWED enrolled/active/on_hold/completed
+-- Approved status sets — VIEW and SUBMIT are explicitly DIFFERENT sets
+-- (a later, final correction superseding this migration's own first draft,
+-- which had assumed they matched Materials' single set identically):
+--   VIEW assignments / history:    ALLOWED enrolled/active/on_hold/completed
 --                                  DENIED  lead/applicant/withdrawn/cancelled
---   SUBMIT/UPDATE (resubmit) own:  same set as VIEW (explicit choice: no
---                                  narrower submit-only set was requested)
+--                                  (same set as Materials' own FR-71 rule,
+--                                  20260101000026)
+--   SUBMIT/UPDATE (resubmit) own:  ALLOWED enrolled/active ONLY
+--                                  DENIED  lead/applicant/on_hold/completed/
+--                                  withdrawn/cancelled
+--                                  (narrower than VIEW — an on_hold student
+--                                  can see their assignments but may not
+--                                  submit new work while paused; a
+--                                  completed student can see their past
+--                                  assignments but has no outstanding
+--                                  coursework to submit)
 --   VIEW OWN past submission:      UNCHANGED — assignment_submissions_
 --                                  select_own stays status-unfiltered by
 --                                  explicit decision (a student's own
@@ -21,8 +29,8 @@
 --                                  status later becomes).
 --
 -- Narrowing-only: this adds an `and e.status in (...)` condition to
--- assignments_select_student's existing EXISTS branch, and the identical
--- condition to the already-present enrollments join in
+-- assignments_select_student's existing EXISTS branch, and a (narrower)
+-- status condition to the already-present enrollments join in
 -- assignment_submissions_write_own/_update_own
 -- (20260101000028_assignment_submissions_ownership_rls.sql's own ownership
 -- fix). It can only reject rows a Student could previously see/write; it
@@ -54,7 +62,7 @@ create policy assignment_submissions_write_own on assignment_submissions
       where a.id = assignment_submissions.assignment_id
         and e.batch_id = a.batch_id
         and e.student_id = current_student_id()
-        and e.status in ('enrolled', 'active', 'on_hold', 'completed')
+        and e.status in ('enrolled', 'active')
     )
   );
 
@@ -71,6 +79,6 @@ create policy assignment_submissions_update_own on assignment_submissions
       where a.id = assignment_submissions.assignment_id
         and e.batch_id = a.batch_id
         and e.student_id = current_student_id()
-        and e.status in ('enrolled', 'active', 'on_hold', 'completed')
+        and e.status in ('enrolled', 'active')
     )
   );

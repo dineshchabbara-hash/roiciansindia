@@ -373,8 +373,10 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   due date. `assignments_select_student`/`assignment_submissions_write_own`/
   `_update_own` originally had no enrollment-status filter at all — reported
   as a primary-source gap rather than silently copying Materials' own rule,
-  then resolved by an explicit pre-browser-testing checkpoint decision: use
-  the identical status set as Materials for both VIEW and SUBMIT
+  then resolved by an explicit pre-browser-testing checkpoint with a final
+  SPLIT decision: VIEW allows `enrolled`/`active`/`on_hold`/`completed`
+  (same set as Materials); SUBMIT/resubmit allows `enrolled`/`active` ONLY
+  (narrower — an on_hold/completed student can see but not submit)
   (`20260101000030_assignments_student_rls_active_enrollment.sql`); viewing
   one's own past submission stays status-unfiltered by the same decision.
   See IMPLEMENTATION_PLAN.md's own Phase 16 note.)

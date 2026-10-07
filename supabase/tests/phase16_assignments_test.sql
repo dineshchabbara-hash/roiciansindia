@@ -1,7 +1,7 @@
 -- Phase 16 (Assignments & Submissions) regression suite. Covers both the
 -- pre-existing `assignments`/`assignment_submissions` table policies (added
 -- ahead of schedule in Phase 2, 20260101000014_rls_policies.sql — unchanged
--- this phase) and the two migrations this phase actually adds:
+-- this phase) and the three migrations this phase actually adds:
 --   - 20260101000028_assignment_submissions_ownership_rls.sql: tightens
 --     assignment_submissions_write_own/_update_own to require the
 --     submitted enrollment_id to actually belong to the caller AND match
@@ -10,6 +10,11 @@
 --   - 20260101000029_assignments_storage.sql: the two private
 --     `assignment-attachments`/`assignment-submissions` Storage buckets and
 --     their own policies.
+--   - 20260101000030_assignments_student_rls_active_enrollment.sql: the
+--     approved enrollment-status eligibility split — VIEW allows
+--     enrolled/active/on_hold/completed; SUBMIT/resubmit allows
+--     enrolled/active ONLY (narrower); viewing one's own past submission
+--     stays status-unfiltered.
 --
 -- Covers, both allowed and denied:
 --   - Admin/Super Admin: full select/insert/update/delete on both tables,
@@ -21,14 +26,19 @@
 --     Storage insert/select scoped the same way as the table; no Storage
 --     insert policy at all into assignment-submissions (Trainer never
 --     uploads a Student's file).
---   - Student: select `assignments` scoped to their own enrolled Batch
---     only; zero write access to `assignments` at all; insert/select/
---     update own `assignment_submissions` only — including the exact
---     ownership-spoofing attempts 20260101000028 now blocks (another
---     student's enrollment_id, a cross-batch assignment_id); Storage
---     insert restricted to a path encoding their own id and an assignment
---     in their own batch; Storage select/update scoped via the real
---     submission row; zero Storage access to assignment-attachments
+--   - Student: select `assignments` scoped to their own enrolled Batch AND
+--     an eligible enrollment status only; zero write access to
+--     `assignments` at all; insert/select/update own `assignment_
+--     submissions` only — including the exact ownership-spoofing attempts
+--     20260101000028 now blocks (another student's enrollment_id, a
+--     cross-batch assignment_id) AND the status-eligibility split
+--     20260101000030 now enforces, proven per status
+--     (enrolled/active/on_hold/completed/withdrawn/cancelled, direct
+--     per-status evidence, not inferred); viewing one's own past
+--     submission/grade remains possible regardless of current status;
+--     Storage insert restricted to a path encoding their own id and an
+--     assignment in their own batch; Storage select/update scoped via the
+--     real submission row; zero Storage access to assignment-attachments
 --     outside their own batch, zero Storage insert into
 --     assignment-attachments at all.
 --   - anon: zero access to either table and either Storage bucket.
@@ -45,7 +55,10 @@ insert into auth.users (id, email) values
   ('16000000-0000-0000-0000-000000000004', 'phase16-student-x@validation.local'),
   ('16000000-0000-0000-0000-000000000005', 'phase16-student-y@validation.local'),
   ('16000000-0000-0000-0000-000000000006', 'phase16-student-withdrawn@validation.local'),
-  ('16000000-0000-0000-0000-000000000007', 'phase16-student-completed@validation.local');
+  ('16000000-0000-0000-0000-000000000007', 'phase16-student-completed@validation.local'),
+  ('16000000-0000-0000-0000-000000000008', 'phase16-student-active@validation.local'),
+  ('16000000-0000-0000-0000-000000000009', 'phase16-student-onhold@validation.local'),
+  ('16000000-0000-0000-0000-000000000010', 'phase16-student-cancelled@validation.local');
 
 insert into user_roles (auth_user_id, role) values
   ('16000000-0000-0000-0000-000000000001', 'admin'),
@@ -54,7 +67,10 @@ insert into user_roles (auth_user_id, role) values
   ('16000000-0000-0000-0000-000000000004', 'student'),
   ('16000000-0000-0000-0000-000000000005', 'student'),
   ('16000000-0000-0000-0000-000000000006', 'student'),
-  ('16000000-0000-0000-0000-000000000007', 'student');
+  ('16000000-0000-0000-0000-000000000007', 'student'),
+  ('16000000-0000-0000-0000-000000000008', 'student'),
+  ('16000000-0000-0000-0000-000000000009', 'student'),
+  ('16000000-0000-0000-0000-000000000010', 'student');
 
 insert into admins (id, auth_user_id, first_name, last_name, email, role_level) values
   ('16100000-0000-0000-0000-000000000001', '16000000-0000-0000-0000-000000000001', 'Phase16', 'Admin', 'phase16-admin@validation.local', 'admin');
@@ -67,7 +83,10 @@ insert into students (id, auth_user_id, first_name, last_name, phone, email) val
   ('16300000-0000-0000-0000-000000000001', '16000000-0000-0000-0000-000000000004', 'Phase16', 'StudentX', '9990016001', 'phase16-student-x@validation.local'),
   ('16300000-0000-0000-0000-000000000002', '16000000-0000-0000-0000-000000000005', 'Phase16', 'StudentY', '9990016002', 'phase16-student-y@validation.local'),
   ('16300000-0000-0000-0000-000000000003', '16000000-0000-0000-0000-000000000006', 'Phase16', 'StudentWithdrawn', '9990016003', 'phase16-student-withdrawn@validation.local'),
-  ('16300000-0000-0000-0000-000000000004', '16000000-0000-0000-0000-000000000007', 'Phase16', 'StudentCompleted', '9990016004', 'phase16-student-completed@validation.local');
+  ('16300000-0000-0000-0000-000000000004', '16000000-0000-0000-0000-000000000007', 'Phase16', 'StudentCompleted', '9990016004', 'phase16-student-completed@validation.local'),
+  ('16300000-0000-0000-0000-000000000005', '16000000-0000-0000-0000-000000000008', 'Phase16', 'StudentActive', '9990016005', 'phase16-student-active@validation.local'),
+  ('16300000-0000-0000-0000-000000000006', '16000000-0000-0000-0000-000000000009', 'Phase16', 'StudentOnHold', '9990016006', 'phase16-student-onhold@validation.local'),
+  ('16300000-0000-0000-0000-000000000007', '16000000-0000-0000-0000-000000000010', 'Phase16', 'StudentCancelled', '9990016007', 'phase16-student-cancelled@validation.local');
 
 insert into programs (id, program_code, name, regular_fee, registration_fee, status) values
   ('16400000-0000-0000-0000-000000000001', 'PHASE16-PROG', 'Phase 16 Program', 25000.00, 0, 'active');
@@ -94,7 +113,10 @@ insert into enrollments (id, student_id, program_id, batch_id, regular_fee, agre
   ('16700000-0000-0000-0000-000000000001', '16300000-0000-0000-0000-000000000001', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'enrolled'),
   ('16700000-0000-0000-0000-000000000002', '16300000-0000-0000-0000-000000000002', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000002', 25000.00, 25000.00, 25000.00, 'enrolled'),
   ('16700000-0000-0000-0000-000000000003', '16300000-0000-0000-0000-000000000003', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'withdrawn'),
-  ('16700000-0000-0000-0000-000000000004', '16300000-0000-0000-0000-000000000004', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'completed');
+  ('16700000-0000-0000-0000-000000000004', '16300000-0000-0000-0000-000000000004', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'completed'),
+  ('16700000-0000-0000-0000-000000000005', '16300000-0000-0000-0000-000000000005', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'active'),
+  ('16700000-0000-0000-0000-000000000006', '16300000-0000-0000-0000-000000000006', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'on_hold'),
+  ('16700000-0000-0000-0000-000000000007', '16300000-0000-0000-0000-000000000007', '16400000-0000-0000-0000-000000000001', '16500000-0000-0000-0000-000000000001', 25000.00, 25000.00, 25000.00, 'cancelled');
 
 -- Assignment 1 (Batch A, Trainer A) and Assignment 2 (Batch B, Trainer B) —
 -- the cross-batch pair every isolation test below is built around.
@@ -744,10 +766,11 @@ reset role;
 
 -- ---------------------------------------------------------------------------
 -- Student Completed — enrolled in Batch A, status 'completed'. Proves the
--- other half of the approved checkpoint decision: 'completed' is in the
--- SAME allowed set as 'enrolled'/'active'/'on_hold' for both VIEW and
--- SUBMIT (explicitly chosen, not the narrower "enrolled+active only"
--- alternative).
+-- FINAL approved split: VIEW allows 'completed' (same set as Materials),
+-- but SUBMIT does NOT — a completed student has no outstanding coursework,
+-- so 'completed' sits in the VIEW-allowed set but outside the narrower
+-- SUBMIT-allowed set (enrolled/active only). This supersedes this
+-- migration's own first draft, which had assumed completed could submit.
 
 set local role authenticated;
 set local "request.jwt.claims" to '{"sub":"16000000-0000-0000-0000-000000000007","role":"authenticated"}';
@@ -761,7 +784,43 @@ begin
   if cnt <> 2 then
     raise exception 'FAIL: a completed-status student should still see both of Batch A''s own two assignments, got count=%', cnt;
   end if;
-  raise notice 'PASS: a completed-status student retains Assignment visibility (20260101000030 — completed is in the approved allowed set)';
+  raise notice 'PASS: a completed-status student retains Assignment VIEW access (20260101000030 — completed is in the VIEW-allowed set)';
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into assignment_submissions (assignment_id, enrollment_id, student_id, text_response)
+    values ('16800000-0000-0000-0000-000000000003', '16700000-0000-0000-0000-000000000004', '16300000-0000-0000-0000-000000000004', 'Should be denied — completed cannot submit');
+    raise exception 'FAIL: a completed-status student should NOT be able to submit new work (completed is outside the SUBMIT-allowed set)';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: a completed-status student is blocked from submitting new work (20260101000030 — SUBMIT allows enrolled/active only)';
+  end;
+end
+$$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Student Active — enrolled in Batch A, status 'active'. Proves 'active'
+-- is allowed for BOTH VIEW and SUBMIT, direct per-status evidence rather
+-- than inferred from the 'enrolled' case alone.
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"16000000-0000-0000-0000-000000000008","role":"authenticated"}';
+
+do $$
+declare
+  cnt int;
+begin
+  select count(*) into cnt from assignments
+  where id in ('16800000-0000-0000-0000-000000000001', '16800000-0000-0000-0000-000000000003');
+  if cnt <> 2 then
+    raise exception 'FAIL: an active-status student should see both of Batch A''s own two assignments, got count=%', cnt;
+  end if;
+  raise notice 'PASS: an active-status student has Assignment VIEW access (20260101000030)';
 end
 $$;
 
@@ -770,13 +829,84 @@ declare
   new_id uuid;
 begin
   insert into assignment_submissions (assignment_id, enrollment_id, student_id, text_response)
-  values ('16800000-0000-0000-0000-000000000003', '16700000-0000-0000-0000-000000000004', '16300000-0000-0000-0000-000000000004', 'Completed student can still submit')
+  values ('16800000-0000-0000-0000-000000000003', '16700000-0000-0000-0000-000000000005', '16300000-0000-0000-0000-000000000005', 'Active student can submit')
   returning id into new_id;
   if new_id is null then
-    raise exception 'FAIL: a completed-status student should still be able to submit (completed is in the approved allowed set)';
+    raise exception 'FAIL: an active-status student should be able to submit';
   end if;
   delete from assignment_submissions where id = new_id;
-  raise notice 'PASS: a completed-status student can still submit (20260101000030 — completed is in the approved allowed set, same as VIEW)';
+  raise notice 'PASS: an active-status student can submit (20260101000030 — SUBMIT allows enrolled/active)';
+end
+$$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Student OnHold — enrolled in Batch A, status 'on_hold'. Proves the
+-- approved split directly: VIEW allowed, SUBMIT denied.
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"16000000-0000-0000-0000-000000000009","role":"authenticated"}';
+
+do $$
+declare
+  cnt int;
+begin
+  select count(*) into cnt from assignments
+  where id in ('16800000-0000-0000-0000-000000000001', '16800000-0000-0000-0000-000000000003');
+  if cnt <> 2 then
+    raise exception 'FAIL: an on_hold-status student should still see both of Batch A''s own two assignments, got count=%', cnt;
+  end if;
+  raise notice 'PASS: an on_hold-status student retains Assignment VIEW access (20260101000030 — on_hold is in the VIEW-allowed set)';
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into assignment_submissions (assignment_id, enrollment_id, student_id, text_response)
+    values ('16800000-0000-0000-0000-000000000003', '16700000-0000-0000-0000-000000000006', '16300000-0000-0000-0000-000000000006', 'Should be denied — on_hold cannot submit');
+    raise exception 'FAIL: an on_hold-status student should NOT be able to submit new work';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: an on_hold-status student is blocked from submitting new work (20260101000030 — SUBMIT allows enrolled/active only)';
+  end;
+end
+$$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Student Cancelled — enrolled in Batch A, status 'cancelled'. Proves the
+-- terminal-status denial directly for 'cancelled' (not just inferred from
+-- the 'withdrawn' case) — VIEW and SUBMIT both denied.
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"16000000-0000-0000-0000-000000000010","role":"authenticated"}';
+
+do $$
+declare
+  cnt int;
+begin
+  select count(*) into cnt from assignments
+  where id in ('16800000-0000-0000-0000-000000000001', '16800000-0000-0000-0000-000000000003');
+  if cnt <> 0 then
+    raise exception 'FAIL: a cancelled-status student should see zero of Batch A''s assignments, got count=%', cnt;
+  end if;
+  raise notice 'PASS: a cancelled-status student is denied Assignment VIEW access (20260101000030)';
+end
+$$;
+
+do $$
+begin
+  begin
+    insert into assignment_submissions (assignment_id, enrollment_id, student_id, text_response)
+    values ('16800000-0000-0000-0000-000000000003', '16700000-0000-0000-0000-000000000007', '16300000-0000-0000-0000-000000000007', 'Should be denied — cancelled cannot submit');
+    raise exception 'FAIL: a cancelled-status student should NOT be able to submit new work';
+  exception
+    when insufficient_privilege or others then
+      raise notice 'PASS: a cancelled-status student is blocked from submitting new work (20260101000030)';
+  end;
 end
 $$;
 

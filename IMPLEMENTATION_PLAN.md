@@ -775,14 +775,21 @@ _own`, `assignment_submissions_write_admin/_own`,
   pre-browser-testing checkpoint (neither REQUIREMENTS.md nor
   USER_ROLES_AND_PERMISSIONS.md name an enrollment-status set for
   Assignment visibility/submission at all — a genuine primary-source gap,
-  reported rather than silently resolved). Approved decision: mirror
-  Materials' own `20260101000026` status set exactly for BOTH permissions —
-  VIEW assignments and CREATE/UPDATE (resubmit) a submission are both
-  ALLOWED for `enrolled`/`active`/`on_hold`/`completed`, DENIED for
-  `lead`/`applicant`/`withdrawn`/`cancelled`. `assignment_submissions_
-  select_own` (viewing one's OWN past submission/grade) was deliberately
-  left UNCHANGED/status-unfiltered by the same explicit decision — a
-  permanent academic record, not re-gated by a later status change.
+  reported rather than silently resolved). Final approved decision: VIEW
+  and SUBMIT use **different** status sets —
+  - **VIEW** assignments / history: ALLOWED `enrolled`/`active`/`on_hold`/
+    `completed` (same set as Materials' own `20260101000026`), DENIED
+    `lead`/`applicant`/`withdrawn`/`cancelled`.
+  - **SUBMIT/UPDATE** (resubmit) own submission: ALLOWED `enrolled`/
+    `active` ONLY — narrower than VIEW. An `on_hold` student can see their
+    assignments but may not submit new work while paused; a `completed`
+    student can see their past assignments but has no outstanding
+    coursework to submit. DENIED `lead`/`applicant`/`on_hold`/`completed`/
+    `withdrawn`/`cancelled`.
+  - **Own past submission/grade** (`assignment_submissions_select_own`):
+    deliberately left UNCHANGED/status-unfiltered — a permanent academic
+    record, visible regardless of what the enrollment status later
+    becomes.
 
 **Security implications:** File upload validation reuses `SECURITY_PLAN.md`
 §8's policy verbatim (extension allow-list, 10MB document/5MB image size
@@ -888,16 +895,20 @@ matching Phase 14/15's own identical treatment of their own DELETE policies.
 **RESOLVED by explicit checkpoint decision (was a known limitation, now
 closed):** `assignments_select_student` and `assignment_submissions_write_own`/
 `_update_own` originally had no enrollment-status filter at all (a genuine
-primary-source gap — reported rather than silently resolved). After an
-explicit pre-browser-testing checkpoint, the approved decision is: VIEW and
-SUBMIT both use the SAME status set as Materials
-(`enrolled`/`active`/`on_hold`/`completed` allowed;
-`lead`/`applicant`/`withdrawn`/`cancelled` denied), enforced by
-`20260101000030_assignments_student_rls_active_enrollment.sql`; viewing
+primary-source gap — reported rather than silently resolved). After two
+rounds of an explicit pre-browser-testing checkpoint, the final approved
+decision SPLITS the two permissions: VIEW allows
+`enrolled`/`active`/`on_hold`/`completed` (same set as Materials); SUBMIT/
+resubmit allows `enrolled`/`active` ONLY (narrower — `on_hold` and
+`completed` can see but not submit); both deny
+`lead`/`applicant`/`withdrawn`/`cancelled`. Enforced by
+`20260101000030_assignments_student_rls_active_enrollment.sql`. Viewing
 one's OWN past submission (`assignment_submissions_select_own`) stays
-status-unfiltered by the same explicit decision. Proven at the RLS layer by
-`supabase/tests/phase16_assignments_test.sql`'s own withdrawn/completed
-Student sections.
+status-unfiltered by the same explicit decision — a permanent academic
+record. Proven at the RLS layer, with direct per-status evidence (not
+inferred from one case to another), by
+`supabase/tests/phase16_assignments_test.sql`'s own enrolled/active/
+on_hold/completed/withdrawn/cancelled Student sections.
 - Admin's assignment-creation form requires picking a Trainer from that
   Batch's own assigned trainers (`getBatchTrainerAssignments`) — an
   application-layer convenience/data-integrity choice (consistent attribution
