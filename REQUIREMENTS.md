@@ -334,10 +334,48 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 ### 2.9 Assignments
 - FR-80 (P1): Assignment entity (program/batch/module, trainer, title, description,
   attachment, assigned/due date, max marks, status).
+  (Phase 16 implementation note: the `assignments`/`assignment_submissions`
+  tables and every RLS policy this phase relies on
+  (assignments_select_admin/_trainer/_student, assignments_write_admin/
+  _trainer, assignments_update_admin/_trainer, assignments_delete_admin,
+  assignment_submissions_select_admin/_trainer/_own,
+  assignment_submissions_write_admin/_own,
+  assignment_submissions_update_admin/_trainer/_own,
+  20260101000014_rls_policies.sql) already existed, provisioned ahead of
+  schedule alongside the rest of the schema in Phase 2 — Phase 16 is the
+  first phase to actually write to either table. `program_id`/`batch_id`
+  are both `NOT NULL` on `assignments` — this is NOT the Materials "exactly
+  one of Program/Batch/Module/Session" model; every assignment is
+  Program-AND-Batch scoped, with an optional Module tag, and there is no
+  Session-scoped assignment at all, by schema, not by omission.)
 - FR-81 (P1): Submission entity (student, enrollment, assignment, timestamp, text
   and/or file, status, marks, feedback, reviewer, reviewed date).
+  (Phase 16 implementation note: `unique(assignment_id, enrollment_id)` is
+  the schema's own one-submission-per-assignment rule — resubmission updates
+  that same row, never a second one. `reviewed_by` has a FOREIGN KEY to
+  `trainers(id)` only, so an Admin-performed review leaves it null;
+  `reviewed_at` still records that a review happened. A real pre-existing
+  RLS gap was found and closed here (narrowing only, never weakened):
+  `assignment_submissions_write_own`/`_update_own` previously checked only
+  `student_id`, never that the submitted `enrollment_id` actually belonged
+  to that student and matched the assignment's own batch
+  (`20260101000028_assignment_submissions_ownership_rls.sql`); the
+  application layer (`lib/data/student-portal.ts`'s `submitMyAssignment`)
+  independently re-derives `enrollment_id` server-side either way, never
+  accepting one from the caller.)
 - FR-82 (P1): Submission status lifecycle: Not Submitted → Submitted/Late → Reviewed
   → Resubmission Requested.
+  (Phase 16 implementation note: `due_date` has no time component and no
+  grace period/late-penalty/auto-rejection/timezone policy is defined
+  anywhere — `resolveSubmissionStatusForNow` (`lib/domain/assignments.ts`)
+  mechanically picks `submitted` vs `late` by comparing the server's own
+  current UTC date to `due_date`; a submission is never blocked after the
+  due date. `assignments_select_student` (pre-existing, Phase 2, unchanged)
+  has no enrollment-status filter at all, unlike Materials' own narrowed
+  `materials_select_student` — this was deliberately NOT copied onto
+  Assignments without a primary-source basis, and is reported as a known
+  limitation in IMPLEMENTATION_PLAN.md's own Phase 16 note rather than
+  silently resolved either way.)
 
 ### 2.10 Payments
 - FR-90 (P0): Payment types: registration fee, full payment, installment, partial,

@@ -623,10 +623,9 @@ resolves nor depends on resolving it.)
 
 ## Phase 15 — Materials
 
-**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase15-materials`, based
-off `main` at `474fd41` (the Phase 14 baseline). Not yet merged; awaiting
-manual Windows browser acceptance, then explicit approval, per the same gate
-Phase 10/11/12/13/14 went through.
+**Status:** COMPLETED — merged into `main` at `c1da25b` (fast-forward from
+`474fd41`), after 7/7 Windows browser acceptance and a final read-only
+cleanup audit confirming zero residue.
 
 **Scope:** Upload UI (Admin/Trainer) scoped to Program/Batch/Module/Session;
 Storage integration with a private bucket + signed URLs; Student materials
@@ -737,13 +736,169 @@ recommendations — all explicitly out of Phase 15's scope and untouched.)
 
 ## Phase 16 — Assignments & Submissions
 
-**Scope:** Assignment CRUD (Trainer, scoped to assigned batch), submission flow
-(Student: text/file, status), review/grading UI (Trainer), status lifecycle.
+**Status:** ACTIVE IMPLEMENTATION — branch
+`claude/phase16-assignments-submissions`, based off `main` at `c1da25b` (the
+Phase 15 baseline). Not yet merged; awaiting manual Windows browser
+acceptance, then explicit approval, per the same gate Phase 10–15 went
+through.
 
-**DB changes:** None beyond Phase 2 (`assignments`, `assignment_submissions`).
+**Scope:** Assignment creation (Admin, any Batch; Trainer, scoped to their own
+assigned Batch only) with an optional Module tag, due date, optional
+attachment; Student submission (text and/or file) against their own
+Enrollment; Trainer/Admin review (marks/feedback, the two schema-defined
+reviewer outcomes); status lifecycle exactly as the pre-existing schema
+defines it (`not_submitted` → `submitted`/`late` → `reviewed`/
+`resubmission_requested`).
 
-**DoD:** A student can submit an assignment and see trainer feedback/marks; a
-trainer can only grade submissions for their own assigned batches.
+**DB changes:** None for the `assignments`/`assignment_submissions` tables
+themselves or their table-level RLS — both existed already, provisioned
+ahead of schedule alongside the rest of the schema in Phase 2
+(`20260101000008_academic_tables.sql`'s own `assignments`/
+`assignment_submissions` tables; `assignments_select_admin/_trainer/_student`,
+`assignments_write_admin/_trainer`, `assignments_update_admin/_trainer`,
+`assignments_delete_admin`, `assignment_submissions_select_admin/_trainer/
+_own`, `assignment_submissions_write_admin/_own`,
+`assignment_submissions_update_admin/_trainer/_own` in
+`20260101000014_rls_policies.sql`). Two migrations this phase actually adds:
+- `20260101000028_assignment_submissions_ownership_rls.sql` — a **narrowing-
+  only** security fix for a real pre-existing gap found during discovery:
+  `assignment_submissions_write_own`/`_update_own` only ever checked
+  `student_id = current_student_id()`, never that the submitted
+  `enrollment_id` actually belonged to that student or matched the target
+  assignment's own `batch_id`. Closed the same way Phase 15's own
+  `20260101000026` narrowed `materials_select_student` — adds an `exists(...)`
+  condition, grants nothing new.
+- `20260101000029_assignments_storage.sql` — two new private Storage buckets,
+  `assignment-attachments` and `assignment-submissions` (see below).
+
+**Security implications:** File upload validation reuses `SECURITY_PLAN.md`
+§8's policy verbatim (extension allow-list, 10MB document/5MB image size
+limits, MIME sniffing from actual bytes — `lib/domain/assignments.ts`, a
+self-contained duplicate of `lib/domain/materials.ts`'s own rules, not a
+cross-import, since Assignments is a separate domain). Submission ownership
+is server-derived, never browser-trusted: `lib/data/student-portal.ts`'s
+`submitMyAssignment` re-resolves the caller's own `enrollment_id` from their
+`student_id` + the assignment's `batch_id` on every call, backed by
+`20260101000028` at the DB layer too. Direct id/path tampering (another
+student's `enrollment_id`, a cross-batch `assignment_id`, a malformed/
+non-UUID/wrong-segment-count Storage path) is proven denied at the RLS layer
+by `supabase/tests/phase16_assignments_test.sql`. Both Storage buckets are
+private (`public: false`), never a public URL; access is a short-lived
+signed URL only, minted through the caller's own RLS-scoped session.
+
+**DoD:** A student can submit an assignment (text and/or file) against their
+own enrolled Batch and see Trainer/Admin feedback/marks once reviewed; an
+assigned Trainer can create assignments and review submissions only for
+their own assigned Batches; Admin can do the same for any Batch.
+
+(Phase 16 implementation note: the `assignments`/`assignment_submissions`
+tables and their table-level RLS already existed from Phase 2 — this phase
+is the first to actually write to either table, and is purely an
+application-layer build on top of mostly-unchanged, pre-existing security,
+the same relationship Phase 15 had to `materials`.
+
+**Scope model — NOT inferred from Materials, read directly from schema:**
+`assignments.program_id`/`batch_id` are both `NOT NULL` (never "exactly one
+of four" the way Materials is) — every assignment is Program-AND-Batch
+scoped, with an optional Module tag (`module_id`, `ON DELETE SET NULL`,
+unlike Materials' per-scope `ON DELETE CASCADE`). There is no
+`class_session_id` column on `assignments` at all — Session-scoped
+assignments do not exist in this schema and were not invented.
+
+**Submission uniqueness — schema-defined, not invented:** `assignment_
+submissions_unique unique (assignment_id, enrollment_id)` is the one row per
+assignment per enrollment; resubmission is an UPDATE of that same row, never
+a second row. Phase 16's own approved, documented (non-DB) interpretation:
+once a submission's status is `reviewed`, the Student-facing submit form is
+withdrawn (`lib/data/student-portal.ts`'s `submitMyAssignment` also rejects
+the write server-side) until the reviewer explicitly sets
+`resubmission_requested` — a reviewer-outcome-gated edit window, not an
+invented status value.
+
+**Due-date/late semantics — mechanical, not invented:** `due_date` is a plain
+`date` (no time component); no grace period, late penalty, auto-rejection, or
+timezone policy is defined anywhere in requirements, and none was invented —
+a submission is never blocked after the due date. `resolveSubmissionStatusForNow`
+(`lib/domain/assignments.ts`) picks between the two already-existing enum
+values (`submitted`/`late`) by comparing the server's own current UTC date to
+`due_date` — a mechanical use of existing values, not a new business rule.
+Known limitation: no per-batch/student timezone is read anywhere in this
+comparison.
+
+**Feedback/marks — schema already supports it, nothing invented:**
+`assignment_submissions.marks`/`trainer_feedback`/`reviewed_by`/`reviewed_at`
+already existed (Phase 2), and FR-45/FR-53 explicitly authorize Student
+read/Trainer write of exactly this. One finding worth flagging: `reviewed_by`
+has a FOREIGN KEY to `trainers(id)` **only** — there is no column shaped to
+hold an Admin's own `admins.id` here. An Admin-performed review
+(`reviewSubmissionAsAdminAction`) therefore leaves `reviewed_by` NULL;
+`reviewed_at` still records that a review happened. `marks` is bounded
+app-side by the assignment's own `max_marks` (`isMarksWithinCeiling`) — an
+application safeguard, not a DB CHECK tying the two columns together.
+
+**created_by/submitted_by contract — verified, not assumed:** `assignments.
+trainer_id` and `assignment_submissions.student_id`/`enrollment_id` are all
+role-profile ids (`trainers.id`/`students.id`/`enrollments.id`), resolved
+server-side from the caller's own session (`resolveMyTrainerId`/
+`resolveMyStudentId` — the same established contract Phase 15's own
+`uploaded_by` audit finding proved), never the raw `auth_user_id` and never
+browser-supplied.
+
+**Storage — two private buckets, signed URLs, server-built paths:**
+`assignment-attachments` (`{assignmentId}/{objectId}-{sanitizedName}`) and
+`assignment-submissions` (`{assignmentId}/{studentId}/{objectId}-
+{sanitizedName}`) — kept as two separate buckets rather than one with
+path-prefix branching, since Trainer/Admin-provided attachments and
+Student-provided submissions have entirely different write-permission
+shapes (`20260101000029_assignments_storage.sql`'s own header comment).
+Unlike Materials (whose Trainer INSERT policy had to trust path-encoded
+scope, since no `materials` row existed yet at upload time), the Assignment
+creation flow inserts the `assignments` row FIRST (attachment optional,
+`attachment_path` still null), then uploads the attachment keyed by the
+now-real assignment id, then updates `attachment_path` — so the Trainer
+Storage INSERT policy can join directly to the real `assignments` row
+instead of re-deriving trust from the path text, a strictly tighter design
+than Materials' own INSERT-before-row-exists workaround. If the attachment
+upload fails, the just-created (brand new, submission-free) assignment row
+is deleted rather than left half-created, since this phase builds no
+separate "edit assignment"/re-upload flow. Access is via a short-lived
+signed URL (`ASSIGNMENT_SIGNED_URL_EXPIRY_SECONDS = 300`, same engineering-
+default reasoning as Materials' own constant), minted fresh per request
+through the caller's own RLS-scoped session.
+
+**No hard-delete UI for Assignments/Submissions:** `assignments_delete_admin`
+exists at the RLS layer (Admin only — no Trainer/Student delete policy for
+either table at all), but no primary source specifies a destructive-delete
+requirement, so no hard-delete button is exposed anywhere in the application,
+matching Phase 14/15's own identical treatment of their own DELETE policies.
+
+**Known limitations / ambiguities (reported, not silently resolved):**
+- `assignments_select_student` (pre-existing, Phase 2, unchanged by this
+  phase) has **no enrollment-status filter at all** — unlike Materials'
+  `materials_select_student` (narrowed in `20260101000026` to enrolled/
+  active/on_hold/completed), a Student with ANY enrollment status whose
+  `batch_id` still matches (including a historical `withdrawn`/`cancelled`
+  enrollment, which the schema does not null out on withdrawal) can see that
+  batch's Assignments. This phase deliberately did **not** copy Materials'
+  status rule onto Assignments without a primary-source basis for doing so
+  (per this phase's own explicit instruction), and did not invent a new
+  restriction either — reported here for an explicit decision, left
+  unchanged pending that decision.
+- Admin's assignment-creation form requires picking a Trainer from that
+  Batch's own assigned trainers (`getBatchTrainerAssignments`) — an
+  application-layer convenience/data-integrity choice (consistent attribution
+  to a real co-teacher of the batch), not an RLS restriction; `assignments_
+  write_admin` itself has no such restriction and would accept any trainer
+  id.
+- No full batch-roster cross-reference exists in the Admin/Trainer
+  submissions UI — a Student with no submission row simply never appears in
+  `SubmissionsSection`'s list (there is no synthesized "not submitted"
+  placeholder row), a smallest-useful-UI scope decision, not a limitation of
+  the underlying data.
+- No notifications, certificates, reports/analytics, Razorpay, receipts,
+  rubrics/numeric-scoring beyond the existing flat `marks` column, plagiarism
+  detection, AI grading, discussion/comments, quizzes/exams, or public
+  assignment pages — all explicitly out of Phase 16's scope and untouched.)
 
 ## Phase 17 — Certificates
 

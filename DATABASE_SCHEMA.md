@@ -358,25 +358,35 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
   scoped to something.
 
 ### `assignments`
+(Phase 16: program_id/batch_id are both NOT NULL — every assignment is
+Program-AND-Batch scoped, with an optional Module tag; there is no
+class_session_id column, Session-scoped assignments do not exist.)
 - `id uuid pk`
 - `program_id uuid not null references programs(id) on delete cascade`
 - `batch_id uuid not null references batches(id) on delete cascade`
 - `module_id uuid references program_modules(id) on delete set null`
 - `trainer_id uuid not null references trainers(id) on delete restrict`
 - `title text not null`, `description text`
-- `attachment_path text`
+- `attachment_path text` — Storage key in the private `assignment-attachments`
+  bucket (20260101000029), null if no attachment was uploaded
 - `assigned_date date not null default current_date`, `due_date date not null`
 - `max_marks numeric(6,2)`
 - `status text not null default 'active' check (status in ('active','closed'))`
 - `created_at`, `updated_at`
 
 ### `assignment_submissions`
+(Phase 16: one row per (assignment, enrollment) — resubmission updates this
+same row, never a second one. `reviewed_by` references `trainers(id)` only —
+an Admin-performed review leaves it null, see IMPLEMENTATION_PLAN.md's own
+Phase 16 note.)
 - `id uuid pk`
 - `assignment_id uuid not null references assignments(id) on delete cascade`
 - `enrollment_id uuid not null references enrollments(id) on delete cascade`
 - `student_id uuid not null references students(id) on delete cascade`
 - `submitted_at timestamptz`
-- `text_response text`, `file_path text`
+- `text_response text`, `file_path text` — Storage key in the private
+  `assignment-submissions` bucket (20260101000029), null if no file was
+  uploaded
 - `status text not null default 'not_submitted' check (status in ('not_submitted','submitted','late','reviewed','resubmission_requested'))`
 - `marks numeric(6,2)`, `trainer_feedback text`
 - `reviewed_by uuid references trainers(id)`, `reviewed_at timestamptz`
