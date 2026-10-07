@@ -7,9 +7,11 @@ import {
   getMyAttendanceForEnrollment,
   getMyPaymentPlanForEnrollment,
   getMyMaterialsForEnrollment,
+  getMyAssignmentsForEnrollment,
 } from "@/lib/data/student-portal";
 import { StudentPaymentPlanCard } from "@/components/student/student-payment-plan-card";
 import { StudentMaterialsCard } from "@/components/student/student-materials-card";
+import { StudentAssignmentsCard } from "@/components/student/assignments/student-assignments-card";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,7 @@ export default async function StudentEnrollmentDetailPage({
   const attendanceResult = await getMyAttendanceForEnrollment(id);
   const paymentPlanResult = await getMyPaymentPlanForEnrollment(id);
   const materialsResult = await getMyMaterialsForEnrollment(id);
+  const assignmentsResult = await getMyAssignmentsForEnrollment(id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -162,6 +165,21 @@ export default async function StudentEnrollmentDetailPage({
           <CardContent>
             <p role="alert" className="text-destructive text-sm">
               {materialsResult.error}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {assignmentsResult.ok ? (
+        <StudentAssignmentsCard assignments={assignmentsResult.data} enrollmentId={id} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Assignments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p role="alert" className="text-destructive text-sm">
+              {assignmentsResult.error}
             </p>
           </CardContent>
         </Card>

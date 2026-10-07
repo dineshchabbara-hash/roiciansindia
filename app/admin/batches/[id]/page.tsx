@@ -9,6 +9,7 @@ import { BatchStatusControl } from "@/components/admin/batches/batch-status-cont
 import { BatchTrainerAssignmentsCard } from "@/components/admin/batches/batch-trainer-assignments-card";
 import { ClassSessionList } from "@/components/admin/class-sessions/class-session-list";
 import { MaterialsCard } from "@/components/admin/materials/materials-card";
+import { AssignmentsCard } from "@/components/admin/assignments/assignments-card";
 import {
   getBatchEnrollmentCount,
   getBatchProfile,
@@ -16,8 +17,14 @@ import {
   getTrainerOptions,
 } from "@/lib/data/batches";
 import { getClassSessionsForBatch } from "@/lib/data/class-sessions";
-import { getMaterialsForScope } from "@/lib/data/materials";
+import { getMaterialsForScope, listProgramModules } from "@/lib/data/materials";
 import { createBatchMaterialAction } from "@/lib/actions/materials";
+import { getAssignmentsForBatch } from "@/lib/data/assignments";
+import {
+  createBatchAssignmentAction,
+  updateAssignmentStatusAction,
+} from "@/lib/actions/assignments";
+import { SubmissionsSection } from "@/components/admin/assignments/submissions-section";
 import { formatDaysOfWeekForDisplay } from "@/lib/domain/batches";
 
 export const dynamic = "force-dynamic";
@@ -100,6 +107,61 @@ async function MaterialsSection({ batchId }: { batchId: string }) {
     <MaterialsCard
       materials={result.data}
       action={createBatchMaterialAction.bind(null, batchId)}
+    />
+  );
+}
+
+async function AssignmentsSection({
+  batchId,
+  programId,
+}: {
+  batchId: string;
+  programId: string;
+}) {
+  const [assignmentsResult, trainerOptionsResult, moduleOptionsResult] =
+    await Promise.all([
+      getAssignmentsForBatch(batchId),
+      getBatchTrainerAssignments(batchId),
+      listProgramModules(programId),
+    ]);
+  if (!assignmentsResult.ok) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Assignments</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p role="alert" className="text-destructive text-sm">
+            {assignmentsResult.error}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <AssignmentsCard
+      assignments={assignmentsResult.data}
+      action={createBatchAssignmentAction.bind(null, batchId)}
+      statusAction={(assignmentId) =>
+        updateAssignmentStatusAction.bind(null, assignmentId, batchId)
+      }
+      renderSubmissions={(assignment) => (
+        <SubmissionsSection
+          assignmentId={assignment.id}
+          batchId={batchId}
+          maxMarks={assignment.maxMarks}
+        />
+      )}
+      trainerOptions={
+        trainerOptionsResult.ok
+          ? trainerOptionsResult.data.map((t) => ({
+              id: t.trainerId,
+              firstName: t.firstName,
+              lastName: t.lastName,
+            }))
+          : []
+      }
+      moduleOptions={moduleOptionsResult.ok ? moduleOptionsResult.data : []}
     />
   );
 }
@@ -233,6 +295,10 @@ export default async function BatchProfilePage({
 
       <Suspense fallback={<SectionSkeleton />}>
         <MaterialsSection batchId={batch.id} />
+      </Suspense>
+
+      <Suspense fallback={<SectionSkeleton />}>
+        <AssignmentsSection batchId={batch.id} programId={batch.programId} />
       </Suspense>
     </div>
   );

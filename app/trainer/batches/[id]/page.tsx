@@ -6,13 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrainerStudentTable } from "@/components/trainer/trainer-student-table";
 import { TrainerClassSessionList } from "@/components/trainer/trainer-class-session-list";
 import { TrainerMaterialsCard } from "@/components/trainer/materials/trainer-materials-card";
+import { AssignmentsCard } from "@/components/admin/assignments/assignments-card";
+import { TrainerSubmissionsSection } from "@/components/trainer/assignments/trainer-submissions-section";
 import {
   getMyBatch,
   getMySessionsForBatch,
   getMyStudentsForBatch,
+  getMyAssignmentsForBatch,
 } from "@/lib/data/trainer-portal";
-import { getMaterialsForScope } from "@/lib/data/materials";
+import { getMaterialsForScope, listProgramModules } from "@/lib/data/materials";
 import { createMyBatchMaterialAction } from "@/lib/actions/trainer-materials";
+import {
+  createMyBatchAssignmentAction,
+  updateMyAssignmentStatusAction,
+} from "@/lib/actions/trainer-assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +35,19 @@ export default async function TrainerBatchDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [batchResult, studentsResult, sessionsResult, materialsResult] =
-    await Promise.all([
-      getMyBatch(id),
-      getMyStudentsForBatch(id),
-      getMySessionsForBatch(id),
-      getMaterialsForScope({ type: "batch", id }),
-    ]);
+  const [
+    batchResult,
+    studentsResult,
+    sessionsResult,
+    materialsResult,
+    assignmentsResult,
+  ] = await Promise.all([
+    getMyBatch(id),
+    getMyStudentsForBatch(id),
+    getMySessionsForBatch(id),
+    getMaterialsForScope({ type: "batch", id }),
+    getMyAssignmentsForBatch(id),
+  ]);
 
   if (!batchResult.ok) {
     if (batchResult.error === "Batch not found.") {
@@ -48,6 +61,7 @@ export default async function TrainerBatchDetailPage({
   }
 
   const batch = batchResult.data;
+  const moduleOptionsResult = await listProgramModules(batch.programId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -140,6 +154,35 @@ export default async function TrainerBatchDetailPage({
           <CardContent>
             <p role="alert" className="text-destructive text-sm">
               {materialsResult.error}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {assignmentsResult.ok ? (
+        <AssignmentsCard
+          assignments={assignmentsResult.data}
+          action={createMyBatchAssignmentAction.bind(null, batch.id)}
+          statusAction={(assignmentId) =>
+            updateMyAssignmentStatusAction.bind(null, assignmentId, batch.id)
+          }
+          renderSubmissions={(assignment) => (
+            <TrainerSubmissionsSection
+              batchId={batch.id}
+              assignmentId={assignment.id}
+              maxMarks={assignment.maxMarks}
+            />
+          )}
+          moduleOptions={moduleOptionsResult.ok ? moduleOptionsResult.data : []}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Assignments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p role="alert" className="text-destructive text-sm">
+              {assignmentsResult.error}
             </p>
           </CardContent>
         </Card>
