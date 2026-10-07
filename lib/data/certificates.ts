@@ -12,7 +12,27 @@ import {
   type CertificateEligibilityResult,
   type PublicCertificateVerification,
 } from "@/lib/domain/certificates";
-import { renderCertificatePdf } from "@/lib/pdf/certificate";
+
+// `lib/pdf/certificate.tsx` is imported dynamically (inside
+// issueCertificateRecord/reissueCertificateRecord below), never statically
+// at this module's top level. @react-pdf/renderer pulls in yoga-layout,
+// whose ESM entry point runs a top-level `await` that instantiates a WASM
+// module as soon as the file is evaluated — not merely parsed. A static
+// import here would make every caller of ANY function in this module
+// (including read-only ones like getCertificatesForEnrollment, used by
+// both the Admin and Student enrollment-detail pages) eagerly pull that
+// WASM instantiation into Next.js's own build-time "collecting page data"
+// step for every route that touches certificates at all, whether or not
+// that route ever actually renders a PDF. A dynamic import defers it to
+// the one real place it's needed — inside an actual issuance/reissue
+// request at runtime — fixing a real latent cost on every platform, not
+// only the Windows-specific crash this surfaced it as.
+type CertificatePdfModule = typeof import("@/lib/pdf/certificate");
+let certificatePdfModulePromise: Promise<CertificatePdfModule> | null = null;
+function loadRenderCertificatePdf() {
+  certificatePdfModulePromise ??= import("@/lib/pdf/certificate");
+  return certificatePdfModulePromise.then((mod) => mod.renderCertificatePdf);
+}
 
 export const CERTIFICATES_BUCKET = "certificates";
 
@@ -275,6 +295,7 @@ export async function issueCertificateRecord(input: {
       throw new Error("Certificate number generation returned no value.");
 
     const issueDate = new Date().toISOString().slice(0, 10);
+    const renderCertificatePdf = await loadRenderCertificatePdf();
     const pdfBuffer = await renderCertificatePdf({
       certificateNumber,
       studentName: context.data.studentName,
@@ -400,6 +421,7 @@ export async function reissueCertificateRecord(input: {
       throw new Error("Certificate number generation returned no value.");
 
     const issueDate = new Date().toISOString().slice(0, 10);
+    const renderCertificatePdf = await loadRenderCertificatePdf();
     const pdfBuffer = await renderCertificatePdf({
       certificateNumber,
       studentName: originalRow.studentName,
