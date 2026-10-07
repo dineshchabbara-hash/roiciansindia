@@ -177,6 +177,11 @@ Applied (token-bucket, per-IP and/or per-account as appropriate) to:
 - Implementation: Upstash Redis (serverless-friendly, works well with Vercel) or a
   Postgres-table-backed limiter if avoiding an extra managed service is preferred;
   documented as configurable in `API_AND_INTEGRATIONS.md`.
+  (Phase 17 implementation note: `/verify-certificate` reuses the
+  Upstash-Redis-or-in-memory-fallback backend `lib/auth/rate-limit.ts`
+  already built for `/login`/`/forgot-password` — 10 requests/60s per IP
+  — rather than introducing a second, Postgres-table-backed mechanism; no
+  certificate-specific conflict with that existing backend was found.)
 
 ## 12. Error Handling & Safe Messaging
 

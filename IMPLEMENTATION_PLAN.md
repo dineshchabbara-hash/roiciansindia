@@ -927,17 +927,182 @@ on_hold/completed/withdrawn/cancelled Student sections.
 
 ## Phase 17 — Certificates
 
-**Scope:** Certificate issuance (Admin, per completed enrollment), PDF generation,
-revoke/reissue with audit history, Student download view, public
-`/verify-certificate` page + API.
+**Status:** ACTIVE IMPLEMENTATION — branch `claude/phase17-certificates`, based
+off `main` at `2698020` (the Phase 16 baseline). Not yet merged; awaiting
+manual Windows browser acceptance, then explicit approval, per the same gate
+Phase 10–16 went through.
 
-**DB changes:** None beyond Phase 2 (`certificates`).
+**Scope:** Certificate issuance (Admin/Super Admin only, per eligible
+Enrollment), server-side PDF generation, standalone revoke and atomic
+reissue-with-history-preservation, Student own-read/download, public
+`/verify-certificate` page + server action (built in this phase, not
+deferred — see the Public verification note below).
 
-**Security implications:** Public verification endpoint returns only the limited
-field set defined in `API_AND_INTEGRATIONS.md` §6; rate-limited.
+**DB changes:** The `certificates` table and its table-level RLS
+(`certificates_select_admin/_select_own`, `certificates_write_admin`,
+`certificates_update_admin` — no delete policy for any role) already existed
+from Phase 2 (`20260101000009_certificates_leads_notifications.sql`,
+`20260101000014_rls_policies.sql`), as did the immutability trigger
+(`20260101000012_receipt_certificate_immutability.sql`) and
+`certificate_number_seq`/`company_settings.certificate_number_format`
+(`20260101000002_sequences.sql`, `20260101000003_company_settings.sql`).
+Three migrations this phase actually adds:
+- `20260101000031_certificate_number_generation.sql` — `generate_certificate_
+  number()`, formatting a new number from `company_settings.
+  certificate_number_format` using the existing, global, never-reset
+  `certificate_number_seq`; self-gated to Admin/Super Admin
+  (`is_admin_or_super()`), EXECUTE revoked from `public`/`anon`/
+  `authenticated` then re-granted only to `authenticated`, matching
+  `20260101000016`'s own hardening precedent; also wired as the
+  `certificates.certificate_number` column `DEFAULT` as a defense-in-depth
+  fallback.
+- `20260101000032_certificates_storage.sql` — the private `certificates`
+  Storage bucket (Admin full; Student select-own via a join to the real
+  `certificates` row; no anon policy of any kind).
+- `20260101000033_reissue_certificate_function.sql` — `reissue_certificate()`,
+  atomically inserting the replacement row and marking the original revoked
+  in one plpgsql function body (a single statement in the caller's own
+  transaction), so a reissue can never partially apply; same Admin/Super
+  Admin self-gate and EXECUTE lockdown as `generate_certificate_number()`.
 
-**DoD:** A certificate can be issued, downloaded by the student, and verified
-publicly by number without exposing private data.
+**Eligibility rule — a checkpoint-approved business decision, not inferred:**
+ALL THREE conditions must hold: (1) `enrollment.status = 'completed'`, (2)
+`program.certificate_eligible = true`, (3) the enrollment's outstanding
+balance is `<= 0`. The balance check calls the one existing authoritative
+`getEnrollmentFinancialSummary(enrollmentId, totalPayable)`
+(`lib/data/enrollments.ts`) — never a duplicated/reinterpreted financial
+calculation, never another enrollment's balance — exactly as the checkpoint
+required. `lib/domain/certificates.ts`'s `resolveCertificateEligibility` is
+pure and unit-tested against the 5 required cases (completed+eligible+paid
+→ eligible; completed+eligible+unpaid → not eligible; not-completed+paid →
+not eligible; completed+ineligible-program+paid → not eligible; another
+enrollment's paid status never crosses over). `issueCertificateRecord`
+(`lib/data/certificates.ts`) re-derives this server-side on every issuance
+attempt — the Admin UI's own eligibility display is never trusted as the
+real gate.
+
+**Certificate ID — server-generated, sequential, unique, immutable:**
+`certificate_number` is minted via the `generate_certificate_number()` RPC
+(never browser-supplied), using the pre-existing global `certificate_number_
+seq` — confirmed via checkpoint: **monotonic, never resets per calendar
+year** (`DECISIONS_NEEDED.md` D7, certificate half resolved). Because
+`certificates.pdf_path` is `NOT NULL` and immutable
+(`20260101000012`), the application must mint the number and render the PDF
+with it printed BEFORE the row exists at all — the opposite ordering from
+Materials/Assignments' own "insert row first, attach after" pattern. Neither
+`certificate_number` nor `pdf_path`/`enrollment_id`/`student_id`/
+`program_id`/`completion_date`/`issue_date` can ever be changed after
+creation, for any role including Admin (`prevent_certificate_immutable_
+fields_change`, proven in `supabase/tests/phase17_certificates_test.sql`).
+
+**Issuance/revocation/reissue workflow:**
+- **Issue** (`issueCertificateRecord`): re-check eligibility → mint number
+  (RPC) → render PDF (`lib/pdf/certificate.tsx`'s `renderCertificatePdf`) →
+  upload to the `certificates` bucket at `{studentId}/{certificateNumber}.pdf`
+  → insert the row with the already-known number/path. If the insert fails,
+  the just-uploaded object is removed (no orphan file); if the upload fails,
+  the consumed sequence number is simply skipped, the same gap-tolerance
+  every other id sequence in this schema already accepts.
+- **Revoke** (`revokeCertificateRecord`): standalone, no replacement —
+  `status='revoked'`, `revoked_reason`, `revoked_at`. Refuses to revoke an
+  already-revoked certificate. Never deletes the row.
+- **Reissue** (`reissueCertificateRecord`): mints a new number, renders/
+  uploads a new PDF carrying over the original's `completion_date`, then
+  calls `reissue_certificate()` to atomically insert the new row AND mark
+  the original revoked (reason defaults to `"Replaced by reissued
+  certificate <newNumber>"` when none is given) — never two simultaneously
+  `issued` rows for one completion event. Refuses to reissue a certificate
+  that is not currently `issued`. If the final RPC call fails, the
+  already-uploaded new PDF object is removed; the original row is never
+  touched on failure.
+- **Verification history:** no `replaces`/`replaced_by` FK column exists —
+  this is the documented design (the `certificates` table's own comment:
+  "Reissue creates a new row... and marks the prior one revoked — history is
+  preserved"), reconstructed by shared `enrollment_id` + chronological
+  `issue_date`/`created_at` ordering, not a gap filled in with invented
+  structure. A revoked certificate is never hard-deleted — no delete policy
+  exists for any role at the RLS layer, and no hard-delete UI is exposed
+  anywhere in the application.
+
+**Student/Trainer/Admin access:** Student sees and downloads only their own
+certificates (`certificates_select_own`, `GET /student/enrollments/[id]`'s
+own `StudentCertificatesCard`) — issued certificates remain visible
+regardless of the Enrollment's current/later status (a permanent academic
+record, deliberately NOT given Materials/Assignments-style status
+filtering); cannot issue/revoke/reissue. Trainer has **zero** certificate
+access of any kind (`USER_ROLES_AND_PERMISSIONS.md`'s own matrix: Trainer
+"–" on certificates) — no RLS policy, no Storage policy, no UI surface, no
+side-channel financial exposure through a certificate join. Admin/Super
+Admin share one model (no invented Admin-vs-Super-Admin distinction) — every
+mutation is server-authorized (`lib/actions/certificates.ts` re-checks
+`isAdminOrSuperAdmin` before calling into the data layer).
+
+**PDF architecture:** `@react-pdf/renderer` (the `API_AND_INTEGRATIONS.md`
+§5.2 "Recommended... for V1" pick — no new library invented, no headless-
+Chromium pipeline). `lib/pdf/certificate.tsx` is a text-only V1 design (no
+logo image embedding — `DECISIONS_NEEDED.md` D4's own "clean original
+design" default) showing only the approved field list: student display
+name, program name, certificate number, completion/issue dates, and
+`company_settings`' own legal name/signatory name/title — never grades,
+attendance, payment info, Trainer names, or anything outside that list.
+
+**Storage/signed-download:** Private `certificates` bucket (`public:
+false`), object paths server-built and deterministic
+(`buildCertificatePath`), never caller-supplied. Download is the same
+proven id-first pattern as Materials/Assignments:
+`getCertificateDownloadUrl` re-fetches the row through the caller's own
+RLS-scoped session first, and only then mints a signed URL through that
+same session — a certificate the caller cannot see never reaches a Storage
+call at all. `CERTIFICATE_SIGNED_URL_EXPIRY_SECONDS = 300`, reusing Phase
+15/16's own established engineering default (no certificate-specific
+requirement conflicts with it).
+
+**Public verification — built now, not deferred:** the brief's own framing
+suggested AD-L-006 (public verification) belonged to a future phase, but
+discovery found `IMPLEMENTATION_PLAN.md`'s own pre-existing Phase 17 scope
+line above, `DECISIONS_NEEDED.md` D4, and `SECURITY_PLAN.md`'s own existing
+rate-limiting/data-minimization design for exactly this page all
+independently already placed it in Phase 17 — reported, then explicitly
+authorized by checkpoint to build now. `/verify-certificate`
+(`app/(public)/verify-certificate`) is an anonymous page + `"use server"`
+action (`verifyCertificateAction`, `lib/actions/certificates.ts`) — no
+separate `app/api/...` route handler exists anywhere else in this codebase
+either, so a Server Action is this project's own established "API" layer,
+not a deviation. Data comes from `verifyCertificatePublic`
+(`lib/data/certificates.ts`), which uses the service-role client
+(`lib/supabase/admin.ts`'s documented narrow-use pattern — no anon RLS
+policy exists or was added) with an explicit column allow-list matching the
+`certificates` table's own documented approved public field set
+(certificate number, student display name, program name, issue date,
+status) — never `select('*')`, never financial/Trainer/internal-id data.
+Rate-limited by IP (`checkRateLimit`, `lib/auth/rate-limit.ts` — the same
+existing in-memory/Upstash backend already used for `/login`/
+`/forgot-password`; `SECURITY_PLAN.md` §11's own "Upstash Redis... or a
+Postgres-table-backed limiter" note names either as acceptable, and this
+phase reuses the backend the codebase already has rather than adding either
+a new managed-service dependency or a new Postgres-table limiter).
+
+**Security implications:** Public verification endpoint returns only the
+limited field set above, rate-limited (10 requests/60s per IP). No new
+financial exposure to Trainer or the public endpoint at any point — the
+eligibility check's own outstanding-balance read never leaves the Admin-only
+issuance path. Direct tampering (cross-student certificate id, Trainer/
+Student calling the issuance/revoke/reissue actions or the `generate_
+certificate_number()`/`reissue_certificate()` RPCs directly, anonymous table/
+Storage access) is proven denied at the RLS/grant layer by
+`supabase/tests/phase17_certificates_test.sql`.
+
+**DoD:** A certificate can be issued (only when genuinely eligible),
+downloaded by the student, revoked and reissued with full history preserved,
+and verified publicly by number without exposing private data.
+
+**Known limitations / explicitly out of scope this phase:** No certificate-
+design customization UI (logo/colors/layout are fixed in
+`lib/pdf/certificate.tsx`, deferred); no bulk/batch issuance (one Enrollment
+at a time); no notifications on issuance (Phase 18); no Reports/analytics
+beyond what this phase itself needed (Phase 19); no Razorpay/receipts work
+(Phase 20/21); Receipt numbering's own year-reset question
+(`DECISIONS_NEEDED.md` D7, receipt half) remains open for Phase 21.
 
 ## Phase 18 — Notifications
 

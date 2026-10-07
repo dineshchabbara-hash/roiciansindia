@@ -407,6 +407,25 @@ Phase 16 note.)
 - Public verification exposes only: certificate_number, student display name,
   program name, issue_date, status — never the full row.
 
+(Phase 17 implementation note: table/RLS/immutability trigger all already
+existed from Phase 2 — this phase adds three migrations on top, never
+modifying the table shape itself. `generate_certificate_number()`
+(`20260101000031_certificate_number_generation.sql`) formats
+`certificate_number` from `company_settings.certificate_number_format`
+using `certificate_number_seq`, confirmed by checkpoint to be global and
+monotonic — `{year}` is a cosmetic label, never a per-year-restarting
+counter (`DECISIONS_NEEDED.md` D7, certificate half resolved); self-gated
+to Admin/Super Admin, directly RPC-callable (not only a column `DEFAULT`)
+because `pdf_path` is `NOT NULL`/immutable and the number must be known
+before the PDF is rendered. `reissue_certificate()`
+(`20260101000033_reissue_certificate_function.sql`) atomically inserts the
+replacement row and marks the original revoked in one function body — the
+two mutations can never partially apply. A private `certificates` Storage
+bucket (`20260101000032_certificates_storage.sql`) backs `pdf_path`; no
+anon policy of any kind exists on either the table or the bucket — public
+verification reads through the service-role client with an explicit
+column allow-list at the application layer instead.)
+
 ### `leads`
 - `id uuid pk`
 - `name text not null`, `email text`, `phone text`

@@ -49,14 +49,16 @@ accounts with no real student record and giving staff a chance to catch duplicat
 before they become logins. **Needed from you:** confirm (b) is acceptable, or tell
 us you want self-serve signup (a) — this affects Phase 3/Phase 5 flow design.
 
-### D4. Certificate design and public-verification display name
-Two sub-questions: (1) Do you have an existing certificate design/template (PDF,
-image, or description of layout, signatory name/title) we should match, or should
-we design a clean default? (2) On the public `/verify-certificate` page, should the
-full student name be shown, or a partially-masked version (e.g. "Priya S.")?
-**Default:** clean original design authored in Phase 17; full name shown on
-verification (this is standard practice for certificate verification pages and
-matches what the brief's §29 describes) — flag now only if you want masking.
+### D4. Certificate design and public-verification display name — RESOLVED (Phase 17)
+
+Resolved by proceeding with the stated default, with no objection raised: a clean,
+original, text-only certificate design was authored in Phase 17
+(`lib/pdf/certificate.tsx`, `@react-pdf/renderer`) — student name, program name,
+certificate number, completion/issue dates, and `company_settings`' own
+legal name/signatory name/title, no logo image embedding in this V1 (a future
+phase can add `company_settings.logo_path` as an `<Image>` without changing the
+render data contract). The public `/verify-certificate` page shows the full
+student display name (not masked), matching the stated default.
 
 ### D5. Admin access to Company Settings
 Current default (`USER_ROLES_AND_PERMISSIONS.md` §3) restricts tax/numbering/
@@ -73,13 +75,23 @@ only, no enforced pattern. **Needed from you:** if you want a *mandatory* format
 we'll add server-side validation for it in Phase 7 — otherwise Admin can type any
 unique code.
 
-### D7. Receipt/Certificate numbering reset behavior
-Default numbering is `REC-{year}-{seq:6}` / `CERT-{year}-{seq:6}`, implying the
-sequence portion is scoped per calendar year (so 2027 receipts restart at
-`000001`). **Confirm** this is the desired behavior versus a single
+### D7. Receipt/Certificate numbering reset behavior — certificate half RESOLVED (Phase 17), receipt half still open
+
+**Certificate numbering (resolved):** explicit checkpoint decision — the
+`certificate_number_seq` underlying `generate_certificate_number()`
+(`20260101000031_certificate_number_generation.sql`) is global and monotonic,
+**never** reset per calendar year; `{year}` in the `CERT-{year}-{seq:6}` format
+string is a cosmetic label computed from the current date at mint time, not a
+per-year-restarting counter. A certificate number is therefore never reused or
+ambiguous across years.
+
+**Receipt numbering (still open):** `REC-{year}-{seq:6}` default numbering still
+implies the sequence portion is scoped per calendar year (so 2027 receipts
+restart at `000001`). **Confirm** this is the desired behavior versus a single
 never-resetting sequence across all years (e.g. `REC-000001`, `REC-000002`, …
-indefinitely) — both are legitimate business choices and this only needs
-confirming before Phase 21 (Receipts, Refunds & Payment Documents).
+indefinitely) before Phase 21 (Receipts, Refunds & Payment Documents) — this is
+a separate decision from the certificate half above; the same monotonic-sequence
+approach could be reused for consistency, but that itself needs confirming.
 
 ### D8. Outstanding-balance refund sign (FR-31) — confirm which direction is correct
 

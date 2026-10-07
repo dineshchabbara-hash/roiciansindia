@@ -438,10 +438,45 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 ### 2.11 Certificates
 - FR-100 (P1): Admin issues certificates per enrollment; sequential unique Certificate
   ID (e.g. `CERT-2026-000001`); PDF generation with company branding.
+  (Phase 17 implementation note: eligibility is a checkpoint-approved
+  business rule, not inferred — ALL THREE of `enrollment.status =
+  'completed'`, `program.certificate_eligible = true`, and the enrollment's
+  outstanding balance `<= 0` (via the existing `getEnrollmentFinancialSummary`,
+  never a duplicated calculation) must hold; re-derived server-side on every
+  issuance attempt, never trusting the Admin UI's own display of it. The
+  Certificate ID is minted by the DB-side `generate_certificate_number()`
+  function (never browser-generated/editable), using the pre-existing
+  global `certificate_number_seq` — confirmed by checkpoint to be
+  monotonic and never reset per calendar year (`DECISIONS_NEEDED.md` D7,
+  certificate half). `pdf_path` is `NOT NULL` and immutable, so the number
+  must be minted and the PDF rendered with it printed BEFORE the row is
+  ever inserted — see IMPLEMENTATION_PLAN.md's Phase 17 note for the full
+  ordering rationale and why this differs from Materials/Assignments' own
+  "insert row first" pattern.)
 - FR-101 (P1): Public certificate verification page (`/verify-certificate`) returns
   only non-sensitive fields (student name, program, issue date, validity) given a
   Certificate ID.
+  (Phase 17 implementation note: built in this phase rather than deferred —
+  discovery found this plan's own Phase 17 scope line,
+  `DECISIONS_NEEDED.md` D4, and `SECURITY_PLAN.md`'s own existing
+  rate-limiting/data-minimization design for this exact page all
+  independently already placed it here; explicitly authorized by
+  checkpoint. Served via the service-role client with an explicit column
+  allow-list — never `select('*')`, never financial/Trainer/internal-uuid
+  data — and rate-limited by IP using the existing `lib/auth/rate-limit.ts`
+  backend already used for `/login`/`/forgot-password`, not a new
+  mechanism.)
 - FR-102 (P1): Admin can revoke/reissue with audit history.
+  (Phase 17 implementation note: revoke is standalone (no replacement) and
+  never deletes the row; reissue atomically inserts the replacement and
+  marks the original revoked in one DB function call
+  (`reissue_certificate()`), so the two mutations can never partially
+  apply — never two simultaneously `issued` rows for one completion event.
+  No `replaces`/`replaced_by` column exists; history is reconstructed via
+  shared `enrollment_id` + chronological ordering, the schema's own
+  documented design (the `certificates` table comment), not an invented
+  gap-fill. No hard-delete UI exists anywhere — there is no DELETE RLS
+  policy for `certificates` at all, for any role, including Admin.)
 
 ### 2.12 Notifications & Email
 - FR-110 (P1): Transactional email for: welcome, enrollment confirmation, payment
