@@ -8,6 +8,7 @@ import { EnrollmentStatusControl } from "@/components/admin/enrollments/enrollme
 import { EnrollmentBatchAssignmentControl } from "@/components/admin/enrollments/enrollment-batch-assignment-control";
 import { EnrollmentFinancialSummaryCard } from "@/components/admin/enrollments/enrollment-financial-summary-card";
 import { PaymentPlanCard } from "@/components/admin/payment-plans/payment-plan-card";
+import { CertificatesSection } from "@/components/admin/certificates/certificates-section";
 import { formatDecimalAsINR } from "@/lib/domain/money";
 import {
   getBatchOptionsForEnrollment,
@@ -231,6 +232,10 @@ export default async function EnrollmentProfilePage({
 
       <Suspense fallback={<SectionSkeleton />}>
         <PaymentPlanSection enrollmentId={enrollment.id} />
+      </Suspense>
+
+      <Suspense fallback={<SectionSkeleton />}>
+        <CertificatesSection enrollmentId={enrollment.id} />
       </Suspense>
     </div>
   );

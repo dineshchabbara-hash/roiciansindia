@@ -9,9 +9,11 @@ import {
   getMyMaterialsForEnrollment,
   getMyAssignmentsForEnrollment,
 } from "@/lib/data/student-portal";
+import { getCertificatesForEnrollment } from "@/lib/data/certificates";
 import { StudentPaymentPlanCard } from "@/components/student/student-payment-plan-card";
 import { StudentMaterialsCard } from "@/components/student/student-materials-card";
 import { StudentAssignmentsCard } from "@/components/student/assignments/student-assignments-card";
+import { StudentCertificatesCard } from "@/components/student/certificates/student-certificates-card";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,7 @@ export default async function StudentEnrollmentDetailPage({
   const paymentPlanResult = await getMyPaymentPlanForEnrollment(id);
   const materialsResult = await getMyMaterialsForEnrollment(id);
   const assignmentsResult = await getMyAssignmentsForEnrollment(id);
+  const certificatesResult = await getCertificatesForEnrollment(id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -180,6 +183,21 @@ export default async function StudentEnrollmentDetailPage({
           <CardContent>
             <p role="alert" className="text-destructive text-sm">
               {assignmentsResult.error}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {certificatesResult.ok ? (
+        <StudentCertificatesCard certificates={certificatesResult.data} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Certificates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p role="alert" className="text-destructive text-sm">
+              {certificatesResult.error}
             </p>
           </CardContent>
         </Card>
