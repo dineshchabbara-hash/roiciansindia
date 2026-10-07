@@ -291,6 +291,29 @@ test.describe("Admin — Certificate management", () => {
   test("Admin issues, revokes, and reissues a certificate for an eligible Enrollment", async ({
     page,
   }) => {
+    // Provisional per-test allowance (same precedent as Phase 9's own
+    // workflow-timeout correction, e2e/phase9-enrollment-management.spec.ts),
+    // scoped to only this one test — every other Phase 17 test keeps
+    // Playwright's default 30s overall timeout untouched. This test alone
+    // performs 4 full Server Action round trips (issue, revoke, a second
+    // issue, reissue) each followed by a page reload, against a production
+    // build talking to a real remote Supabase project — and the issue/
+    // reissue round trips are also the first real invocations of PDF
+    // rendering per server process (lib/pdf/certificate.tsx's
+    // @react-pdf/renderer, deliberately deferred to request time via a
+    // dynamic import rather than build time, to fix the earlier Windows
+    // build-worker crash). A prior Windows run hit "Test timeout of
+    // 30000ms exceeded" waiting on the FIRST issue's own success state —
+    // read-only audit of the live project confirmed the Server Action had
+    // actually already succeeded server-side by then (a real certificate.
+    // issue audit_logs row exists, with a real minted certificate_number,
+    // from that exact run), so this is not masking a stuck/failed action,
+    // only giving the shared test clock enough room for a legitimately
+    // slower first-PDF-render round trip to finish. NOT a measured
+    // performance requirement, and a pass here is not evidence of any
+    // performance target.
+    test.setTimeout(90_000);
+
     if (!admin || !eligibleEnrollmentId) throw new Error("Fixture setup incomplete.");
 
     await loginAsAdmin(page, admin);
