@@ -61,12 +61,16 @@ export type Database = {
       company_settings: {
         Row: {
           id: string;
+          singleton: boolean;
           company_name: string;
           legal_name: string;
           logo_path: string | null;
           default_tax_rate_percent: string;
           tax_label: string;
           program_code_pattern: string | null;
+          certificate_number_format: string;
+          certificate_signatory_name: string | null;
+          certificate_signatory_title: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["company_settings"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["company_settings"]["Row"]>;
@@ -221,6 +225,11 @@ export type Database = {
           completion_date: string;
           issue_date: string;
           status: "issued" | "revoked";
+          pdf_path: string;
+          revoked_reason: string | null;
+          revoked_at: string | null;
+          created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["certificates"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["certificates"]["Row"]>;
@@ -791,6 +800,21 @@ export type Database = {
           status: string;
           enrollment_date: string;
         }[];
+      };
+      // Phase 17 (Certificates) — see 20260101000031_certificate_number_
+      // generation.sql and 20260101000033_reissue_certificate_function.sql.
+      generate_certificate_number: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
+      reissue_certificate: {
+        Args: {
+          p_original_id: string;
+          p_new_certificate_number: string;
+          p_new_pdf_path: string;
+          p_reason: string | null;
+        };
+        Returns: string;
       };
     };
   };
