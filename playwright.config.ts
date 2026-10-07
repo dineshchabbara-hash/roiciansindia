@@ -31,7 +31,29 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run build && npm run start",
+    // Each separate `npx playwright test ...` invocation (the acceptance
+    // protocol runs every test this way, one at a time via `-g`) starts
+    // its own fresh webServer process, but `.next/cache` (Turbopack's own
+    // persistent build cache) survives ON DISK across those separate
+    // invocations — it is not reset just because the previous process
+    // exited. A prior Windows run saw the build succeed once, then crash
+    // again with the exact same native fault (exit 3221226505 /
+    // 0xC0000409) on the very next invocation of the IDENTICAL code,
+    // which a code-level regression cannot explain (nothing changed
+    // between the two runs) but a stale/inconsistent cache entry being
+    // read back by the second build can — this is Next.js's own
+    // documented first troubleshooting step for "build succeeds once,
+    // fails on a later run of the same code" ("delete .next and
+    // rebuild"). Deleting `.next` immediately before each build removes
+    // that variable entirely: every Playwright-driven build is always a
+    // full, clean, reproducible build, never dependent on what a
+    // previous invocation (or an antivirus scan still touching those
+    // freshly-written files) left behind. `node -e` is used rather than
+    // `rm -rf` specifically because it is the one cross-platform way to
+    // express this that works identically under cmd.exe, PowerShell, and
+    // bash without shell-specific syntax.
+    command:
+      "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npm run build && npm run start",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
