@@ -4,7 +4,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DataResult } from "@/lib/data/dashboard";
 import { getEnrollmentFinancialSummary } from "@/lib/data/enrollments";
-import { certDiag } from "@/lib/diagnostics/cert-timing";
 import {
   buildCertificatePath,
   resolveCertificateEligibility,
@@ -257,19 +256,15 @@ export async function issueCertificateRecord(input: {
   completionDate: string;
 }): Promise<DataResult<{ id: string; certificateNumber: string }>> {
   try {
-    certDiag("issueCertificateRecord: entry");
     const supabase = await createSupabaseServerClient();
-    certDiag("issueCertificateRecord: after createSupabaseServerClient");
 
     const context = await loadEligibilityContext(input.enrollmentId);
-    certDiag("issueCertificateRecord: after loadEligibilityContext");
     if (!context.ok) return context;
 
     const financial = await getEnrollmentFinancialSummary(
       input.enrollmentId,
       context.data.totalPayable,
     );
-    certDiag("issueCertificateRecord: after getEnrollmentFinancialSummary");
     if (!financial.ok) return financial;
 
     const eligibility = resolveCertificateEligibility({
@@ -290,20 +285,17 @@ export async function issueCertificateRecord(input: {
       .select("legal_name, certificate_signatory_name, certificate_signatory_title")
       .eq("singleton", true)
       .maybeSingle();
-    certDiag("issueCertificateRecord: after company_settings query");
     if (settingsError) throw settingsError;
 
     const { data: certificateNumber, error: rpcError } = await supabase.rpc(
       "generate_certificate_number",
     );
-    certDiag("issueCertificateRecord: after generate_certificate_number RPC");
     if (rpcError) throw rpcError;
     if (!certificateNumber)
       throw new Error("Certificate number generation returned no value.");
 
     const issueDate = new Date().toISOString().slice(0, 10);
     const renderCertificatePdf = await loadRenderCertificatePdf();
-    certDiag("issueCertificateRecord: after loadRenderCertificatePdf (dynamic import)");
     const pdfBuffer = await renderCertificatePdf({
       certificateNumber,
       studentName: context.data.studentName,
@@ -314,13 +306,11 @@ export async function issueCertificateRecord(input: {
       signatoryName: settings?.certificate_signatory_name ?? null,
       signatoryTitle: settings?.certificate_signatory_title ?? null,
     });
-    certDiag("issueCertificateRecord: after renderCertificatePdf");
 
     const pdfPath = buildCertificatePath(context.data.studentId, certificateNumber);
     const { error: uploadError } = await supabase.storage
       .from(CERTIFICATES_BUCKET)
       .upload(pdfPath, pdfBuffer, { contentType: "application/pdf" });
-    certDiag("issueCertificateRecord: after storage upload");
     if (uploadError) throw uploadError;
 
     const { data: inserted, error: insertError } = await supabase
@@ -337,16 +327,13 @@ export async function issueCertificateRecord(input: {
       })
       .select("id")
       .single();
-    certDiag("issueCertificateRecord: after certificates insert");
     if (insertError) {
       await supabase.storage.from(CERTIFICATES_BUCKET).remove([pdfPath]);
       throw insertError;
     }
 
-    certDiag("issueCertificateRecord: returning ok");
     return { ok: true, data: { id: inserted.id as string, certificateNumber } };
   } catch (error) {
-    certDiag("issueCertificateRecord: caught error, returning fail");
     return fail("Could not issue the certificate. Please try again.", error);
   }
 }
@@ -364,14 +351,12 @@ export async function revokeCertificateRecord(input: {
   revokedReason: string | null;
 }): Promise<DataResult<null>> {
   try {
-    certDiag("revokeCertificateRecord: entry");
     const supabase = await createSupabaseServerClient();
     const { data: existing, error: fetchError } = await supabase
       .from("certificates")
       .select("id, status")
       .eq("id", input.certificateId)
       .maybeSingle();
-    certDiag("revokeCertificateRecord: after fetch existing");
     if (fetchError) throw fetchError;
     if (!existing) return { ok: false, error: "Certificate not found." };
     if (existing.status === "revoked") {
@@ -386,12 +371,9 @@ export async function revokeCertificateRecord(input: {
         revoked_at: new Date().toISOString(),
       })
       .eq("id", input.certificateId);
-    certDiag("revokeCertificateRecord: after update");
     if (error) throw error;
-    certDiag("revokeCertificateRecord: returning ok");
     return { ok: true, data: null };
   } catch (error) {
-    certDiag("revokeCertificateRecord: caught error, returning fail");
     return fail("Could not revoke the certificate. Please try again.", error);
   }
 }
@@ -410,7 +392,6 @@ export async function reissueCertificateRecord(input: {
   reason: string | null;
 }): Promise<DataResult<{ id: string; certificateNumber: string }>> {
   try {
-    certDiag("reissueCertificateRecord: entry");
     const supabase = await createSupabaseServerClient();
 
     const { data: original, error: fetchError } = await supabase
@@ -418,7 +399,6 @@ export async function reissueCertificateRecord(input: {
       .select(CERTIFICATE_SELECT)
       .eq("id", input.originalCertificateId)
       .maybeSingle();
-    certDiag("reissueCertificateRecord: after fetch original");
     if (fetchError) throw fetchError;
     if (!original) return { ok: false, error: "Certificate not found." };
     const originalRow = toCertificateRow(original as unknown as CertificateQueryRow);
@@ -431,20 +411,17 @@ export async function reissueCertificateRecord(input: {
       .select("legal_name, certificate_signatory_name, certificate_signatory_title")
       .eq("singleton", true)
       .maybeSingle();
-    certDiag("reissueCertificateRecord: after company_settings query");
     if (settingsError) throw settingsError;
 
     const { data: certificateNumber, error: rpcError } = await supabase.rpc(
       "generate_certificate_number",
     );
-    certDiag("reissueCertificateRecord: after generate_certificate_number RPC");
     if (rpcError) throw rpcError;
     if (!certificateNumber)
       throw new Error("Certificate number generation returned no value.");
 
     const issueDate = new Date().toISOString().slice(0, 10);
     const renderCertificatePdf = await loadRenderCertificatePdf();
-    certDiag("reissueCertificateRecord: after loadRenderCertificatePdf (dynamic import)");
     const pdfBuffer = await renderCertificatePdf({
       certificateNumber,
       studentName: originalRow.studentName,
@@ -455,13 +432,11 @@ export async function reissueCertificateRecord(input: {
       signatoryName: settings?.certificate_signatory_name ?? null,
       signatoryTitle: settings?.certificate_signatory_title ?? null,
     });
-    certDiag("reissueCertificateRecord: after renderCertificatePdf");
 
     const pdfPath = buildCertificatePath(originalRow.studentId, certificateNumber);
     const { error: uploadError } = await supabase.storage
       .from(CERTIFICATES_BUCKET)
       .upload(pdfPath, pdfBuffer, { contentType: "application/pdf" });
-    certDiag("reissueCertificateRecord: after storage upload");
     if (uploadError) throw uploadError;
 
     const { data: newId, error: reissueError } = await supabase.rpc(
@@ -473,16 +448,13 @@ export async function reissueCertificateRecord(input: {
         p_reason: input.reason,
       },
     );
-    certDiag("reissueCertificateRecord: after reissue_certificate RPC");
     if (reissueError) {
       await supabase.storage.from(CERTIFICATES_BUCKET).remove([pdfPath]);
       throw reissueError;
     }
 
-    certDiag("reissueCertificateRecord: returning ok");
     return { ok: true, data: { id: newId as string, certificateNumber } };
   } catch (error) {
-    certDiag("reissueCertificateRecord: caught error, returning fail");
     return fail("Could not reissue the certificate. Please try again.", error);
   }
 }

@@ -18,7 +18,6 @@ import {
 } from "@/lib/data/enrollments";
 import { getPaymentPlanForEnrollment } from "@/lib/data/payment-plans";
 import { canAssignBatch, PAYMENT_PLAN_TYPES } from "@/lib/domain/enrollments";
-import { certDiag } from "@/lib/diagnostics/cert-timing";
 
 // Same friendly display text as components/admin/enrollments/enrollment-form.tsx
 // — the raw DB value (full/installments) is unchanged, only the label shown.
@@ -50,9 +49,7 @@ async function FinancialSection({
   enrollmentId: string;
   totalPayable: string;
 }) {
-  certDiag(`FinancialSection(${enrollmentId}): entry`);
   const result = await getEnrollmentFinancialSummary(enrollmentId, totalPayable);
-  certDiag(`FinancialSection(${enrollmentId}): after getEnrollmentFinancialSummary`);
   if (!result.ok) {
     return (
       <Card>
@@ -71,9 +68,7 @@ async function FinancialSection({
 }
 
 async function PaymentPlanSection({ enrollmentId }: { enrollmentId: string }) {
-  certDiag(`PaymentPlanSection(${enrollmentId}): entry`);
   const result = await getPaymentPlanForEnrollment(enrollmentId);
-  certDiag(`PaymentPlanSection(${enrollmentId}): after getPaymentPlanForEnrollment`);
   if (!result.ok) {
     return (
       <Card>
@@ -97,9 +92,7 @@ export default async function EnrollmentProfilePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  certDiag(`EnrollmentProfilePage(${id}): entry`);
   const profileResult = await getEnrollmentProfile(id);
-  certDiag(`EnrollmentProfilePage(${id}): after getEnrollmentProfile`);
 
   if (!profileResult.ok) {
     notFound();

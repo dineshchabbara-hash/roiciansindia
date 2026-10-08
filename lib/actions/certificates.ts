@@ -19,7 +19,6 @@ import {
   parseReissueCertificateFormData,
 } from "@/lib/validation/certificates";
 import type { PublicCertificateVerification } from "@/lib/domain/certificates";
-import { certDiag } from "@/lib/diagnostics/cert-timing";
 
 /**
  * Certificates server actions (Phase 17). Admin/Super Admin only for
@@ -44,9 +43,7 @@ export async function issueCertificateAction(
   _prevState: CertificateFormState,
   formData: FormData,
 ): Promise<CertificateFormState> {
-  certDiag("issueCertificateAction: entry");
   const ctx = await getCurrentUserContext();
-  certDiag("issueCertificateAction: after getCurrentUserContext");
   if (!ctx || !isAdminOrSuperAdmin(ctx.role)) return { formError: NOT_AUTHORIZED };
 
   const parsed = parseIssueCertificateFormData(formData);
@@ -58,7 +55,6 @@ export async function issueCertificateAction(
     enrollmentId,
     completionDate: parsed.data.completionDate,
   });
-  certDiag("issueCertificateAction: after issueCertificateRecord");
   if (!result.ok) return { formError: result.error };
 
   await writeAuditLog({
@@ -69,10 +65,8 @@ export async function issueCertificateAction(
     entityId: result.data.id,
     after: { enrollmentId, certificateNumber: result.data.certificateNumber },
   });
-  certDiag("issueCertificateAction: after writeAuditLog");
 
   revalidatePath(`/admin/enrollments/${enrollmentId}`);
-  certDiag("issueCertificateAction: after revalidatePath, returning success");
   return { success: true };
 }
 
@@ -82,9 +76,7 @@ export async function revokeCertificateAction(
   _prevState: CertificateFormState,
   formData: FormData,
 ): Promise<CertificateFormState> {
-  certDiag("revokeCertificateAction: entry");
   const ctx = await getCurrentUserContext();
-  certDiag("revokeCertificateAction: after getCurrentUserContext");
   if (!ctx || !isAdminOrSuperAdmin(ctx.role)) return { formError: NOT_AUTHORIZED };
 
   const parsed = parseRevokeCertificateFormData(formData);
@@ -97,7 +89,6 @@ export async function revokeCertificateAction(
     certificateId,
     revokedReason,
   });
-  certDiag("revokeCertificateAction: after revokeCertificateRecord");
   if (!result.ok) return { formError: result.error };
 
   await writeAuditLog({
@@ -108,10 +99,8 @@ export async function revokeCertificateAction(
     entityId: certificateId,
     after: { revokedReason },
   });
-  certDiag("revokeCertificateAction: after writeAuditLog");
 
   revalidatePath(`/admin/enrollments/${enrollmentId}`);
-  certDiag("revokeCertificateAction: after revalidatePath, returning success");
   return { success: true };
 }
 
@@ -121,9 +110,7 @@ export async function reissueCertificateAction(
   _prevState: CertificateFormState,
   formData: FormData,
 ): Promise<CertificateFormState> {
-  certDiag("reissueCertificateAction: entry");
   const ctx = await getCurrentUserContext();
-  certDiag("reissueCertificateAction: after getCurrentUserContext");
   if (!ctx || !isAdminOrSuperAdmin(ctx.role)) return { formError: NOT_AUTHORIZED };
 
   const parsed = parseReissueCertificateFormData(formData);
@@ -136,7 +123,6 @@ export async function reissueCertificateAction(
     originalCertificateId,
     reason,
   });
-  certDiag("reissueCertificateAction: after reissueCertificateRecord");
   if (!result.ok) return { formError: result.error };
 
   await writeAuditLog({
@@ -148,10 +134,8 @@ export async function reissueCertificateAction(
     before: { originalCertificateId },
     after: { enrollmentId, certificateNumber: result.data.certificateNumber, reason },
   });
-  certDiag("reissueCertificateAction: after writeAuditLog");
 
   revalidatePath(`/admin/enrollments/${enrollmentId}`);
-  certDiag("reissueCertificateAction: after revalidatePath, returning success");
   return { success: true };
 }
 
