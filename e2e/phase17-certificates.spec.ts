@@ -294,24 +294,33 @@ test.describe("Admin — Certificate management", () => {
     // Provisional per-test allowance (same precedent as Phase 9's own
     // workflow-timeout correction, e2e/phase9-enrollment-management.spec.ts),
     // scoped to only this one test — every other Phase 17 test keeps
-    // Playwright's default 30s overall timeout untouched. This test alone
-    // performs 4 full Server Action round trips (issue, revoke, a second
-    // issue, reissue) each followed by a page reload, against a production
-    // build talking to a real remote Supabase project — and the issue/
-    // reissue round trips are also the first real invocations of PDF
-    // rendering per server process (lib/pdf/certificate.tsx's
-    // @react-pdf/renderer, deliberately deferred to request time via a
-    // dynamic import rather than build time, to fix the earlier Windows
-    // build-worker crash). A prior Windows run hit "Test timeout of
-    // 30000ms exceeded" waiting on the FIRST issue's own success state —
-    // read-only audit of the live project confirmed the Server Action had
-    // actually already succeeded server-side by then (a real certificate.
-    // issue audit_logs row exists, with a real minted certificate_number,
-    // from that exact run), so this is not masking a stuck/failed action,
-    // only giving the shared test clock enough room for a legitimately
-    // slower first-PDF-render round trip to finish. NOT a measured
-    // performance requirement, and a pass here is not evidence of any
-    // performance target.
+    // Playwright's default 30s overall timeout untouched. This test performs
+    // 4 full Server Action round trips (issue, revoke, a second issue,
+    // reissue) each followed by a page reload, against a production build
+    // talking to a real remote Supabase project — and the issue/reissue
+    // round trips are also the first real invocations of PDF rendering per
+    // server process (lib/pdf/certificate.tsx's @react-pdf/renderer,
+    // deliberately deferred to request time via a dynamic import rather
+    // than build time, to fix an earlier Windows build-worker crash). NOT a
+    // measured performance requirement, and a pass here is not evidence of
+    // any performance target — purely headroom for several real round trips
+    // in one test.
+    //
+    // A prior Windows run hit the 90s limit waiting on
+    // `card.getByRole("alert")` OR `card.getByText("Certificate issued")`
+    // after clicking Issue — but temporary server-side timing
+    // instrumentation (since removed) proved the whole issuance pipeline,
+    // the Server Action, and its revalidatePath all completed in a few
+    // real seconds every time. The wait was never going to resolve: a
+    // successful issuance makes this Enrollment's `alreadyIssued` true,
+    // which makes CertificatesSection's `canIssue` false, which removes
+    // CertificateIssueForm — the one component holding that "Certificate
+    // issued" text — from the revalidated tree in the very same commit
+    // that would have shown it. The durable, real product confirmation is
+    // the issued certificate itself appearing in the list this form is
+    // replaced by (a real minted number, "Valid" status, Download) — which
+    // is what every assertion below now waits on instead. Revoke/Reissue's
+    // own confirm buttons have the identical shape (see below).
     test.setTimeout(90_000);
 
     if (!admin || !eligibleEnrollmentId) throw new Error("Fixture setup incomplete.");
@@ -325,11 +334,22 @@ test.describe("Admin — Certificate management", () => {
 
     // --- A: Issue ---
     const completionDate = new Date().toISOString().slice(0, 10);
-    await card.locator('input[name="completionDate"]').fill(completionDate);
+    const completionDateInput = card.locator('input[name="completionDate"]');
+    await completionDateInput.fill(completionDate);
     await card.getByRole("button", { name: "Issue certificate" }).click();
+    // Success: canIssue flips false, CertificateIssueForm unmounts
+    // entirely once revalidation lands — it detaches, it never "finishes"
+    // in place. Waited on via this Input (not the submit button) because
+    // the button's own accessible name changes to "Issuing..." the instant
+    // isPending flips true, synchronously on click — a button located by
+    // its idle name would read as "detached" immediately, before the real
+    // round trip even starts. The Input never changes, so its detachment
+    // can only mean the form actually unmounted. Error: eligibility is
+    // unchanged, so the whole form (Input included) stays mounted, with
+    // its own role="alert" rendered inside it instead.
     await Promise.race([
+      completionDateInput.waitFor({ state: "detached" }),
       card.getByRole("alert").waitFor({ state: "visible" }),
-      card.getByText("Certificate issued", { exact: true }).waitFor({ state: "visible" }),
     ]);
     await expect(card.getByRole("alert")).toHaveCount(0);
     await page.reload();
@@ -348,17 +368,24 @@ test.describe("Admin — Certificate management", () => {
 
     // --- C: Revoke (standalone) ---
     await originalItem.getByRole("button", { name: "Revoke" }).click();
-    await originalItem.locator('input[name="revokedReason"]').fill("E2E revoke reason");
-    const confirmRevokeButton = originalItem.getByRole("button", {
-      name: "Confirm revoke",
-    });
-    await confirmRevokeButton.click();
-    // useActionState's formAction only resolves (re-enabling the button,
-    // reverting its label from "Revoking...") once the server action's
-    // whole round trip — including the DB update — has completed, so
-    // waiting for that reversion (rather than a fixed delay) is what
-    // actually guarantees the reload below reads post-revoke state.
-    await expect(confirmRevokeButton).toBeEnabled({ timeout: 15000 });
+    const revokedReasonInput = originalItem.locator('input[name="revokedReason"]');
+    await revokedReasonInput.fill("E2E revoke reason");
+    await originalItem.getByRole("button", { name: "Confirm revoke" }).click();
+    // Same unmount-on-success shape as Issue above: a successful revoke
+    // flips this certificate's status away from "issued", so
+    // CertificatesSection's `{certificate.status === "issued" && (...)}`
+    // gate removes this whole form from the revalidated tree. Waited on
+    // via this Input rather than the Confirm button, because that
+    // button's own accessible name changes to "Revoking..." synchronously
+    // on click — see the Issue step's own comment above for why that
+    // makes a button-keyed "detached" wait resolve too early. An error
+    // leaves status (and this form) exactly as it was, with its own
+    // role="alert" rendered inside it instead.
+    await Promise.race([
+      revokedReasonInput.waitFor({ state: "detached" }),
+      originalItem.getByRole("alert").waitFor({ state: "visible" }),
+    ]);
+    await expect(originalItem.getByRole("alert")).toHaveCount(0);
     await page.reload();
 
     const revokedItem = card.locator("li").filter({ hasText: originalNumberText });
@@ -368,29 +395,38 @@ test.describe("Admin — Certificate management", () => {
     // --- D: Reissue a FRESH certificate, then prove reissue's own history
     // preservation on it (a revoked certificate cannot itself be
     // reissued — proven at the SQL layer, not here) ---
-    await card.locator('input[name="completionDate"]').fill(completionDate);
+    await completionDateInput.fill(completionDate);
     await card.getByRole("button", { name: "Issue certificate" }).click();
     await Promise.race([
+      completionDateInput.waitFor({ state: "detached" }),
       card.getByRole("alert").waitFor({ state: "visible" }),
-      card.getByText("Certificate issued", { exact: true }).waitFor({ state: "visible" }),
     ]);
+    await expect(card.getByRole("alert")).toHaveCount(0);
     await page.reload();
 
     const validItems = card.locator("li").filter({ hasText: "Valid" });
     await expect(validItems).toHaveCount(1);
-    const secondNumberText = await validItems
-      .first()
+    const reissueItem = validItems.first();
+    const secondNumberText = await reissueItem
       .locator("span.font-medium")
       .first()
       .innerText();
 
-    await validItems.first().getByRole("button", { name: "Reissue" }).click();
-    await validItems.first().locator('input[name="reason"]').fill("E2E reissue reason");
-    const confirmReissueButton = validItems
-      .first()
-      .getByRole("button", { name: "Confirm reissue" });
-    await confirmReissueButton.click();
-    await expect(confirmReissueButton).toBeEnabled({ timeout: 15000 });
+    await reissueItem.getByRole("button", { name: "Reissue" }).click();
+    const reissueReasonInput = reissueItem.locator('input[name="reason"]');
+    await reissueReasonInput.fill("E2E reissue reason");
+    await reissueItem.getByRole("button", { name: "Confirm reissue" }).click();
+    // Same unmount-on-success shape as Issue/Revoke above: a successful
+    // reissue flips the ORIGINAL certificate's status away from "issued"
+    // too (it's replaced), removing this form from the revalidated tree.
+    // Waited on via this Input rather than the Confirm button for the
+    // same reason given at the Issue step above (its accessible name
+    // changes to "Reissuing..." synchronously on click).
+    await Promise.race([
+      reissueReasonInput.waitFor({ state: "detached" }),
+      reissueItem.getByRole("alert").waitFor({ state: "visible" }),
+    ]);
+    await expect(reissueItem.getByRole("alert")).toHaveCount(0);
     await page.reload();
 
     const nowRevokedSecond = card.locator("li").filter({ hasText: secondNumberText });

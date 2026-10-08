@@ -17,6 +17,16 @@ const initialState: CertificateFormState = {};
  * reported eligible, but the server re-derives eligibility independently
  * regardless (defense in depth, same posture as every other mutation in
  * this codebase).
+ *
+ * There is deliberately no local "success" message here. A successful
+ * issuance makes alreadyIssued true, so CertificatesSection's own
+ * `canIssue` gate stops rendering this form at all once the Server
+ * Action's revalidatePath takes effect — this component unmounts in the
+ * same commit that would otherwise show a transient message, so it could
+ * never actually be seen. The real, durable confirmation is the newly
+ * issued certificate itself appearing in the list this form is replaced
+ * by (number, "Valid" status, Download). Only the error path keeps this
+ * form mounted, which is exactly where a message belongs.
  */
 export function CertificateIssueForm({
   action,
@@ -41,9 +51,6 @@ export function CertificateIssueForm({
         <p role="alert" className="text-destructive text-xs">
           {state.formError}
         </p>
-      )}
-      {state.success && (
-        <p className="text-xs text-green-700 dark:text-green-400">Certificate issued</p>
       )}
 
       <Button type="submit" size="sm" disabled={isPending} className="w-fit">
