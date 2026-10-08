@@ -15,6 +15,7 @@ import {
   BarChart3,
   Settings,
   User,
+  Bell,
 } from "lucide-react";
 
 /**
@@ -58,6 +59,12 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     implemented: false,
   },
   { label: "Certificates", href: "/admin/certificates", icon: Award, implemented: false },
+  {
+    label: "Notifications",
+    href: "/admin/notifications",
+    icon: Bell,
+    implemented: false,
+  },
   { label: "Leads", href: "/admin/leads", icon: UserPlus, implemented: false },
   { label: "Reports", href: "/admin/reports", icon: BarChart3, implemented: false },
   { label: "Settings", href: "/admin/settings", icon: Settings, implemented: false },
@@ -94,6 +101,7 @@ export type StudentNavItem = { label: string; href: string; icon: LucideIcon };
 export const STUDENT_NAV_ITEMS: StudentNavItem[] = [
   { label: "Dashboard", href: "/student", icon: LayoutDashboard },
   { label: "My Enrollments", href: "/student/enrollments", icon: ClipboardList },
+  { label: "Notifications", href: "/student/notifications", icon: Bell },
   { label: "My Profile", href: "/student/profile", icon: User },
 ];
 
@@ -123,6 +131,7 @@ export const TRAINER_NAV_ITEMS: TrainerNavItem[] = [
   { label: "Dashboard", href: "/trainer", icon: LayoutDashboard },
   { label: "My Batches", href: "/trainer/batches", icon: CalendarDays },
   { label: "My Students", href: "/trainer/students", icon: Users },
+  { label: "Notifications", href: "/trainer/notifications", icon: Bell },
   { label: "My Profile", href: "/trainer/profile", icon: User },
 ];
 

@@ -9,7 +9,11 @@ import { cn } from "@/lib/utils";
  * Same active-state pattern as components/admin/sidebar-nav.tsx, over the
  * Student Portal's own (much smaller) STUDENT_NAV_ITEMS list.
  */
-export function StudentNav() {
+export function StudentNav({
+  unreadNotificationCount = 0,
+}: {
+  unreadNotificationCount?: number;
+}) {
   const pathname = usePathname();
   const activeItem = getActiveStudentNavItem(pathname);
 
@@ -36,6 +40,17 @@ export function StudentNav() {
           >
             <Icon className="size-4 shrink-0" aria-hidden="true" />
             <span>{item.label}</span>
+            {item.href === "/student/notifications" && unreadNotificationCount > 0 && (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="bg-destructive ml-auto rounded-full px-1.5 text-xs leading-5 text-white"
+                >
+                  {unreadNotificationCount}
+                </span>
+                <span className="sr-only">, {unreadNotificationCount} unread</span>
+              </>
+            )}
           </Link>
         );
       })}

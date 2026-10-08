@@ -9,7 +9,11 @@ import { cn } from "@/lib/utils";
  * Same active-state pattern as components/student/student-nav.tsx, over the
  * Trainer Portal's own TRAINER_NAV_ITEMS list.
  */
-export function TrainerNav() {
+export function TrainerNav({
+  unreadNotificationCount = 0,
+}: {
+  unreadNotificationCount?: number;
+}) {
   const pathname = usePathname();
   const activeItem = getActiveTrainerNavItem(pathname);
 
@@ -36,6 +40,17 @@ export function TrainerNav() {
           >
             <Icon className="size-4 shrink-0" aria-hidden="true" />
             <span>{item.label}</span>
+            {item.href === "/trainer/notifications" && unreadNotificationCount > 0 && (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="bg-destructive ml-auto rounded-full px-1.5 text-xs leading-5 text-white"
+                >
+                  {unreadNotificationCount}
+                </span>
+                <span className="sr-only">, {unreadNotificationCount} unread</span>
+              </>
+            )}
           </Link>
         );
       })}

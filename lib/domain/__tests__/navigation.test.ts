@@ -9,7 +9,7 @@ import {
 } from "@/lib/domain/navigation";
 
 describe("ADMIN_NAV_ITEMS", () => {
-  it("includes exactly the 14 required admin nav sections", () => {
+  it("includes exactly the 15 admin nav sections (Notifications added in Phase 18)", () => {
     const labels = ADMIN_NAV_ITEMS.map((i) => i.label);
     expect(labels).toEqual([
       "Dashboard",
@@ -23,6 +23,7 @@ describe("ADMIN_NAV_ITEMS", () => {
       "Materials",
       "Assignments",
       "Certificates",
+      "Notifications",
       "Leads",
       "Reports",
       "Settings",
@@ -65,9 +66,14 @@ describe("getActiveNavItem", () => {
 });
 
 describe("STUDENT_NAV_ITEMS", () => {
-  it("includes exactly the 3 Phase 10 student nav sections", () => {
+  it("includes the 3 Phase 10 student nav sections plus Phase 18 Notifications", () => {
     const labels = STUDENT_NAV_ITEMS.map((i) => i.label);
-    expect(labels).toEqual(["Dashboard", "My Enrollments", "My Profile"]);
+    expect(labels).toEqual([
+      "Dashboard",
+      "My Enrollments",
+      "Notifications",
+      "My Profile",
+    ]);
   });
 
   it("has no duplicate hrefs", () => {
@@ -97,9 +103,15 @@ describe("getActiveStudentNavItem", () => {
 });
 
 describe("TRAINER_NAV_ITEMS", () => {
-  it("includes exactly the 4 Phase 11 trainer nav sections", () => {
+  it("includes the 4 Phase 11 trainer nav sections plus Phase 18 Notifications", () => {
     const labels = TRAINER_NAV_ITEMS.map((i) => i.label);
-    expect(labels).toEqual(["Dashboard", "My Batches", "My Students", "My Profile"]);
+    expect(labels).toEqual([
+      "Dashboard",
+      "My Batches",
+      "My Students",
+      "Notifications",
+      "My Profile",
+    ]);
   });
 
   it("has no duplicate hrefs", () => {

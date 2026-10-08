@@ -12,10 +12,10 @@ vi.mock("next/navigation", () => ({
 const { SidebarNav } = await import("@/components/admin/sidebar-nav");
 
 describe("SidebarNav", () => {
-  it("renders all 14 admin nav items", () => {
+  it("renders all 15 admin nav items (Notifications added in Phase 18)", () => {
     mockUsePathname.mockReturnValue("/admin");
     render(<SidebarNav />);
-    expect(screen.getAllByRole("link")).toHaveLength(14);
+    expect(screen.getAllByRole("link")).toHaveLength(15);
   });
 
   it("marks the Dashboard link as the current page when on /admin", () => {

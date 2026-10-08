@@ -13,9 +13,11 @@ import type { UserContext } from "@/lib/auth/session";
  */
 export function StudentShell({
   user,
+  unreadNotificationCount = 0,
   children,
 }: {
   user: UserContext;
+  unreadNotificationCount?: number;
   children: React.ReactNode;
 }) {
   return (
@@ -27,7 +29,7 @@ export function StudentShell({
             {user.displayName ?? user.email}
           </p>
         </div>
-        <StudentNav />
+        <StudentNav unreadNotificationCount={unreadNotificationCount} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

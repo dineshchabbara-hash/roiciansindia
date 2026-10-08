@@ -25,11 +25,23 @@ import {
 
 const NOT_AUTHORIZED = "You are not authorized to perform this action.";
 
+type SendField = "recipient" | "title" | "body";
+
 export type SendNotificationFormState = {
   formError?: string;
-  fieldErrors?: Partial<Record<"recipient" | "title" | "body", string>>;
+  fieldErrors?: Partial<Record<SendField, string>>;
+  /** Echoed back on error only, so React's post-action form reset doesn't lose input. */
+  values?: Partial<Record<SendField, string>>;
   success?: boolean;
 };
+
+function submittedValues(formData: FormData): Partial<Record<SendField, string>> {
+  const read = (key: SendField) => {
+    const value = formData.get(key);
+    return typeof value === "string" ? value : "";
+  };
+  return { recipient: read("recipient"), title: read("title"), body: read("body") };
+}
 
 export async function sendNotificationAction(
   _prevState: SendNotificationFormState,
@@ -38,6 +50,7 @@ export async function sendNotificationAction(
   const ctx = await getCurrentUserContext();
   if (!ctx || !isAdminOrSuperAdmin(ctx.role)) return { formError: NOT_AUTHORIZED };
 
+  const values = submittedValues(formData);
   const parsed = parseSendNotificationFormData(formData);
   if (!parsed.success) {
     const fieldErrors: SendNotificationFormState["fieldErrors"] = {};
@@ -50,11 +63,11 @@ export async function sendNotificationAction(
         fieldErrors[field] = issue.message;
       }
     }
-    return { fieldErrors };
+    return { fieldErrors, values };
   }
 
   const recipient = await resolveNotificationRecipient(parsed.data.recipient);
-  if (!recipient.ok) return { fieldErrors: { recipient: recipient.error } };
+  if (!recipient.ok) return { fieldErrors: { recipient: recipient.error }, values };
 
   const result = await sendNotificationRecord({
     senderAuthUserId: ctx.authUserId,
@@ -62,7 +75,7 @@ export async function sendNotificationAction(
     title: parsed.data.title,
     body: parsed.data.body,
   });
-  if (!result.ok) return { formError: result.error };
+  if (!result.ok) return { formError: result.error, values };
 
   // Minimal audit payload: who received it and what kind of account they
   // hold — never the title or message text.

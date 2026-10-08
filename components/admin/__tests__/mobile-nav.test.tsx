@@ -21,7 +21,7 @@ describe("MobileNav", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(14);
+    expect(screen.getAllByRole("link")).toHaveLength(15);
   });
 
   it("closes the drawer when a nav link is clicked", async () => {

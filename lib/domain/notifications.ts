@@ -64,6 +64,20 @@ export function sanitizeRecipientSearch(raw: string): string {
     .slice(0, 100);
 }
 
+const TIMESTAMP_FORMAT = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+/** Display-only; stored timestamps stay UTC (DATABASE_SCHEMA.md conventions). */
+export function formatNotificationTimestamp(iso: string): string {
+  return TIMESTAMP_FORMAT.format(new Date(iso));
+}
+
 export function formatUnreadCount(count: number): string {
   if (count === 0) return "No unread notifications";
   if (count === 1) return "1 unread notification";
