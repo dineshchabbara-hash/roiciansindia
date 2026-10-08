@@ -87,6 +87,9 @@ export type Phase19Identity = {
   email: string;
   password: string;
   profileId: string | null;
+  /** The profile row's stored first/last name (shown in reports). */
+  firstName: string;
+  lastName: string;
 };
 
 export class Phase19PartialIdentityError extends Error {
@@ -111,6 +114,9 @@ export async function createPhase19Identity(
   const supabase = serviceClient();
   const email = `phase19-e2e-${role}-${tag.toLowerCase()}-${RUN_ID}@${PHASE19_E2E_EMAIL_DOMAIN}`;
   const password = randomBytes(18).toString("base64url");
+  const firstName = `${PHASE19_E2E_PREFIX}${tag}`;
+  const lastName =
+    role === "admin" ? "Admin" : role === "trainer" ? "Trainer" : "Student";
 
   const { data, error } = await safely<{ user: { id: string } | null }>(() =>
     supabase.auth.admin.createUser({ email, password, email_confirm: true }),
@@ -125,6 +131,8 @@ export async function createPhase19Identity(
     email,
     password,
     profileId: null,
+    firstName,
+    lastName,
   };
 
   const { error: roleError } = await safely(() =>
@@ -148,9 +156,8 @@ export async function createPhase19Identity(
       .from(PROFILE_TABLE[role])
       .insert({
         auth_user_id: partial.authUserId,
-        first_name: `${PHASE19_E2E_PREFIX}${tag}`,
-        last_name:
-          role === "admin" ? "Admin" : role === "trainer" ? "Trainer" : "Student",
+        first_name: firstName,
+        last_name: lastName,
         email,
         ...extra,
       })
@@ -186,6 +193,21 @@ export async function deletePhase19Identity(
       }
       if ((data ?? []).length > 0) {
         return { ok: false, reason: "Student still has an enrollment; skipped." };
+      }
+    }
+    if (identity.role === "trainer") {
+      const { data, error } = await safely(() =>
+        supabase
+          .from("batch_trainers")
+          .select("id")
+          .eq("trainer_id", identity.profileId)
+          .limit(1),
+      );
+      if (error) {
+        return { ok: false, reason: `Could not check batch_trainers: ${error.message}` };
+      }
+      if ((data ?? []).length > 0) {
+        return { ok: false, reason: "Trainer still has a batch assignment; skipped." };
       }
     }
     const { error } = await safely(() =>

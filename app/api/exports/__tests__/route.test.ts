@@ -245,3 +245,97 @@ describe("no silent truncation", () => {
     await expect((await call("students")).text()).rejects.toThrow();
   });
 });
+
+describe("trainer report export (FR-120)", () => {
+  const TRAINER_HEADER =
+    "First name,Last name,Email,Phone,Status,Specialization,Date added,Assigned batches\r\n";
+
+  function trainer(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "t1",
+      firstName: "Meera",
+      lastName: "Iyer",
+      email: "meera@example.com",
+      phone: null,
+      status: "active",
+      specialization: ["QA", "Selenium"],
+      createdAt: "2026-03-01T20:00:00Z",
+      assignedBatchCount: 2,
+      ...overrides,
+    };
+  }
+
+  it.each(["admin", "super_admin"] as const)(
+    "lets %s export the filtered trainer rows through the shared route",
+    async (role) => {
+      asRole(role);
+      vi.mocked(fetchReportRange).mockResolvedValue({
+        ok: true,
+        data: {
+          total: 2,
+          rows: [
+            trainer(),
+            trainer({
+              id: "t2",
+              firstName: '=HYPERLINK("http://x")',
+              lastName: "+Iyer",
+              email: "@evil",
+              phone: "-1",
+              specialization: ["=1+1", "Data, Analytics"],
+              assignedBatchCount: 0,
+            }),
+          ],
+        },
+      } as never);
+
+      const response = await call(
+        "trainers",
+        "?status=active&q=meera&sort=joined&page=4",
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Disposition")).toMatch(
+        /^attachment; filename="trainers-report-\d{4}-\d{2}-\d{2}\.csv"$/,
+      );
+      const body = await rawBody(response);
+      expect(body).toBe(
+        "﻿" +
+          TRAINER_HEADER +
+          "Meera,Iyer,meera@example.com,,Active,QA; Selenium,2026-03-02,2\r\n" +
+          '"\'=HYPERLINK(""http://x"")",\'+Iyer,\'@evil,\'-1,Active,"\'=1+1; Data, Analytics",2026-03-02,0\r\n',
+      );
+
+      const [kind, filters, from, to] = vi.mocked(fetchReportRange).mock.calls[0];
+      expect(kind).toBe("trainers");
+      expect(filters).toMatchObject({ status: "active", q: "meera", sort: "joined" });
+      expect([from, to]).toEqual([0, 499]);
+    },
+  );
+
+  it("writes only the header for an empty trainer result", async () => {
+    asRole("admin");
+    vi.mocked(fetchReportRange).mockResolvedValue({
+      ok: true,
+      data: { total: 0, rows: [] },
+    } as never);
+    expect(await rawBody(await call("trainers"))).toBe("﻿" + TRAINER_HEADER);
+  });
+
+  it.each(["trainer", "student"] as const)(
+    "denies a %s the trainer export with 403 and never queries",
+    async (role) => {
+      asRole(role);
+      const response = await call("trainers");
+      expect(response.status).toBe(403);
+      expect(response.headers.get("Content-Disposition")).toBeNull();
+      expect(fetchReportRange).not.toHaveBeenCalled();
+    },
+  );
+
+  it("denies an anonymous trainer export with 401 and never queries", async () => {
+    vi.mocked(getCurrentUserContext).mockResolvedValue(null);
+    const response = await call("trainers");
+    expect(response.status).toBe(401);
+    expect(response.headers.get("Content-Disposition")).toBeNull();
+    expect(fetchReportRange).not.toHaveBeenCalled();
+  });
+});

@@ -497,10 +497,9 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 - FR-120 (P1): Student, Enrollment, Payment, Attendance, Trainer reports as listed in
   spec §32, each paginated server-side with CSV export.
   *Phase 19: Student, Enrollment, Attendance, Financial (the Payment report,
-  per enrollment from the Phase 14 engine) and Certificate reports are
-  delivered for Admin/Super Admin with server-side pagination and CSV export
-  (see IMPLEMENTATION_PLAN.md Phase 19). The Admin-facing Trainer report is
-  not yet delivered and remains open.*
+  per enrollment from the Phase 14 engine), Certificate and Trainer reports
+  are delivered for Admin/Super Admin with server-side pagination and CSV
+  export (see IMPLEMENTATION_PLAN.md Phase 19).*
 
 ### 2.14 Public Website & Leads
 - FR-130 (P0): Public pages: Home, About, Programs, Program Detail, Corporate

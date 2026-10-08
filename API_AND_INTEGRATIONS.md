@@ -247,7 +247,8 @@ include unnecessary personal data.
   once for very large exports), using Node's streaming response support in Route
   Handlers.
 - **Implemented (Phase 19)** at `app/api/exports/[report]/route.ts` for
-  `students`, `enrollments`, `attendance`, `financial`, `certificates`:
+  `students`, `enrollments`, `attendance`, `financial`, `certificates`,
+  `trainers`:
   - Authorization is checked in the handler itself (Route Handlers do not pass
     through the `/admin` layout): no session → `401`, any role other than
     Admin/Super Admin → `403`, both before the report name is even

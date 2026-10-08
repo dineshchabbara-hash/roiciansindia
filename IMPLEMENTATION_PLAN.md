@@ -1184,9 +1184,9 @@ CSV export that never loads the full result set into browser memory.
 
 **Phase 19 delivered (approved Phase 19 scope, read-only, no migration):**
 - Admin/Super Admin Reports area: `/admin/reports` (summary cards — no chart
-  library — plus links) and `/admin/reports/[report]` for five reports:
+  library — plus links) and `/admin/reports/[report]` for six reports:
   **Student, Enrollment, Attendance, Financial** (FR-120's "Payment" report,
-  per enrollment) and **Certificate**. The existing "Reports" Admin nav entry
+  per enrollment), **Certificate** and **Trainer**. The existing "Reports" Admin nav entry
   now opens the real page (was ComingSoon); the nav list itself is unchanged.
 - Server-side filtering (validated search, status, program, batch, date range,
   attendance threshold, financial enrollment group), server-side pagination
@@ -1212,11 +1212,26 @@ CSV export that never loads the full result set into browser memory.
   already maps to an existing FK/status index; re-evaluate with `EXPLAIN` once
   real volumes exist. Export is not audit-logged — no project document calls
   for it.
-- **Not delivered in Phase 19:** FR-120's **Trainer report** (Admin-facing
-  report about trainers) was outside the approved Phase 19 scope and remains
-  open. Trainer-role reporting is unchanged: Trainers keep their existing
-  scoped Trainer-portal views (own batches/students, attendance) and have no
-  access to the Admin Reports area or exports.
+- **Trainer report (FR-120, Admin-facing)** at `/admin/reports/trainers` and
+  `GET /api/exports/trainers`, on the same registry, parser, row-to-cell
+  mapping, pagination and export pipeline as the other reports. One row per
+  trainer with only the fields Admin Trainer Management already shows: first
+  name, last name, email, phone, status, specialization, date added (Asia/
+  Kolkata date of `created_at`) and the number of assigned batches (counted
+  from `batch_trainers` per page — never joined into the paged query, so a
+  trainer is never duplicated). No trainer code exists in the schema, so none
+  is shown; `auth_user_id`, `bio` and any auth/token data are never selected.
+  Filters: search (first/last name, email, phone) and status. Sorts: name
+  (default, ascending), date added, status — each with an `id` tie-breaker.
+  No program/batch/date filter (no stated need; avoids a many-to-many path).
+- FR-120 is fully accounted for. Trainer-role reporting is unchanged:
+  Trainers keep their existing scoped Trainer-portal views (own
+  batches/students, attendance) and have no access to the Admin Reports area,
+  the Trainer report or any export.
+- Unrelated technical debt noted (not changed in Phase 19): the Phase 18
+  notification recipient search (`sanitizeRecipientSearch`) strips Unicode
+  combining marks, so e.g. Devanagari vowel signs are dropped from a search
+  term. The Phase 19 report search does not have this flaw.
 
 ## Phase 20 — Razorpay Integration
 

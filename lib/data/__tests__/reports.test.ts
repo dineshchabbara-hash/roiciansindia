@@ -496,3 +496,113 @@ describe("reports overview", () => {
     expect(callsOf(queries[3], "eq")).toEqual([["status", "revoked"]]);
   });
 });
+
+describe("trainer report (FR-120)", () => {
+  const trainerRow = {
+    id: "t1",
+    first_name: "Meera",
+    last_name: "Iyer",
+    email: "meera@example.com",
+    phone: "9876500000",
+    status: "active",
+    specialization: ["QA"],
+    created_at: "2026-03-01T20:00:00Z",
+  };
+
+  it("reads only Admin Trainer Management fields, one row per trainer, with an assigned-batch count", async () => {
+    const queries = makeClient([
+      {
+        data: [trainerRow, { ...trainerRow, id: "t2", specialization: null }],
+        count: 27,
+      },
+      { data: [{ trainer_id: "t1" }, { trainer_id: "t1" }] },
+    ]);
+    const result = await getReportPage(
+      "trainers",
+      parseReportFilters("trainers", { page: "2" }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        total: 27,
+        page: 2,
+        pageSize: 25,
+        rows: [
+          {
+            id: "t1",
+            firstName: "Meera",
+            lastName: "Iyer",
+            email: "meera@example.com",
+            phone: "9876500000",
+            status: "active",
+            specialization: ["QA"],
+            createdAt: "2026-03-01T20:00:00Z",
+            assignedBatchCount: 2,
+          },
+          {
+            id: "t2",
+            firstName: "Meera",
+            lastName: "Iyer",
+            email: "meera@example.com",
+            phone: "9876500000",
+            status: "active",
+            specialization: [],
+            createdAt: "2026-03-01T20:00:00Z",
+            assignedBatchCount: 0,
+          },
+        ],
+      },
+    });
+
+    const [trainers, assignments] = queries;
+    expect(trainers.table).toBe("trainers");
+    const [columns, options] = callsOf(trainers, "select")[0];
+    expect(options).toEqual({ count: "exact" });
+    expect(columns).not.toMatch(/auth_user_id|bio|batch_trainers/);
+    expect(callsOf(trainers, "order")).toEqual([
+      ["last_name", { ascending: true, nullsFirst: false }],
+      ["first_name", { ascending: true, nullsFirst: false }],
+      ["id", { ascending: true }],
+    ]);
+    expect(callsOf(trainers, "range")).toEqual([[25, 49]]);
+    expect(assignments.table).toBe("batch_trainers");
+    expect(callsOf(assignments, "in")).toEqual([["trainer_id", ["t1", "t2"]]]);
+  });
+
+  it("applies the status filter, sanitized search and whitelisted sort", async () => {
+    const queries = makeClient([{ data: [], count: 0 }]);
+    const result = await getReportPage(
+      "trainers",
+      parseReportFilters("trainers", {
+        status: "inactive",
+        q: "meera),or(id.gt.0",
+        sort: "joined",
+        dir: "desc",
+      }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      data: { rows: [], total: 0, page: 1, pageSize: 25 },
+    });
+    const [trainers] = queries;
+    expect(callsOf(trainers, "eq")).toEqual([["status", "inactive"]]);
+    const orFilter = callsOf(trainers, "or")[0][0] as string;
+    expect(orFilter).toBe(
+      "first_name.ilike.%meeraorid.gt.0%,last_name.ilike.%meeraorid.gt.0%,email.ilike.%meeraorid.gt.0%,phone.ilike.%meeraorid.gt.0%",
+    );
+    expect(callsOf(trainers, "order")).toEqual([
+      ["created_at", { ascending: false, nullsFirst: false }],
+      ["id", { ascending: true }],
+    ]);
+    // Empty page: no assignment lookup at all.
+    expect(queries).toHaveLength(1);
+  });
+
+  it("returns an error result (never throws) when the query fails", async () => {
+    makeClient([{ data: null, error: { message: "boom" } }]);
+    expect(await getReportPage("trainers", parseReportFilters("trainers", {}))).toEqual({
+      ok: false,
+      error: "Could not load the trainer report.",
+    });
+  });
+});

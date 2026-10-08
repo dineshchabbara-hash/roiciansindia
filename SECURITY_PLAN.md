@@ -249,7 +249,9 @@ Applied (token-bucket, per-IP and/or per-account as appropriate) to:
   Admin Students list already shows (code, name, email, phone, status,
   registration date); no address, date of birth, emergency contact, auth or
   storage identifiers anywhere. Certificate exports never include `pdf_path`
-  or a signed URL.
+  or a signed URL. The Trainer report shows only what Admin Trainer
+  Management already shows (name, email, phone, status, specialization,
+  date added, assigned-batch count) — never `auth_user_id` or `bio`.
 - Filter input is validated/whitelisted (UUIDs, ISO dates, enum statuses,
   sort keys); free-text search is stripped of PostgREST filter syntax.
 - CSV exports are capped (5,000 rows, refused above — never truncated) and

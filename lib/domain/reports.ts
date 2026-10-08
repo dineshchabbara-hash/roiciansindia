@@ -1,6 +1,7 @@
 import { ENROLLMENT_STATUSES } from "@/lib/domain/enrollments";
 import { STUDENT_STATUSES } from "@/lib/domain/students";
 import { CERTIFICATE_STATUSES } from "@/lib/domain/certificates";
+import { TRAINER_STATUSES } from "@/lib/domain/trainers";
 import {
   CANCELLED_OR_WITHDRAWN_ENROLLMENT_STATUSES,
   CONFIRMED_ENROLLMENT_STATUSES,
@@ -33,6 +34,7 @@ export const REPORT_KINDS = [
   "attendance",
   "financial",
   "certificates",
+  "trainers",
 ] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
 
@@ -225,6 +227,31 @@ export const REPORT_DEFINITIONS: Readonly<Record<ReportKind, ReportDefinition>> 
     },
     defaultSort: "issued",
     defaultDirection: "desc",
+    tieBreaker: ["id"],
+  },
+  // FR-120 Trainer report (Admin-facing). One row per trainer; only the
+  // fields Admin Trainer Management already shows (no code column exists
+  // for trainers, so none is invented). No program/batch/date filter: the
+  // assigned-batch count is per trainer, and joining batch_trainers to
+  // filter would add a many-to-many path for no stated need.
+  trainers: {
+    kind: "trainers",
+    title: "Trainer report",
+    description: "Trainers with contact details, specialization and assigned batches.",
+    statuses: TRAINER_STATUSES,
+    supportsProgram: false,
+    supportsBatch: false,
+    dateLabel: null,
+    supportsBelow: false,
+    supportsGroup: false,
+    searchPlaceholder: "Name, email or phone",
+    sorts: {
+      name: { label: "Name", columns: ["last_name", "first_name"] },
+      joined: { label: "Date added", columns: ["created_at"] },
+      status: { label: "Status", columns: ["status"] },
+    },
+    defaultSort: "name",
+    defaultDirection: "asc",
     tieBreaker: ["id"],
   },
 };
@@ -523,12 +550,25 @@ export type CertificateReportRow = {
   enrollmentCode: string;
 };
 
+export type TrainerReportRow = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  status: string;
+  specialization: readonly string[];
+  createdAt: string;
+  assignedBatchCount: number;
+};
+
 export type ReportRowByKind = {
   students: StudentReportRow;
   enrollments: EnrollmentReportRow;
   attendance: AttendanceReportRow;
   financial: FinancialReportRow;
   certificates: CertificateReportRow;
+  trainers: TrainerReportRow;
 };
 
 export const REPORT_COLUMNS: Readonly<Record<ReportKind, readonly ReportColumn[]>> = {
@@ -587,6 +627,16 @@ export const REPORT_COLUMNS: Readonly<Record<ReportKind, readonly ReportColumn[]
     { header: "Student name", kind: "text" },
     { header: "Program", kind: "text" },
     { header: "Enrollment code", kind: "text" },
+  ],
+  trainers: [
+    { header: "First name", kind: "text" },
+    { header: "Last name", kind: "text" },
+    { header: "Email", kind: "text" },
+    { header: "Phone", kind: "text" },
+    { header: "Status", kind: "text" },
+    { header: "Specialization", kind: "text" },
+    { header: "Date added", kind: "text" },
+    { header: "Assigned batches", kind: "number" },
   ],
 };
 
@@ -673,6 +723,19 @@ export function reportRowCells<K extends ReportKind>(
         fullName(r.studentFirstName, r.studentLastName),
         r.programName,
         r.enrollmentCode,
+      ];
+    }
+    case "trainers": {
+      const r = row as TrainerReportRow;
+      return [
+        r.firstName,
+        r.lastName,
+        r.email,
+        r.phone ?? "",
+        humanizeStatus(r.status),
+        r.specialization.join("; "),
+        formatTimestampAsIstDate(r.createdAt),
+        r.assignedBatchCount,
       ];
     }
   }

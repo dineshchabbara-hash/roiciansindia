@@ -302,7 +302,7 @@ describe("FinancialTotals", () => {
 });
 
 describe("ReportsOverview", () => {
-  it("shows the summary figures and links to all five reports", () => {
+  it("shows the summary figures and links to all six reports", () => {
     render(
       <ReportsOverview
         data={{
@@ -332,6 +332,7 @@ describe("ReportsOverview", () => {
       ["Attendance report", "/admin/reports/attendance"],
       ["Financial report", "/admin/reports/financial"],
       ["Certificate report", "/admin/reports/certificates"],
+      ["Trainer report", "/admin/reports/trainers"],
     ]);
   });
 
@@ -349,5 +350,78 @@ describe("ReportsOverview", () => {
     );
     expect(screen.getAllByRole("alert")).toHaveLength(4);
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+});
+
+describe("Trainer report UI (FR-120)", () => {
+  const trainerRow = {
+    id: "t1",
+    firstName: "Meera",
+    lastName: "Iyer",
+    email: "meera@example.com",
+    phone: null,
+    status: "active",
+    specialization: ["QA", "Selenium"],
+    createdAt: "2026-03-01T20:00:00Z",
+    assignedBatchCount: 2,
+  };
+
+  it("renders exactly the CSV cells for a trainer row", () => {
+    render(<ReportTable kind="trainers" rows={[trainerRow]} />);
+    const table = screen.getByRole("table", { name: "Trainer report" });
+    expect(
+      within(table)
+        .getAllByRole("columnheader")
+        .map((th) => th.textContent),
+    ).toEqual(reportHeaders("trainers"));
+    const [, dataRow] = within(table).getAllByRole("row");
+    expect(
+      within(dataRow)
+        .getAllByRole("cell")
+        .map((td) => td.textContent),
+    ).toEqual([
+      "Meera",
+      "Iyer",
+      "meera@example.com",
+      "—",
+      "Active",
+      "QA; Selenium",
+      "2026-03-02",
+      "2",
+    ]);
+  });
+
+  it("shows the shared empty state", () => {
+    render(<ReportTable kind="trainers" rows={[]} />);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByText("No rows match these filters.")).toBeInTheDocument();
+  });
+
+  it("offers only search, status and the whitelisted sorts", () => {
+    render(
+      <ReportFiltersForm
+        kind="trainers"
+        filters={parseReportFilters("trainers", { q: "meera", status: "inactive" })}
+        programs={[{ id: P1, name: "QA" }]}
+        batches={[{ id: P1, name: "B1" }]}
+      />,
+    );
+    const form = screen.getByRole("form", { name: "Trainer report filters" });
+    expect(form).toHaveAttribute("action", "/admin/reports/trainers");
+    expect(screen.getByLabelText("Search")).toHaveValue("meera");
+    expect(screen.getByLabelText("Status")).toHaveValue("inactive");
+    expect(
+      within(screen.getByLabelText("Status"))
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["All statuses", "Active", "Inactive"]);
+    expect(
+      within(screen.getByLabelText("Sort by"))
+        .getAllByRole("option")
+        .map((o) => (o as HTMLOptionElement).value),
+    ).toEqual(["name", "joined", "status"]);
+    expect(screen.queryByLabelText("Program")).toBeNull();
+    expect(screen.queryByLabelText("Batch")).toBeNull();
+    expect(screen.queryByLabelText(/from$/)).toBeNull();
   });
 });

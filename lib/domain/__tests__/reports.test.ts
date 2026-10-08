@@ -33,13 +33,14 @@ import {
 const UUID = "11111111-2222-4333-8444-555555555555";
 
 describe("report kinds", () => {
-  it("are exactly the five Phase 19 reports", () => {
+  it("are exactly the six Phase 19 reports (FR-120 incl. Trainer)", () => {
     expect(REPORT_KINDS).toEqual([
       "students",
       "enrollments",
       "attendance",
       "financial",
       "certificates",
+      "trainers",
     ]);
   });
 
@@ -423,6 +424,17 @@ describe("columns and cells", () => {
         programName: "QA",
         enrollmentCode: "ROI-ENR-1",
       },
+      trainers: {
+        id: "t",
+        firstName: "Meera",
+        lastName: "Iyer",
+        email: "meera@example.com",
+        phone: null,
+        status: "inactive",
+        specialization: ["QA", "Selenium"],
+        createdAt: "2026-03-01T20:00:00Z",
+        assignedBatchCount: 3,
+      },
     } as const;
 
     for (const kind of REPORT_KINDS) {
@@ -483,5 +495,93 @@ describe("columns and cells", () => {
 
   it("keeps issued and revoked distinct in the certificate status column", () => {
     expect(REPORT_DEFINITIONS.certificates.statuses).toEqual(["issued", "revoked"]);
+  });
+});
+
+describe("trainer report (FR-120)", () => {
+  it("maps a trainer to exactly the Admin Trainer Management fields", () => {
+    expect(reportHeaders("trainers")).toEqual([
+      "First name",
+      "Last name",
+      "Email",
+      "Phone",
+      "Status",
+      "Specialization",
+      "Date added",
+      "Assigned batches",
+    ]);
+    expect(
+      reportRowCells("trainers", {
+        id: "t",
+        firstName: "Meera",
+        lastName: "Iyer",
+        email: "meera@example.com",
+        phone: null,
+        status: "inactive",
+        specialization: ["QA", "Selenium"],
+        createdAt: "2026-03-01T20:00:00Z",
+        assignedBatchCount: 3,
+      }),
+    ).toEqual([
+      "Meera",
+      "Iyer",
+      "meera@example.com",
+      "",
+      "Inactive",
+      "QA; Selenium",
+      "2026-03-02",
+      3,
+    ]);
+  });
+
+  it("never has an auth, bio, password or token column", () => {
+    for (const header of reportHeaders("trainers")) {
+      expect(header.toLowerCase()).not.toMatch(/auth|bio|password|token|secret|uuid|id$/);
+    }
+  });
+
+  it("accepts only trainer statuses and trainer sort keys; no program/batch/date filters", () => {
+    expect(parseReportFilters("trainers", {})).toMatchObject({
+      status: null,
+      sort: "name",
+      dir: "asc",
+    });
+    expect(parseReportFilters("trainers", { status: "inactive" }).status).toBe(
+      "inactive",
+    );
+    expect(parseReportFilters("trainers", { status: "archived" }).status).toBeNull();
+    expect(parseReportFilters("trainers", { sort: "joined", dir: "desc" })).toMatchObject(
+      {
+        sort: "joined",
+        dir: "desc",
+      },
+    );
+    expect(parseReportFilters("trainers", { sort: "email" }).sort).toBe("name");
+    expect(
+      parseReportFilters("trainers", {
+        programId: UUID,
+        batchId: UUID,
+        from: "2026-01-01",
+        to: "2026-01-31",
+      }),
+    ).toMatchObject({ programId: null, batchId: null, from: null, to: null });
+  });
+
+  it("orders by a unique id tie-breaker after every sort", () => {
+    expect(REPORT_DEFINITIONS.trainers.tieBreaker).toEqual(["id"]);
+    expect(Object.keys(REPORT_DEFINITIONS.trainers.sorts)).toEqual([
+      "name",
+      "joined",
+      "status",
+    ]);
+  });
+
+  it("builds the export href through the shared route", () => {
+    expect(
+      reportExportHref(
+        "trainers",
+        parseReportFilters("trainers", { q: "meera", status: "active", page: "3" }),
+      ),
+    ).toBe("/api/exports/trainers?q=meera&status=active");
   });
 });

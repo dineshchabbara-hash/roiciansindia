@@ -27,7 +27,9 @@ import {
  * dependency), so each test can run on its own with `-g`.
  *
  *   1. Admin filters the Student and Enrollment reports and the CSV export
- *      contains exactly the rows/cells the screen shows.
+ *      contains exactly the rows/cells the screen shows; the Admin also
+ *      opens the FR-120 Trainer report, filters it to a synthetic Trainer,
+ *      and its export matches the screen too.
  *   2. The Financial report reconciles with the Phase 14 engine: report row,
  *      filtered totals, CSV and the Enrollment page's Financial Position
  *      all agree; pending payments and non-processed refunds are excluded.
@@ -196,9 +198,12 @@ test.describe("Admin — Student and Enrollment reports filter and export", () =
   let alpha: Phase19Student;
   let beta: Phase19Student;
   let alphaEnrollment: Phase19Enrollment;
+  let reportTrainer: Phase19Identity;
 
   test.beforeAll(async () => {
     admin = await createIdentity(tracked, "admin", "ReportsAdminA");
+    // A synthetic Trainer row for the Trainer report (never logs in here).
+    reportTrainer = await createIdentity(tracked, "trainer", "ReportsTrainerRow");
     programBatch = await requireProgramWithBatch();
     alpha = await createPhase19Student(tracked, {
       marker,
@@ -313,6 +318,48 @@ test.describe("Admin — Student and Enrollment reports filter and export", () =
     ]);
     const enrollmentCsv = await exportCsv(page, "enrollments");
     expect(enrollmentCsv.slice(1)).toEqual(asCsvCells(enrollmentRows));
+
+    // Trainer report (FR-120): the email's run-unique local part (no `.` or
+    // `@`, so the search term is plain text) + Active -> exactly the
+    // synthetic Trainer (no phone, no specialization, no batch assignment).
+    await page.getByRole("link", { name: "← All reports" }).click();
+    await page.getByRole("link", { name: "Trainer report" }).click();
+    await expect(page).toHaveURL(/\/admin\/reports\/trainers$/);
+    await expect(
+      page.getByRole("heading", { name: "Trainer report", level: 1 }),
+    ).toBeVisible();
+    const trainerSearch = reportTrainer.email.split("@")[0];
+    await applyFilters(page, { search: trainerSearch, selects: { Status: "Active" } });
+    // Wait for the filtered page itself (the unfiltered list could also
+    // show a single row if dev holds exactly one trainer).
+    await expect(page).toHaveURL(new RegExp(`[?&]q=${trainerSearch}(&|$)`));
+    await expect(page).toHaveURL(/[?&]status=active(&|$)/);
+    await expect(page.getByText("Showing 1–1 of 1 row.")).toBeVisible();
+    const trainerRows = await tableBodyCells(reportTable(page, "Trainer report"));
+    expect(trainerRows).toHaveLength(1);
+    const [trainerRow] = trainerRows;
+    expect(trainerRow.slice(0, 6)).toEqual([
+      reportTrainer.firstName,
+      reportTrainer.lastName,
+      reportTrainer.email,
+      "—",
+      "Active",
+      "—",
+    ]);
+    expect(trainerRow[6]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(trainerRow[7]).toBe("0");
+    const trainerCsv = await exportCsv(page, "trainers");
+    expect(trainerCsv[0]).toEqual([
+      "First name",
+      "Last name",
+      "Email",
+      "Phone",
+      "Status",
+      "Specialization",
+      "Date added",
+      "Assigned batches",
+    ]);
+    expect(trainerCsv.slice(1)).toEqual(asCsvCells(trainerRows));
   });
 });
 
@@ -458,7 +505,11 @@ test.describe("Reports access is denied to non-Admin roles", () => {
   });
 
   async function expectDenied(page: Page, home: RegExp, exportStatus: number) {
-    for (const path of ["/admin/reports", "/admin/reports/financial"]) {
+    for (const path of [
+      "/admin/reports",
+      "/admin/reports/financial",
+      "/admin/reports/trainers",
+    ]) {
       await page.goto(path);
       await expect(page).toHaveURL(home);
       await expect(page.getByRole("heading", { name: /report/i, level: 1 })).toHaveCount(
@@ -469,6 +520,7 @@ test.describe("Reports access is denied to non-Admin roles", () => {
       "/api/exports/students",
       "/api/exports/financial?group=all",
       "/api/exports/certificates",
+      "/api/exports/trainers",
     ]) {
       const response = await page.request.get(path, { maxRedirects: 0 });
       expect(response.status(), path).toBe(exportStatus);

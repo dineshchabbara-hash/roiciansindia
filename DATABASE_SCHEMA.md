@@ -574,9 +574,9 @@ and `payment_refunds`, which are the source of truth (§90/§91 compliance).
 - A Postgres view `student_attendance_summary` pre-aggregates attendance counts
   per enrollment for the percentage calculation.
 - Phase 19 Reports added no schema objects: the reports read these two views
-  (both `security_invoker`), `students`, `payments`, `payment_refunds` and
-  `certificates` through existing indexes. Additional indexes/views remain
-  "only if a report's query plan needs them".
+  (both `security_invoker`), `students`, `payments`, `payment_refunds`,
+  `certificates`, `trainers` and `batch_trainers` through existing indexes.
+  Additional indexes/views remain "only if a report's query plan needs them".
 
 ## 9. Entity-Relationship Diagram
 

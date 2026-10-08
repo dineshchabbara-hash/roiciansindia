@@ -12,7 +12,10 @@
 --     Late counted as attended (Phase 13 semantics, read verbatim).
 --   - Trainers never read any financial or certificate source, nor the
 --     enrollment summary, whether or not they are assigned to the batch.
---   - A Student reads only their own rows from every source.
+--   - A Student reads only their own rows from every source, and nothing
+--     from the Trainer report's sources (trainers, batch_trainers).
+--   - Trainer report sources: Admin/Super Admin read every trainer and
+--     batch assignment; a Trainer reads only their own row/assignments.
 --   - anon reads nothing.
 --
 -- Every role is exercised as itself (`authenticated` / `anon` with a
@@ -243,6 +246,71 @@ begin
   select count(*) into n from payment_refunds where id = '19b00000-0000-0000-0000-000000000001';
   if n <> 1 then raise exception 'FAIL: student A should read the refund on their own payment, got %', n; end if;
   raise notice 'PASS: student reads only their own report-source rows';
+
+  select count(*) into n from trainers where id::text like '19200000-%';
+  if n <> 0 then raise exception 'FAIL: student A read % trainer rows', n; end if;
+  select count(*) into n from batch_trainers where id::text like '19600000-%';
+  if n <> 0 then raise exception 'FAIL: student A read % batch_trainers rows', n; end if;
+  raise notice 'PASS: student reads no Trainer report source (trainers, batch_trainers)';
+end
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trainer report sources (FR-120): Admin/Super Admin read every trainer and
+-- every assignment; a Trainer reads only their own trainers row and their
+-- own assignments (the existing *_select_own policies) — never another
+-- trainer's row.
+
+do $$
+declare
+  admin_sub text;
+  n bigint;
+begin
+  foreach admin_sub in array array[
+    '19000000-0000-0000-0000-000000000001',
+    '19000000-0000-0000-0000-000000000002'
+  ] loop
+    perform set_config(
+      'request.jwt.claims',
+      json_build_object('sub', admin_sub, 'role', 'authenticated')::text,
+      true
+    );
+    select count(*) into n from trainers where id::text like '19200000-%';
+    if n <> 2 then raise exception 'FAIL: % should read both trainers, got %', admin_sub, n; end if;
+    select count(*) into n from batch_trainers where id::text like '19600000-%';
+    if n <> 1 then raise exception 'FAIL: % should read the batch assignment, got %', admin_sub, n; end if;
+  end loop;
+  raise notice 'PASS: admin and super admin read every trainer and batch assignment';
+end
+$$;
+
+set local "request.jwt.claims" to '{"sub":"19000000-0000-0000-0000-000000000003","role":"authenticated"}';
+
+do $$
+declare
+  n bigint;
+begin
+  select count(*) into n from trainers where id = '19200000-0000-0000-0000-000000000002';
+  if n <> 0 then raise exception 'FAIL: trainer A read trainer B''s row'; end if;
+  select count(*) into n from trainers where id::text like '19200000-%';
+  if n <> 1 then raise exception 'FAIL: trainer A should read only their own row, got %', n; end if;
+  select count(*) into n from batch_trainers where id::text like '19600000-%';
+  if n <> 1 then raise exception 'FAIL: trainer A should read only their own assignment, got %', n; end if;
+  raise notice 'PASS: assigned trainer reads only their own trainer row and assignment';
+end
+$$;
+
+set local "request.jwt.claims" to '{"sub":"19000000-0000-0000-0000-000000000004","role":"authenticated"}';
+
+do $$
+declare
+  n bigint;
+begin
+  select count(*) into n from trainers where id::text like '19200000-%';
+  if n <> 1 then raise exception 'FAIL: trainer B should read only their own row, got %', n; end if;
+  select count(*) into n from batch_trainers where id::text like '19600000-%';
+  if n <> 0 then raise exception 'FAIL: trainer B read another trainer''s assignment'; end if;
+  raise notice 'PASS: unassigned trainer reads only their own trainer row and no assignment';
 end
 $$;
 
@@ -268,7 +336,9 @@ begin
     'certificates',
     'students',
     'enrollments',
-    'attendance'
+    'attendance',
+    'trainers',
+    'batch_trainers'
   ] loop
     begin
       execute format('select count(*) from %I', source) into n;

@@ -17,9 +17,11 @@ import {
   type ReportKind,
   type ReportRowByKind,
   type StudentReportRow,
+  type TrainerReportRow,
 } from "@/lib/domain/reports";
 import type { StudentStatus } from "@/lib/domain/students";
 import type { CertificateStatus } from "@/lib/domain/certificates";
+import type { TrainerStatus } from "@/lib/domain/trainers";
 
 /**
  * Reports & Analytics data layer (Phase 19 — REQUIREMENTS.md FR-120).
@@ -589,6 +591,86 @@ async function fetchCertificateRange(
 }
 
 // ---------------------------------------------------------------------------
+// Trainer report (FR-120). Reads `trainers` (trainers_select_admin) and
+// `batch_trainers` (batch_trainers_select_admin) only. auth_user_id and bio
+// are deliberately absent from the select. One row per trainer: the
+// assigned-batch count is computed per page in a second query rather than
+// by joining batch_trainers into the paged query.
+
+type TrainerRowDb = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  status: string;
+  specialization: string[] | null;
+  created_at: string;
+};
+
+async function fetchTrainerRange(
+  supabase: ServerClient,
+  filters: ReportFilters,
+  from: number,
+  to: number,
+): Promise<RangeResult<"trainers">> {
+  let query = supabase
+    .from("trainers")
+    .select(
+      "id, first_name, last_name, email, phone, status, specialization, created_at",
+      {
+        count: "exact",
+      },
+    );
+  // parseReportFilters only ever yields a value from TRAINER_STATUSES here.
+  if (filters.status) query = query.eq("status", filters.status as TrainerStatus);
+  if (filters.q) {
+    query = query.or(ilikeAny(["first_name", "last_name", "email", "phone"], filters.q));
+  }
+
+  const { data, error, count } = await applyOrder(query, "trainers", filters).range(
+    from,
+    to,
+  );
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as TrainerRowDb[];
+
+  const assigned = new Map<string, number>();
+  for (const ids of chunk(
+    rows.map((r) => r.id),
+    IN_CHUNK,
+  )) {
+    const { data: assignmentRows, error: assignmentError } = await supabase
+      .from("batch_trainers")
+      .select("trainer_id")
+      .in("trainer_id", ids)
+      .limit(FETCH_STEP);
+    if (assignmentError) throw assignmentError;
+    if ((assignmentRows ?? []).length >= FETCH_STEP) {
+      throw new ReportQueryError("Too many batch assignments to count on one page.");
+    }
+    for (const row of assignmentRows ?? []) {
+      assigned.set(row.trainer_id, (assigned.get(row.trainer_id) ?? 0) + 1);
+    }
+  }
+
+  return {
+    total: count ?? 0,
+    rows: rows.map((r): TrainerReportRow => ({
+      id: r.id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      email: r.email,
+      phone: r.phone,
+      status: r.status,
+      specialization: r.specialization ?? [],
+      createdAt: r.created_at,
+      assignedBatchCount: assigned.get(r.id) ?? 0,
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Public API.
 
 const FETCHERS: {
@@ -604,6 +686,7 @@ const FETCHERS: {
   attendance: fetchAttendanceRange,
   financial: fetchFinancialRange,
   certificates: fetchCertificateRange,
+  trainers: fetchTrainerRange,
 };
 
 const LOAD_ERROR: Record<ReportKind, string> = {
@@ -612,6 +695,7 @@ const LOAD_ERROR: Record<ReportKind, string> = {
   attendance: "Could not load the attendance report.",
   financial: "Could not load the financial report.",
   certificates: "Could not load the certificate report.",
+  trainers: "Could not load the trainer report.",
 };
 
 /**
