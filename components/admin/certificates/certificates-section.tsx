@@ -13,6 +13,7 @@ import {
   checkCertificateEligibility,
   getCertificatesForEnrollment,
 } from "@/lib/data/certificates";
+import { certDiag } from "@/lib/diagnostics/cert-timing";
 
 /**
  * Admin Certificates section for one Enrollment. Eligibility
@@ -26,10 +27,12 @@ import {
  * replaced).
  */
 export async function CertificatesSection({ enrollmentId }: { enrollmentId: string }) {
+  certDiag(`CertificatesSection(${enrollmentId}): entry`);
   const [eligibilityResult, certificatesResult] = await Promise.all([
     checkCertificateEligibility(enrollmentId),
     getCertificatesForEnrollment(enrollmentId),
   ]);
+  certDiag(`CertificatesSection(${enrollmentId}): after eligibility+certificates fetch`);
 
   if (!certificatesResult.ok) {
     return (

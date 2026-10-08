@@ -55,6 +55,19 @@ export default defineConfig({
     // that script's own header comment for the full reasoning). Kept at
     // the same 4096 MB this repo already validated builds successfully
     // under, not raised speculatively.
-    env: { NODE_OPTIONS: "--max-old-space-size=4096" },
+    //
+    // PHASE17_CERT_DIAG=1 turns on lib/diagnostics/cert-timing.ts's
+    // temporary `[cert-diag]` console.error breadcrumbs for the certificate
+    // issue/revoke/reissue path (see that file's own header for why: two
+    // prior "fixes" on the Windows Test-2 hang — the 90s timeout, then
+    // writeAuditLog's own withTimeout — were both built on inference from
+    // DB state, and the second is now proven not to have touched the real
+    // stall). This is scoped to the local Playwright webServer process only
+    // — no real deploy script sets this env var — and console.error from
+    // this process is already forwarded live to the terminal by Playwright
+    // (node_modules/playwright/lib/plugins/webServerPlugin.js pipes stderr
+    // by default, unlike stdout), so no other Playwright config change is
+    // needed to see these lines on the next run.
+    env: { NODE_OPTIONS: "--max-old-space-size=4096", PHASE17_CERT_DIAG: "1" },
   },
 });
