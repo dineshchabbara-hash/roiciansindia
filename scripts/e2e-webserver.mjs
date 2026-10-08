@@ -6,14 +6,14 @@
 // sitting (the documented acceptance protocol), which the previous plain
 // `npm run build && npm run start` command could not do safely:
 //
-//   1. Build only when no build output already exists (checked via
-//      `.next/BUILD_ID`, the exact marker `next start` itself requires).
-//      Playwright owns the lifecycle of the process it spawns — it kills
-//      this script's whole process tree when a test run ends, so every
-//      separate `-g` invocation previously re-ran the FULL production
-//      build from nothing, even though nothing in the source had changed
-//      between one test and the next in the same acceptance sitting. That
-//      is real, unnecessary, repeated heavy work, not a safety net.
+//   1. Build only when no current build output already exists for the
+//      CURRENT Git commit (see "build provenance" below) — Playwright owns
+//      the lifecycle of the process it spawns (it kills this script's whole
+//      process tree when a test run ends), so every separate `-g`
+//      invocation previously re-ran the FULL production build from nothing,
+//      even though nothing in the source had changed between one test and
+//      the next in the same acceptance sitting. That is real, unnecessary,
+//      repeated heavy work, not a safety net.
 //
 //   2. Build with webpack, not Turbopack, for this one local entry point.
 //      The concrete Windows failure this fixes: "[WebServer] memory
@@ -43,24 +43,54 @@
 //      (both are standards-compliant Next.js production builds); no
 //      application code, business rule, or feature is affected.
 //
-// Together, these mean: the first `-g` invocation in an acceptance sitting
-// does one full (webpack) build, exactly once; every subsequent individual
-// `-g` invocation in that same sitting just runs `next start` against the
-// already-built output — materially lighter than a full bundler pass, and
-// outside the class of failures a bundler invocation can hit at all.
+// --- Build provenance (corrects this script's own earlier design) -------
 //
-// A genuinely fresh build (after pulling new code) is one `rm -rf .next` —
-// or simply starting a new acceptance sitting in a freshly checked-out
-// copy — away; this script deliberately does not try to detect "is the
-// existing build stale relative to the current source," since the actual
-// acceptance workflow is "build once per sitting, then run each individual
-// test against that one stable build," not "rebuild on every invocation
-// regardless of whether anything changed."
+// This script previously reused ANY existing `.next/BUILD_ID` unconditionally,
+// on the stated assumption that "a genuinely fresh build after pulling new
+// code is one `rm -rf .next` away" — i.e. that staleness was the caller's
+// problem to avoid, not this script's to detect. That assumption was wrong
+// in practice: a Windows acceptance run on commit 05cfa5d showed none of
+// that commit's own temporary `[cert-diag]` diagnostic log lines, even
+// though PHASE17_CERT_DIAG=1 was correctly wired into webServer.env — the
+// one explanation consistent with "code demonstrably in the committed
+// source never produces its own logging at runtime" is that `.next/BUILD_ID`
+// was left over from a build done at an OLDER commit (e.g. from testing
+// before this session's commits landed), and `git pull`/`checkout` to a
+// newer commit does not touch `.next` at all, so the marker this script
+// checked kept reporting "already built" for a build that was no longer
+// current. This can only be ruled out, not assumed, by tying build reuse
+// to the exact source revision instead of merely "a build exists":
+//
+//   - `.next/BUILD_ID` must exist (Next's own "a complete build finished"
+//     marker — still required; rules out a half-written build from an
+//     interrupted previous attempt).
+//   - `.next/BUILD_HEAD` (this script's own marker, written only after a
+//     build completes successfully) must also exist and must equal the
+//     current `git rev-parse HEAD`.
+//
+// Both together mean: a build is reused only when it is both complete AND
+// provably built from the exact commit currently checked out. Any mismatch
+// (marker missing, BUILD_ID missing, or HEAD differs) forces exactly one
+// fresh build before serving. The acceptance workflow runs against a clean
+// working tree (per the documented protocol), so HEAD alone is a sufficient
+// build identity — no need to additionally hash package.json/lockfile/config,
+// since those are only ever reached via a commit anyway and a clean tree
+// means HEAD already captures them.
+//
+// Together with (2) above, this means: the first `-g` invocation after
+// checking out a given commit does one full (webpack) build, exactly once;
+// every subsequent individual `-g` invocation against that SAME commit just
+// runs `next start` against the already-built output — materially lighter
+// than a full bundler pass. Checking out a different commit (including
+// `git pull` to a newer one) forces exactly one rebuild on the next
+// invocation, never a silent stale reuse.
 
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { needsRebuild } from "./e2e-webserver-provenance.mjs";
 
 const BUILD_MARKER = ".next/BUILD_ID";
+const HEAD_MARKER = ".next/BUILD_HEAD";
 
 function run(command, args) {
   const result = spawnSync(command, args, { stdio: "inherit", shell: true });
@@ -68,14 +98,45 @@ function run(command, args) {
   return result.status ?? 1;
 }
 
-if (!existsSync(BUILD_MARKER)) {
-  // Clears out any half-written build from an interrupted previous attempt
-  // (e.g. a prior crash mid-build) before starting a real one — never
-  // reached at all once a complete build already exists, since the marker
-  // check above short-circuits.
+function currentGitHead() {
+  const result = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" });
+  if (result.status !== 0 || !result.stdout?.trim()) {
+    throw new Error(
+      "Could not determine the current Git HEAD commit (git rev-parse HEAD failed) " +
+        "— refusing to guess whether an existing .next build is current.",
+    );
+  }
+  return result.stdout.trim();
+}
+
+function storedBuildHead() {
+  if (!existsSync(HEAD_MARKER)) return null;
+  try {
+    return readFileSync(HEAD_MARKER, "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
+const head = currentGitHead();
+
+if (
+  needsRebuild({
+    buildIdExists: existsSync(BUILD_MARKER),
+    storedHead: storedBuildHead(),
+    currentHead: head,
+  })
+) {
+  // Clears out any stale or half-written build — either an interrupted
+  // previous attempt, or (the bug this corrects) a complete build left
+  // over from a different, now-superseded commit.
   rmSync(".next", { recursive: true, force: true });
   const buildStatus = run("npm", ["run", "build", "--", "--webpack"]);
   if (buildStatus !== 0) process.exit(buildStatus);
+  // Only recorded once the build actually succeeded — a failed build
+  // leaves no marker, so the next invocation correctly retries rather than
+  // trusting a build that never completed.
+  writeFileSync(HEAD_MARKER, head);
 }
 
 process.exit(run("npm", ["run", "start"]));
