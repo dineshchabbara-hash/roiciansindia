@@ -250,6 +250,24 @@ export type Database = {
           },
         ];
       };
+      notifications: {
+        Row: {
+          id: string;
+          recipient_auth_user_id: string;
+          created_by_auth_user_id: string | null;
+          type: string;
+          title: string;
+          body: string | null;
+          data: Record<string, unknown>;
+          channel: "in_app" | "email" | "whatsapp";
+          status: "unread" | "read";
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["notifications"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Row"]>;
+        Relationships: [];
+      };
       trainers: {
         Row: {
           id: string;
