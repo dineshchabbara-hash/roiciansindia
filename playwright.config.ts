@@ -31,53 +31,30 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // Each separate `npx playwright test ...` invocation (the acceptance
-    // protocol runs every test this way, one at a time via `-g`) starts
-    // its own fresh webServer process, but `.next/cache` (Turbopack's own
-    // persistent build cache) survives ON DISK across those separate
-    // invocations — it is not reset just because the previous process
-    // exited. A prior Windows run saw the build succeed once, then crash
-    // again with the exact same native fault (exit 3221226505 /
-    // 0xC0000409) on the very next invocation of the IDENTICAL code,
-    // which a code-level regression cannot explain (nothing changed
-    // between the two runs) but a stale/inconsistent cache entry being
-    // read back by the second build can — this is Next.js's own
-    // documented first troubleshooting step for "build succeeds once,
-    // fails on a later run of the same code" ("delete .next and
-    // rebuild"). Deleting `.next` immediately before each build removes
-    // that variable entirely: every Playwright-driven build is always a
-    // full, clean, reproducible build, never dependent on what a
-    // previous invocation (or an antivirus scan still touching those
-    // freshly-written files) left behind. `node -e` is used rather than
-    // `rm -rf` specifically because it is the one cross-platform way to
-    // express this that works identically under cmd.exe, PowerShell, and
-    // bash without shell-specific syntax.
-    command:
-      "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npm run build && npm run start",
+    // See scripts/e2e-webserver.mjs for the full architecture and the
+    // evidence behind it (summary: build at most once per acceptance
+    // sitting, via webpack rather than Turbopack, specifically for this
+    // local test entry point — package.json's own "build"/"start" scripts,
+    // what a real deployment host runs, are untouched). This superseded an
+    // earlier attempt that instead deleted `.next` and ran a full Turbopack
+    // rebuild before EVERY individual `-g` invocation: that was reasonable
+    // given the evidence at the time (a build that crashed once, then
+    // succeeded, read as possible stale-cache corruption), but further
+    // Windows runs showed the repeated full rebuilds were themselves the
+    // dominant cost, next surfacing as a direct native allocation failure
+    // ("memory allocation of 3483212560 bytes failed") — this is corrected
+    // here, not layered on top of.
+    command: "node scripts/e2e-webserver.mjs",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    // V8's default --max-old-space-size is sized from the HOST's own
-    // detected physical memory, not a fixed number — this repo sets no
-    // NODE_OPTIONS/heap-size anywhere else (verified), so a build that
-    // completes fine on a high-memory machine can still legitimately hit
-    // "Allocation failed - JavaScript heap out of memory" on a more
-    // memory-constrained Windows machine, purely because that machine's
-    // own auto-sized default heap is smaller, combined with Next's own
-    // multiple concurrent build-worker processes each needing their own
-    // share of it. Phase 17 (Certificates) is the first phase to add a
-    // genuinely large dependency subtree (@react-pdf/renderer and its own
-    // ~10 sub-packages, fontkit, yoga-layout) for Turbopack to bundle,
-    // which raises the real, legitimate peak memory the build needs.
-    // Raising the ceiling here — passed only to this Playwright-spawned
-    // webServer process via Playwright's own cross-platform `env` option
-    // (works identically under cmd.exe/PowerShell/bash, no shell-specific
-    // VAR=value syntax) — is Next.js's own documented remedy for this
-    // exact V8 fatal error. This intentionally does NOT touch package.json's
-    // "build"/"start" scripts, so a real deployment host (Vercel or any
-    // other platform actually running `npm run build`/`npm run start` in
-    // production) is completely unaffected; only the local Playwright
-    // acceptance run gets the larger heap.
+    timeout: 180_000,
+    // NODE_OPTIONS now genuinely governs the whole build's memory, because
+    // scripts/e2e-webserver.mjs builds with webpack (a pure Node/V8
+    // process) rather than Turbopack (a separate native Rust binary with
+    // its own allocator that NODE_OPTIONS cannot influence at all — see
+    // that script's own header comment for the full reasoning). Kept at
+    // the same 4096 MB this repo already validated builds successfully
+    // under, not raised speculatively.
     env: { NODE_OPTIONS: "--max-old-space-size=4096" },
   },
 });
