@@ -288,6 +288,21 @@ Full flow and idempotency strategy detailed in `API_AND_INTEGRATIONS.md`. Summar
   notifications are deferred to Phase 18b; the table already supports them
   (`type`, `data`, `channel`, nullable sender for system notifications).
 
+## 10a. Reports & Export Architecture (Phase 19)
+
+- `lib/domain/reports.ts` (pure): report definitions, the single filter parser
+  used by page and export, sort whitelist with tie-breakers, column list and
+  the single row-to-cell mapping. `lib/domain/csv.ts` (pure): RFC 4180
+  serializer with formula-injection protection.
+- `lib/data/reports.ts` (server-only, RLS-scoped, read-only): one range
+  fetcher per report, reused for an on-screen page and for each export batch;
+  money via the Phase 14 engine, attendance via the Phase 13 view.
+- `app/admin/reports/page.tsx` (summary + links) and
+  `app/admin/reports/[report]/page.tsx` (filters, totals, table, pagination,
+  Export CSV link) are Server Components with plain GET forms.
+- `app/api/exports/[report]/route.ts` streams the CSV (§7 of
+  `API_AND_INTEGRATIONS.md`).
+
 ## 11. PDF Generation Architecture
 
 - Server-side only (never generate financial/certificate PDFs in the browser).

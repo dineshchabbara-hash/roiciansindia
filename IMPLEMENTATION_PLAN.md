@@ -1182,6 +1182,42 @@ needs them (evaluate with `EXPLAIN` during implementation, not speculatively).
 **DoD:** Each report renders from live data with working filters and a working
 CSV export that never loads the full result set into browser memory.
 
+**Phase 19 delivered (approved Phase 19 scope, read-only, no migration):**
+- Admin/Super Admin Reports area: `/admin/reports` (summary cards — no chart
+  library — plus links) and `/admin/reports/[report]` for five reports:
+  **Student, Enrollment, Attendance, Financial** (FR-120's "Payment" report,
+  per enrollment) and **Certificate**. The existing "Reports" Admin nav entry
+  now opens the real page (was ComingSoon); the nav list itself is unchanged.
+- Server-side filtering (validated search, status, program, batch, date range,
+  attendance threshold, financial enrollment group), server-side pagination
+  (25 rows), whitelisted sorting with a unique tie-breaker, visible row count,
+  empty and error states. One filter parser and one row-to-cell mapping
+  (`lib/domain/reports.ts`) serve both the page and the export.
+- `GET /api/exports/[report]` CSV export (API_AND_INTEGRATIONS.md §7):
+  independently authorized, same filters, streamed in 500-row batches,
+  capped at **5,000 rows** (refused with 413 above the cap — never silently
+  truncated; a mid-export failure or row-count change errors the download),
+  RFC 4180 quoting, UTF-8 BOM, and spreadsheet formula-injection protection.
+- Authoritative sources reused, no new formulas: attendance verbatim from the
+  Phase 13 `student_attendance_summary` view (denominator = sessions marked;
+  Present + Late attended; enrollments with no marked session have no row);
+  money from the Phase 14 engine (`computeOutstandingFeesPaise` / `sumPaise`
+  / `toPaise`, integer paise, `payments.status='paid'`,
+  `payment_refunds.status='processed'`) composed exactly as
+  `getEnrollmentFinancialSummary`; the Financial "Confirmed" group is the
+  dashboard's own `CONFIRMED_ENROLLMENT_STATUSES`. Certificates keep issued and
+  revoked distinct and never expose `pdf_path` or signed URLs.
+- No database migration. No index was added: the dev project holds ~11 rows
+  per table, too few for a meaningful `EXPLAIN`, and every report filter
+  already maps to an existing FK/status index; re-evaluate with `EXPLAIN` once
+  real volumes exist. Export is not audit-logged — no project document calls
+  for it.
+- **Not delivered in Phase 19:** FR-120's **Trainer report** (Admin-facing
+  report about trainers) was outside the approved Phase 19 scope and remains
+  open. Trainer-role reporting is unchanged: Trainers keep their existing
+  scoped Trainer-portal views (own batches/students, attendance) and have no
+  access to the Admin Reports area or exports.
+
 ## Phase 20 — Razorpay Integration
 
 **Scope:** Order creation route/action, Checkout client integration, signature

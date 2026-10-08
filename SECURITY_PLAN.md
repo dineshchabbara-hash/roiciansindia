@@ -236,6 +236,25 @@ Applied (token-bucket, per-IP and/or per-account as appropriate) to:
   recipient's notifications are removed only when their auth account is
   deleted (FK cascade).
 
+## 15a. Reports & CSV Export (Phase 19)
+
+- Reports (`/admin/reports/*`) and exports (`/api/exports/[report]`) are
+  Admin/Super Admin only, enforced three times: the `/admin` layout gate, an
+  explicit role check in each report page and in the export Route Handler
+  (which a layout cannot protect), and RLS — every report query runs on the
+  caller's own session, never the service role, and both report views are
+  `security_invoker` (pinned by `supabase/tests/phase19_reports_test.sql`).
+- Read-only: no report screen or export performs any write.
+- Minimal fields: Student report contact fields are limited to what the
+  Admin Students list already shows (code, name, email, phone, status,
+  registration date); no address, date of birth, emergency contact, auth or
+  storage identifiers anywhere. Certificate exports never include `pdf_path`
+  or a signed URL.
+- Filter input is validated/whitelisted (UUIDs, ISO dates, enum statuses,
+  sort keys); free-text search is stripped of PostgREST filter syntax.
+- CSV exports are capped (5,000 rows, refused above — never truncated) and
+  neutralize spreadsheet formulas (`=`, `+`, `-`, `@`, tab, CR prefixes).
+
 ## 16. Secrets & Environment Variables
 
 - No secret is ever committed. `.env.example` lists every required variable name

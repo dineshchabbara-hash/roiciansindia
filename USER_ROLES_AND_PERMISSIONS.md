@@ -62,6 +62,7 @@ Update, Scoped, **–** = No access.
 | Review Submissions / Grade | F | F | CS (assigned batches) | R (own result/feedback) |
 | Issue/Revoke Certificates | F | F (audited) | – | R (own) |
 | View Reports | F | F | R (own batches/students only) | – |
+| Admin Reports area & CSV export (Phase 19) | F | F | – | – |
 | Manage Leads | F | F | – | – |
 | Manage Company Settings (branding, tax, numbering formats) | F | R | – | – |
 | Manage Notification Templates (deferred, Phase 18b) | F | R | – | – |

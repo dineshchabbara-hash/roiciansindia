@@ -246,6 +246,29 @@ include unnecessary personal data.
   server-side in bounded batches (not loading the full result set into memory at
   once for very large exports), using Node's streaming response support in Route
   Handlers.
+- **Implemented (Phase 19)** at `app/api/exports/[report]/route.ts` for
+  `students`, `enrollments`, `attendance`, `financial`, `certificates`:
+  - Authorization is checked in the handler itself (Route Handlers do not pass
+    through the `/admin` layout): no session → `401`, any role other than
+    Admin/Super Admin → `403`, both before the report name is even
+    validated; unknown report → `404`. All responses other than the CSV are
+    `text/plain`, `Cache-Control: no-store`.
+  - Query parameters are the on-screen report's own (`q`, `status`,
+    `programId`, `batchId`, `from`, `to`, `below`, `group`, `sort`, `dir`),
+    parsed by the same `parseReportFilters`; invalid values fall back to "no
+    filter". `page` is ignored — an export always covers every matching row.
+  - Cap: 5,000 rows. Above it the request is refused with `413` and a
+    "narrow the filters" message; no partial file is produced. Rows are
+    fetched in 500-row batches and streamed; if a later batch fails, or the
+    matching row count changes mid-export, the stream is errored so the
+    download fails visibly instead of ending short.
+  - Format: `text/csv; charset=utf-8`, `Content-Disposition: attachment;
+    filename="<report>-report-<YYYY-MM-DD>.csv"` (Asia/Kolkata date), UTF-8
+    BOM, header row, CRLF records, RFC 4180 quoting. Any text cell starting
+    with `=`, `+`, `-`, `@`, tab or CR is prefixed with `'` (formula-injection
+    protection) — so e.g. a phone stored as `+91…` exports as `'+91…`. Money
+    is an exact two-decimal string from integer paise.
+  - Read-only; exports are not written to `audit_logs`.
 
 ## 8. Future Integrations — Design Notes (Not Built Now)
 
