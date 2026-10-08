@@ -429,11 +429,13 @@ test.describe("Admin — Certificate management", () => {
     await expect(reissueItem.getByRole("alert")).toHaveCount(0);
     await page.reload();
 
+    // reissue_certificate() stores coalesce(p_reason, 'Replaced by reissued
+    // certificate <newNumber>') — the default only applies when no reason is
+    // given. This test supplies one, so that exact reason is what the
+    // original row must show.
     const nowRevokedSecond = card.locator("li").filter({ hasText: secondNumberText });
     await expect(nowRevokedSecond.getByText("Revoked", { exact: true })).toBeVisible();
-    await expect(
-      nowRevokedSecond.getByText(/Replaced by reissued certificate/),
-    ).toBeVisible();
+    await expect(nowRevokedSecond.getByText(/E2E reissue reason/)).toBeVisible();
 
     const stillValid = card.locator("li").filter({ hasText: "Valid" });
     await expect(stillValid).toHaveCount(1);
