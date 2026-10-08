@@ -1106,14 +1106,68 @@ beyond what this phase itself needed (Phase 19); no Razorpay/receipts work
 
 ## Phase 18 — Notifications
 
-**Scope:** `EmailSender` abstraction + Resend adapter, React Email templates for
-all events in `REQUIREMENTS.md` FR-110, `email_log` wiring, retrofitting Phase 20/
-21/17's send points if they were stubbed earlier, in-app `notifications` feed +
-`NotificationDispatcher`.
+**Approved V1 re-scope (Phase 18 checkpoint decisions C1–C4).** Phase 18 is
+delivered as **V1: in-app notifications only**. This is an explicit approved
+scope decision, not an omission. The email and multi-channel work originally
+listed here is moved, unchanged, to **Phase 18b — Email & Multi-Channel
+Delivery (deferred)** below.
 
-**DB changes:** None beyond Phase 2 (`notifications`, `email_log`).
+**V1 scope (delivered):**
+- Admin/Super Admin sends a plain-text in-app notification (title + message)
+  to ONE existing Student or Trainer, found by name/email search. The browser
+  posts only a Student/Trainer profile reference; the server resolves the
+  canonical `auth.users` id itself.
+- Recipient (Student/Trainer) feed at `/student/notifications` and
+  `/trainer/notifications`: newest first (most recent 50), unread/read
+  status, mark one read, mark all read, exact unread count, unread badge on
+  the portal's Notifications nav link. Read state persists.
+- Admin/Super Admin "Recently sent" history at `/admin/notifications`,
+  limited to notifications the caller sent (no global view).
+- Audit: `notification.send` with recipient auth id and kind only (never the
+  title or message). Mark-read is not audited.
+- No automatic hooks into Phases 12–17 (enrollment, payments, attendance,
+  materials, assignments, certificates are untouched).
 
-**DoD:** Enrollment confirmation, payment receipt, and certificate-issued emails
+**DB changes:** `20260101000034_notifications_v1_sender_and_immutability.sql`
+(additive; migrations 9/14/16 not edited):
+- `notifications.created_by_auth_user_id` (nullable, `auth.users`,
+  `ON DELETE SET NULL`); the insert policy requires it to equal `auth.uid()`.
+- Indexes: `(recipient_auth_user_id, created_at desc)`,
+  `(created_by_auth_user_id, created_at desc)`.
+- Checks: trimmed title 1–200 chars, body ≤ 2000, `status='read'` iff
+  `read_at` is set.
+- Policies (decision C3): own-received read for everyone; own-sent read for
+  Admin/Super Admin; Admin read-all, update, and delete policies dropped.
+  Insert only as Admin/Super Admin sending an unread `in_app`
+  `admin_message` as themselves to an existing Student/Trainer account.
+- Immutability (decision C4): recipient, sender, type, title, body, data,
+  channel, created_at cannot change for any application role, Admin
+  included; only `status`/`read_at` change, and only by the recipient. No
+  application role can hard-delete a notification.
+
+**Tests:** `supabase/tests/phase18_notifications_test.sql` (40 RLS
+assertions, real `authenticated`/`anon` roles); Vitest domain/validation,
+data, action, and component tests; browser acceptance
+`e2e/phase18-notifications.spec.ts`:
+1. "Admin sends an in-app notification to a Student through the UI"
+2. "Student sees their notification, marks it read, and the read state persists"
+3. "Other Students and Trainers cannot see or change someone else's notification"
+4. "Mark all as read persists, and only the sending Admin sees the sent history"
+
+**DoD (V1):** the four browser tests pass on Windows one at a time
+(`--workers=1 --retries=0`), the RLS suite passes, migration 34 is verified
+on the dev project, and the Phase18E2E cleanup audit is clean.
+
+## Phase 18b — Email & Multi-Channel Delivery (deferred)
+
+Deferred from Phase 18 by the approved V1 re-scope; requirements kept as
+written: `EmailSender` abstraction + Resend adapter, React Email templates
+for all events in `REQUIREMENTS.md` FR-110, `email_log` delivery wiring,
+retrofitting Phase 20/21/17's send points, `NotificationDispatcher`
+(scheduled/queued dispatch, retries/background delivery), WhatsApp delivery
+(FR-112), notification preferences/consent/opt-out, and automatic
+notification hooks from earlier phases. Original DoD carried over:
+enrollment confirmation, payment receipt, and certificate-issued emails
 actually arrive (verified against a real or sandbox provider account) with
 correct company branding pulled from Settings.
 
@@ -1161,10 +1215,10 @@ phase's own scope, security implications, or DoD above.)
 **Scope:** Receipt number sequence usage (already defined in Phase 2), PDF
 generation (`@react-pdf/renderer`) triggered on confirmed payment (online or
 offline), storage in the `receipts` bucket, download in both Admin and Student
-portals, email-on-payment (requires Phase 18's email infra — if sequenced before
-Phase 18, the email send is stubbed/queued and clearly logged as pending rather
-than silently dropped; recommend pulling minimal email sending forward into this
-phase if it doesn't complicate Phase 18's fuller scope). Refunds and other
+portals, email-on-payment (requires the email infra now deferred to Phase 18b —
+if sequenced before Phase 18b, the email send is stubbed/queued and clearly logged
+as pending rather than silently dropped; recommend pulling minimal email sending
+forward into this phase if it doesn't complicate Phase 18b's fuller scope). Refunds and other
 payment documents beyond the receipt itself (tracked in FR-90 as P1/P2
 execution) are folded into this phase's own name per the revised roadmap, but
 remain undesigned until this phase's own requirements/discovery pass — not

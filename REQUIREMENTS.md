@@ -481,10 +481,17 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 ### 2.12 Notifications & Email
 - FR-110 (P1): Transactional email for: welcome, enrollment confirmation, payment
   receipt, payment reminder, class reminder, assignment notice, certificate issued,
-  password reset.
-- FR-111 (P1): In-app notification feed per user.
+  password reset. *Deferred to Phase 18b (approved Phase 18 V1 re-scope) —
+  requirement unchanged, not yet built.*
+- FR-111 (P1): In-app notification feed per user. *Delivered in Phase 18 V1:
+  Admin/Super Admin manually sends a plain-text notification to one Student or
+  Trainer; recipients see their own feed with unread count, mark one/all read;
+  senders see only their own sent history. No automatic event notifications
+  yet (deferred to Phase 18b).*
 - FR-112 (P2): Architecture leaves room for WhatsApp as an additional notification
   channel without redesign (channel-agnostic notification table + dispatcher).
+  *The `channel` column is kept; delivery and the dispatcher are deferred to
+  Phase 18b.*
 
 ### 2.13 Reporting
 - FR-120 (P1): Student, Enrollment, Payment, Attendance, Trainer reports as listed in

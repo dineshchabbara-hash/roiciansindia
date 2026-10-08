@@ -281,6 +281,12 @@ Full flow and idempotency strategy detailed in `API_AND_INTEGRATIONS.md`. Summar
   `payment.confirmed`) and fans it out to configured channels (in-app row + email
   today). Adding WhatsApp later means adding a `WhatsAppSender` adapter and a channel
   entry — no schema change, no rewrite of call sites.
+- **Phase 18 V1 status:** only the in-app half exists — Admin/Super Admin
+  manual sends (`lib/actions/notifications.ts`) write `notifications` rows
+  directly, with `created_by_auth_user_id` recording the sender. The
+  `NotificationDispatcher`, email/WhatsApp adapters, and automatic domain-event
+  notifications are deferred to Phase 18b; the table already supports them
+  (`type`, `data`, `channel`, nullable sender for system notifications).
 
 ## 11. PDF Generation Architecture
 

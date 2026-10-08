@@ -20,7 +20,8 @@ executable source of truth once Phase 2 begins.
   in the UI layer only.
 - **Soft delete / lifecycle:** tables holding financial or academic history use a
   `status` enum (e.g. `active`/`inactive`/`archived`) rather than deletion. A small
-  number of purely operational tables (e.g. `notifications`) allow hard delete.
+  number of purely operational tables allow hard delete. (`notifications` no
+  longer does for any application role as of Phase 18 V1 — see its section.)
 - **Money:** `numeric(12,2)` for all currency amounts. Percentages (tax, discount %)
   as `numeric(5,2)`. No `float`/`double precision` anywhere in a financial column.
 - **Enums:** implemented as Postgres `enum` types (or `text` + `check` constraint
@@ -439,12 +440,23 @@ column allow-list at the application layer instead.)
 ### `notifications`
 - `id uuid pk`
 - `recipient_auth_user_id uuid not null references auth.users(id) on delete cascade`
-- `type text not null`, `title text not null`, `body text`
+- `created_by_auth_user_id uuid references auth.users(id) on delete set null` —
+  sender; null for a future system-generated notification (Phase 18 V1,
+  migration 34)
+- `type text not null` (V1 application inserts: `admin_message` only),
+  `title text not null` (trimmed 1–200 chars), `body text` (≤ 2000 chars)
 - `data jsonb`
 - `channel text not null default 'in_app' check (channel in ('in_app','email','whatsapp'))`
 - `status text not null default 'unread' check (status in ('unread','read'))`
-- `read_at timestamptz`
+- `read_at timestamptz` — set iff `status = 'read'`
 - `created_at`
+- Indexes: `(recipient_auth_user_id, status)`, `(recipient_auth_user_id,
+  created_at desc)`, `(created_by_auth_user_id, created_at desc)`.
+- RLS (Phase 18 V1): read own received; Admin/Super Admin also read own sent
+  (no global read); insert only as Admin/Super Admin sending an unread in-app
+  `admin_message` as themselves to an existing Student/Trainer; recipient may
+  change only `status`/`read_at`; every other column is immutable for every
+  application role, Admin included; no delete policy for anyone.
 
 ### `email_log`
 - `id uuid pk`

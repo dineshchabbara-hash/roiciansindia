@@ -228,9 +228,13 @@ Applied (token-bucket, per-IP and/or per-account as appropriate) to:
   payment/attendance exists) is permitted only for Super Admin, requires a
   confirmation step, and is itself audit-logged (who deleted what, when) even
   though the deleted row itself is gone.
-- Leads and notifications, which carry no downstream financial/academic
-  dependency, may be hard-deleted more liberally (e.g. spam lead cleanup) without
-  the same restriction.
+- Leads, which carry no downstream financial/academic dependency, may be
+  hard-deleted more liberally (e.g. spam lead cleanup) without the same
+  restriction. Notifications are no longer hard-deletable by any application
+  role (Phase 18 V1, approved decision C4): sent content is immutable — only
+  the recipient's read state changes — and there is no delete policy. A
+  recipient's notifications are removed only when their auth account is
+  deleted (FK cascade).
 
 ## 16. Secrets & Environment Variables
 

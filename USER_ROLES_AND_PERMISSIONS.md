@@ -64,7 +64,10 @@ Update, Scoped, **–** = No access.
 | View Reports | F | F | R (own batches/students only) | – |
 | Manage Leads | F | F | – | – |
 | Manage Company Settings (branding, tax, numbering formats) | F | R | – | – |
-| Manage Notification Templates | F | R | – | – |
+| Manage Notification Templates (deferred, Phase 18b) | F | R | – | – |
+| Send in-app notification to one Student/Trainer (Phase 18 V1) | F | F | – | – |
+| View own sent notifications (sender history) | RS (own sent only) | RS (own sent only) | – | – |
+| View / mark read own received notifications | RS | RS | RS (self) | RS (self) |
 | View Audit Logs | F | R (non-sensitive subset) | – | – |
 | Edit own profile (limited fields) | F | F | F | F (phone/address/photo/password only) |
 
