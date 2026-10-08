@@ -70,3 +70,6 @@ run_sql "${REPO_ROOT}/supabase/tests/phase16_assignments_test.sql"
 
 echo "Running Phase 17 (Certificates) regression assertions..."
 run_sql "${REPO_ROOT}/supabase/tests/phase17_certificates_test.sql"
+
+echo "Running Phase 18 (Notifications) regression assertions..."
+run_sql "${REPO_ROOT}/supabase/tests/phase18_notifications_test.sql"
