@@ -96,6 +96,11 @@ function portalNav(page: Page, role: "student" | "trainer") {
   });
 }
 
+/** The single Notifications link in the Student nav, with or without a badge. */
+function studentNotificationsLink(page: Page) {
+  return portalNav(page, "student").getByRole("link", { name: /^Notifications\b/ });
+}
+
 async function createTracked(
   role: Phase18Role,
   tag: string,
@@ -244,8 +249,16 @@ test.describe("Student — read own notification", () => {
     if (!student || !notificationId) throw new Error("Fixture setup incomplete.");
 
     await login(page, student);
-    const nav = portalNav(page, "student");
-    await nav.getByRole("link", { name: "Notifications, 1 unread" }).click();
+    // Found by its stable identity, then the unread badge asserted on its
+    // accessible name separately. Chromium blockifies the flex link's child
+    // spans, so its computed name is "Notifications , 1 unread" (a space
+    // before the comma) — not jsdom's "Notifications, 1 unread" — hence the
+    // whitespace-tolerant pattern rather than one exact composite string.
+    const notificationsLink = studentNotificationsLink(page);
+    await expect(notificationsLink).toHaveAccessibleName(
+      /^Notifications\s*,\s*1 unread$/,
+    );
+    await notificationsLink.click();
     await expect(page).toHaveURL(/\/student\/notifications$/);
 
     await expect(page.getByText("1 unread notification", { exact: true })).toBeVisible();
@@ -269,12 +282,8 @@ test.describe("Student — read own notification", () => {
     await expect(
       page.getByText("No unread notifications", { exact: true }),
     ).toBeVisible();
-    await expect(
-      portalNav(page, "student").getByRole("link", {
-        name: "Notifications",
-        exact: true,
-      }),
-    ).toBeVisible();
+    // Badge gone after reading: the link's name is just "Notifications".
+    await expect(studentNotificationsLink(page)).toHaveAccessibleName("Notifications");
 
     const stored = await readNotification(notificationId);
     expect(stored?.status).toBe("read");
