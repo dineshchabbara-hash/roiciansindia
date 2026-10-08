@@ -17,6 +17,7 @@ import { randomBytes, randomInt } from "node:crypto";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export { hasRealSupabaseCredentials } from "./phase5-fixtures";
 
@@ -400,16 +401,59 @@ export async function deletePhase17SyntheticEnrollmentIfSafe(
 }
 
 // ---------------------------------------------------------------------------
-// Direct certificate creation — a service-role insert (number minted via
-// the real generate_certificate_number() RPC, service_role keeps its own
-// default EXECUTE grant on it — 20260101000031 only revokes public/anon/
-// authenticated) for tests whose purpose is NOT proving issuance itself
-// (the Admin-issuance test exercises the real UI -> renderCertificatePdf
-// -> upload -> insert path separately). Same "direct creation for a test
-// that needs a real pre-existing row" precedent as Phase 16's own
-// createPhase16AssignmentDirect.
+// Direct certificate creation, for tests whose purpose is NOT proving
+// issuance itself (the Admin-issuance test exercises the real UI ->
+// renderCertificatePdf -> upload -> insert path separately). Same "direct
+// creation for a test that needs a real pre-existing row" precedent as
+// Phase 16's own createPhase16AssignmentDirect.
+//
+// The certificate number is minted by a real, signed-in Admin, never by
+// the service-role client: generate_certificate_number()
+// (20260101000031) checks is_admin_or_super() inside its own body, which
+// resolves the caller through auth.uid() -> user_roles. A service-role
+// request has no auth.uid() at all, so it fails that check even though it
+// can EXECUTE the function — and the certificates.certificate_number
+// column DEFAULT calls the same function, so omitting the number from a
+// service-role insert fails identically. Minting as an Admin is exactly
+// the production authorization path, with nothing granted or bypassed.
+// The PDF upload and row insert stay service-role fixture writes, as
+// before.
+
+async function mintCertificateNumberAsAdmin(
+  minter: Phase17AdminIdentity,
+): Promise<string> {
+  if (!SUPABASE_URL || !ANON_KEY) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY — needed to mint a certificate number as a real Admin.",
+    );
+  }
+  const supabase = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: minter.email,
+    password: minter.password,
+  });
+  if (signInError) {
+    throw new Error(
+      `Failed to sign in the fixture Admin to mint a certificate number: ${signInError.message}`,
+    );
+  }
+  try {
+    const { data: minted, error: rpcError } = await supabase.rpc(
+      "generate_certificate_number",
+    );
+    if (rpcError || !minted) {
+      throw new Error(`Failed to mint a certificate number: ${rpcError?.message}`);
+    }
+    return minted as string;
+  } finally {
+    await supabase.auth.signOut().catch(() => {});
+  }
+}
 
 export async function createPhase17CertificateDirect(input: {
+  minter: Phase17AdminIdentity;
   enrollmentId: string;
   studentId: string;
   programId: string;
@@ -417,13 +461,7 @@ export async function createPhase17CertificateDirect(input: {
 }): Promise<{ id: string; certificateNumber: string; pdfPath: string }> {
   const supabase = adminClient();
 
-  const { data: minted, error: rpcError } = await supabase.rpc(
-    "generate_certificate_number",
-  );
-  if (rpcError || !minted) {
-    throw new Error(`Failed to mint a certificate number: ${rpcError?.message}`);
-  }
-  const certificateNumber = minted as string;
+  const certificateNumber = await mintCertificateNumberAsAdmin(input.minter);
   const pdfPath = `${input.studentId}/${certificateNumber}.pdf`;
 
   const { error: uploadError } = await supabase.storage

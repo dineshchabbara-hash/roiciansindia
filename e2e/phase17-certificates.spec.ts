@@ -453,6 +453,9 @@ test.describe("Admin — Certificate management", () => {
 // (E) Student — view and download own certificate.
 
 test.describe("Student — Certificate view/download", () => {
+  // Only mints the fixture certificate's number (see
+  // createPhase17CertificateDirect) — never logs in through the browser.
+  let minter: Phase17AdminIdentity | undefined;
   let student: Phase17StudentPortalIdentity | undefined;
   let pair: ExistingCertificateEligibleProgramWithBatch | undefined;
   let enrollmentId: string | undefined;
@@ -460,6 +463,12 @@ test.describe("Student — Certificate view/download", () => {
 
   test.beforeAll(async () => {
     if (skipSuite) return;
+    try {
+      minter = await createPhase17AdminIdentity("ViewerMinter");
+    } catch (err) {
+      if (err instanceof Phase17PartialAdminIdentityError) minter = err.partial;
+      throw err;
+    }
     try {
       student = await createPhase17StudentPortalIdentity("Viewer");
     } catch (err) {
@@ -482,6 +491,7 @@ test.describe("Student — Certificate view/download", () => {
         status: "completed",
       });
       certificate = await createPhase17CertificateDirect({
+        minter,
         enrollmentId,
         studentId: student.studentId,
         programId: pair.programId,
@@ -513,6 +523,11 @@ test.describe("Student — Certificate view/download", () => {
           student
             ? deletePhase17StudentPortalIdentity(student)
             : Promise.resolve({ ok: true }),
+      },
+      {
+        label: "Minter admin identity",
+        run: () =>
+          minter ? deletePhase17AdminIdentity(minter) : Promise.resolve({ ok: true }),
       },
     ]);
   });
@@ -560,6 +575,9 @@ test.describe("Student — Certificate view/download", () => {
 // (G) Public verification — no login at all.
 
 test.describe("Public — Certificate verification", () => {
+  // Only mints the fixture certificates' numbers (see
+  // createPhase17CertificateDirect) — never logs in through the browser.
+  let minter: Phase17AdminIdentity | undefined;
   let student: Phase17StudentPortalIdentity | undefined;
   let pair: ExistingCertificateEligibleProgramWithBatch | undefined;
   let enrollmentId: string | undefined;
@@ -568,6 +586,12 @@ test.describe("Public — Certificate verification", () => {
 
   test.beforeAll(async () => {
     if (skipSuite) return;
+    try {
+      minter = await createPhase17AdminIdentity("VerifyMinter");
+    } catch (err) {
+      if (err instanceof Phase17PartialAdminIdentityError) minter = err.partial;
+      throw err;
+    }
     try {
       student = await createPhase17StudentPortalIdentity("Verify");
     } catch (err) {
@@ -590,12 +614,14 @@ test.describe("Public — Certificate verification", () => {
         status: "completed",
       });
       issuedCert = await createPhase17CertificateDirect({
+        minter,
         enrollmentId,
         studentId: student.studentId,
         programId: pair.programId,
         completionDate: new Date().toISOString().slice(0, 10),
       });
       revokedCert = await createPhase17CertificateDirect({
+        minter,
         enrollmentId,
         studentId: student.studentId,
         programId: pair.programId,
@@ -634,6 +660,11 @@ test.describe("Public — Certificate verification", () => {
           student
             ? deletePhase17StudentPortalIdentity(student)
             : Promise.resolve({ ok: true }),
+      },
+      {
+        label: "Minter admin identity",
+        run: () =>
+          minter ? deletePhase17AdminIdentity(minter) : Promise.resolve({ ok: true }),
       },
     ]);
   });
