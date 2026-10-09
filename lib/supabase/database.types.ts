@@ -448,6 +448,16 @@ export type Database = {
           method: "razorpay" | "cash" | "bank_transfer" | "upi" | "cheque" | "other";
           created_at: string;
           paid_at: string | null;
+          // Added Phase 20A (Offline Payments Ledger) — columns that already
+          // existed (20260101000007) and are now read by the ledger.
+          student_id: string;
+          payment_type: "registration" | "full" | "installment" | "partial" | "other";
+          amount: string;
+          tax_amount: string;
+          internal_reference: string | null;
+          notes: string | null;
+          created_by: string | null;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["payments"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["payments"]["Row"]>;
@@ -464,6 +474,20 @@ export type Database = {
             columns: ["installment_id"];
             isOneToOne: false;
             referencedRelation: "installments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payments_student_id_fkey";
+            columns: ["student_id"];
+            isOneToOne: false;
+            referencedRelation: "students";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payments_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "admins";
             referencedColumns: ["id"];
           },
         ];
@@ -833,6 +857,24 @@ export type Database = {
           p_reason: string | null;
         };
         Returns: string;
+      };
+      // Phase 20A — see 20260101000035_offline_payments_ledger.sql.
+      record_offline_payment: {
+        Args: {
+          p_payment_id: string;
+          p_enrollment_id: string;
+          p_amount: string;
+          p_method: string;
+          p_payment_type: string;
+          p_paid_on: string;
+          p_reference: string | null;
+          p_notes: string | null;
+        };
+        Returns: {
+          recorded_payment_id: string;
+          recorded_payment_code: string;
+          already_recorded: boolean;
+        }[];
       };
     };
   };

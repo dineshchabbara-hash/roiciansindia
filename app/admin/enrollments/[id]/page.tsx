@@ -17,7 +17,12 @@ import {
   type BatchOption,
 } from "@/lib/data/enrollments";
 import { getPaymentPlanForEnrollment } from "@/lib/data/payment-plans";
-import { canAssignBatch, PAYMENT_PLAN_TYPES } from "@/lib/domain/enrollments";
+import {
+  canAssignBatch,
+  PAYMENT_PLAN_TYPES,
+  type EnrollmentStatus,
+} from "@/lib/domain/enrollments";
+import { canReceiveOfflinePayment } from "@/lib/domain/payments";
 
 // Same friendly display text as components/admin/enrollments/enrollment-form.tsx
 // — the raw DB value (full/installments) is unchanged, only the label shown.
@@ -44,9 +49,13 @@ function SectionSkeleton() {
 
 async function FinancialSection({
   enrollmentId,
+  enrollmentCode,
+  status,
   totalPayable,
 }: {
   enrollmentId: string;
+  enrollmentCode: string;
+  status: EnrollmentStatus;
   totalPayable: string;
 }) {
   const result = await getEnrollmentFinancialSummary(enrollmentId, totalPayable);
@@ -64,7 +73,27 @@ async function FinancialSection({
       </Card>
     );
   }
-  return <EnrollmentFinancialSummaryCard summary={result.data} />;
+  const code = encodeURIComponent(enrollmentCode);
+  return (
+    <div className="flex flex-col gap-2">
+      <EnrollmentFinancialSummaryCard summary={result.data} />
+      {/* Phase 20A: entry points to the offline payment workflow. The
+          record page re-checks eligibility; this only avoids offering it. */}
+      <div className="flex gap-4 text-sm">
+        {canReceiveOfflinePayment(status) && result.data.outstandingPaise > 0 && (
+          <Link
+            href={`/admin/payments/new?enrollment=${code}`}
+            className="hover:underline"
+          >
+            Record offline payment
+          </Link>
+        )}
+        <Link href={`/admin/payments?q=${code}`} className="hover:underline">
+          View payments
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 async function PaymentPlanSection({ enrollmentId }: { enrollmentId: string }) {
@@ -226,6 +255,8 @@ export default async function EnrollmentProfilePage({
       <Suspense fallback={<SectionSkeleton />}>
         <FinancialSection
           enrollmentId={enrollment.id}
+          enrollmentCode={enrollment.enrollmentCode}
+          status={enrollment.status}
           totalPayable={enrollment.totalPayable}
         />
       </Suspense>
