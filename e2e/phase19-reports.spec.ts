@@ -264,6 +264,12 @@ test.describe("Admin — Student and Enrollment reports filter and export", () =
   test("Admin filters the Student and Enrollment reports and exports the same data", async ({
     page,
   }) => {
+    // Scoped to this test only (approved): its valid workload — sign-in,
+    // three reports, three filtered views and four CSV downloads — measured
+    // ~40s against the remote dev project (dev API logs: ~30.3s used before
+    // the Trainer section, which adds ~9s). Not a hang workaround; every
+    // assertion is unchanged.
+    test.setTimeout(90_000);
     await login(page, admin);
 
     await openReportsFromAdminNav(page);
