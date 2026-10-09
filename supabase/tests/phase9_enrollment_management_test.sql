@@ -408,9 +408,17 @@ $$;
 -- No duplicate list rows from child joins: multiple payments/refunds
 -- against Enrollment A must never multiply its row in enrollment_summary.
 
+-- Phase 20A: payments has no end-user INSERT policy any more (the only
+-- end-user write path is record_offline_payment(), 20260101000035), so
+-- these fixture rows are seeded as the database owner and the Admin
+-- session is restored right after. The assertions below are unchanged.
+reset role;
 insert into payments (id, payment_code, student_id, enrollment_id, payment_type, amount, total_amount, method, status) values
   ('f8000000-0000-0000-0000-000000000001', 'PHASE9-PAY-A1', 'f4000000-0000-0000-0000-000000000001', 'f7000000-0000-0000-0000-000000000001', 'partial', 20000.00, 20000.00, 'cash', 'paid'),
   ('f8000000-0000-0000-0000-000000000002', 'PHASE9-PAY-A2', 'f4000000-0000-0000-0000-000000000001', 'f7000000-0000-0000-0000-000000000001', 'partial', 10000.00, 10000.00, 'upi', 'paid');
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"f1000000-0000-0000-0000-000000000001","role":"authenticated"}';
 
 insert into payment_refunds (id, payment_id, amount, status) values
   ('f9000000-0000-0000-0000-000000000001', 'f8000000-0000-0000-0000-000000000001', 5000.00, 'processed');
@@ -431,8 +439,12 @@ $$;
 -- Financial isolation: Enrollment B has zero payments/refunds of its own —
 -- Enrollment A's payments/refunds above must never be visible against B.
 
+reset role;
 insert into payments (id, payment_code, student_id, enrollment_id, payment_type, amount, total_amount, method, status) values
   ('f8000000-0000-0000-0000-000000000003', 'PHASE9-PAY-B1', 'f4000000-0000-0000-0000-000000000002', 'f7000000-0000-0000-0000-000000000002', 'partial', 7000.00, 7000.00, 'cash', 'paid');
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"f1000000-0000-0000-0000-000000000001","role":"authenticated"}';
 
 do $$
 declare

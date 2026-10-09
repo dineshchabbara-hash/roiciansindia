@@ -76,3 +76,6 @@ run_sql "${REPO_ROOT}/supabase/tests/phase18_notifications_test.sql"
 
 echo "Running Phase 19 (Reports & Analytics) regression assertions..."
 run_sql "${REPO_ROOT}/supabase/tests/phase19_reports_test.sql"
+
+echo "Running Phase 20A (Offline Payments Ledger) regression assertions..."
+run_sql "${REPO_ROOT}/supabase/tests/phase20_offline_payments_test.sql"
