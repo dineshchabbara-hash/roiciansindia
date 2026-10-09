@@ -59,29 +59,42 @@ async function login(page: Page, identity: Phase19Identity) {
   await page.goto(`/login/${identity.role}`);
   await page.locator("#email").fill(identity.email);
   await page.locator("#password").fill(identity.password);
-  // The sign-in server action's response streams the role's home page. For
-  // the Admin dashboard that stream keeps going after the heading is visible
-  // (its Suspense sections are still loading), so navigating away as soon as
-  // the heading shows aborts the response mid-render and the server logs
-  // "The destination stream closed early." Wait for that exact response
-  // body to finish before the caller's next navigation.
-  const signInResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      new URL(response.url()).pathname === `/login/${identity.role}`,
-  );
   await page.getByRole("button", { name: "Sign in" }).click();
+  // Login is complete on authentication evidence alone — never on the
+  // dashboard's streamed sections finishing (they are optional content and
+  // may still be loading): the role's protected home URL, its heading, and
+  // (Admin) the shell navigation that only the server-side role-gated admin
+  // layout renders, plus the Supabase session cookie the server set.
   if (identity.role === "admin") {
     await expect(page).toHaveURL(/\/admin$/);
     await expect(
       page.getByRole("heading", { name: "Dashboard", level: 1 }),
     ).toBeVisible();
+    await expect(adminNav(page)).toBeVisible();
   } else {
     await expect(page).toHaveURL(new RegExp(`/${identity.role}$`));
     await expect(page.getByRole("heading", { name: /^Welcome/, level: 1 })).toBeVisible();
   }
-  // null = the response body was fully received (not aborted or failed).
-  expect(await (await signInResponse).finished()).toBeNull();
+  const cookieNames = (await page.context().cookies()).map((c) => c.name);
+  expect(cookieNames.some((name) => /^sb-.+-auth-token(\.\d+)?$/.test(name))).toBe(true);
+}
+
+function adminNav(page: Page): Locator {
+  return page.getByRole("navigation", { name: "Admin navigation" });
+}
+
+/**
+ * Opens the Reports area the way an Admin does: the "Reports" entry in the
+ * Admin navigation. This is a client-side navigation, so the page stays
+ * alive and the sign-in response (which streams the dashboard's Suspense
+ * sections) finishes in the background instead of being torn down
+ * mid-render — a full page.goto() here would abort it and the server would
+ * log "The destination stream closed early."
+ */
+async function openReportsFromAdminNav(page: Page) {
+  await adminNav(page).getByRole("link", { name: "Reports", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/reports$/);
+  await expect(page.getByRole("heading", { name: "Reports", level: 1 })).toBeVisible();
 }
 
 async function createIdentity(
@@ -253,8 +266,7 @@ test.describe("Admin — Student and Enrollment reports filter and export", () =
   }) => {
     await login(page, admin);
 
-    await page.goto("/admin/reports");
-    await expect(page.getByRole("heading", { name: "Reports", level: 1 })).toBeVisible();
+    await openReportsFromAdminNav(page);
     await page.getByRole("link", { name: "Student report" }).click();
     await expect(page).toHaveURL(/\/admin\/reports\/students$/);
     await expect(
@@ -440,7 +452,9 @@ test.describe("Admin — Financial report reconciles", () => {
   }) => {
     await login(page, admin);
 
-    await page.goto("/admin/reports/financial");
+    await openReportsFromAdminNav(page);
+    await page.getByRole("link", { name: "Financial report" }).click();
+    await expect(page).toHaveURL(/\/admin\/reports\/financial$/);
     await expect(
       page.getByRole("heading", { name: "Financial report", level: 1 }),
     ).toBeVisible();
