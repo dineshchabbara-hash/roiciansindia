@@ -59,6 +59,17 @@ async function login(page: Page, identity: Phase19Identity) {
   await page.goto(`/login/${identity.role}`);
   await page.locator("#email").fill(identity.email);
   await page.locator("#password").fill(identity.password);
+  // The sign-in server action's response streams the role's home page. For
+  // the Admin dashboard that stream keeps going after the heading is visible
+  // (its Suspense sections are still loading), so navigating away as soon as
+  // the heading shows aborts the response mid-render and the server logs
+  // "The destination stream closed early." Wait for that exact response
+  // body to finish before the caller's next navigation.
+  const signInResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === `/login/${identity.role}`,
+  );
   await page.getByRole("button", { name: "Sign in" }).click();
   if (identity.role === "admin") {
     await expect(page).toHaveURL(/\/admin$/);
@@ -69,6 +80,8 @@ async function login(page: Page, identity: Phase19Identity) {
     await expect(page).toHaveURL(new RegExp(`/${identity.role}$`));
     await expect(page.getByRole("heading", { name: /^Welcome/, level: 1 })).toBeVisible();
   }
+  // null = the response body was fully received (not aborted or failed).
+  expect(await (await signInResponse).finished()).toBeNull();
 }
 
 async function createIdentity(

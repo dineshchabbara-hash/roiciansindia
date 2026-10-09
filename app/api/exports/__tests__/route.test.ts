@@ -339,3 +339,58 @@ describe("trainer report export (FR-120)", () => {
     expect(fetchReportRange).not.toHaveBeenCalled();
   });
 });
+
+describe("stream lifecycle", () => {
+  it("is consumed to EOF across batches with no stream error", async () => {
+    asRole("admin");
+    const all = Array.from({ length: 1200 }, (_, i) => student(i));
+    vi.mocked(fetchReportRange).mockImplementation(
+      async (_kind, _filters, from, to) =>
+        ({ ok: true, data: { total: 1200, rows: all.slice(from, to + 1) } }) as never,
+    );
+    const reader = (await call("students")).body!.getReader();
+    let bytes = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+    }
+    expect(bytes).toBeGreaterThan(0);
+    expect(vi.mocked(fetchReportRange).mock.calls.map((c) => [c[2], c[3]])).toEqual([
+      [0, 499],
+      [500, 999],
+      [1000, 1499],
+    ]);
+  });
+
+  it("stops producing after a client cancel: no further batch is fetched", async () => {
+    asRole("admin");
+    let releaseSecondBatch!: () => void;
+    const secondBatchGate = new Promise<void>((resolve) => {
+      releaseSecondBatch = resolve;
+    });
+    vi.mocked(fetchReportRange).mockImplementation(async (_kind, _filters, from) => {
+      if (from === 500) await secondBatchGate;
+      return {
+        ok: true,
+        data: {
+          total: 1500,
+          rows: Array.from({ length: 500 }, (_, i) => student(from + i)),
+        },
+      } as never;
+    });
+
+    const reader = (await call("students")).body!.getReader();
+    const first = await reader.read();
+    expect(first.done).toBe(false);
+    await reader.cancel("client went away");
+
+    // The batch already in flight when the client left resolves afterwards.
+    releaseSecondBatch();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Batch 1 (before streaming) and the in-flight batch 2 only — batch 3 is
+    // never requested, and nothing rejects unhandled.
+    expect(vi.mocked(fetchReportRange).mock.calls.map((c) => c[2])).toEqual([0, 500]);
+  });
+});
