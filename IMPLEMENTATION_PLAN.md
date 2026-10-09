@@ -23,6 +23,31 @@ No phase re-writes a previously completed phase's working code without a stated
 reason. Phases follow the brief's own ordering (§80) since no phase in that
 ordering created a dependency contradiction during analysis.
 
+### Current roadmap (authoritative; supersedes older phase lists)
+
+Phases 1–19 are complete and merged (numbering unchanged). Remaining order,
+private LMS first — the public website is deferred until the private LMS is
+finished:
+
+| Phase | Scope | Status |
+|---|---|---|
+| 18b | Email & multi-channel delivery | Deferred |
+| **20A** | **Offline Payments Ledger** — Admin offline payment recording + Payments ledger (FR-90/FR-91/BR-6) | Active |
+| 20B | Razorpay Integration (FR-92/FR-93) | Not started — needs test-mode keys, webhook secret and a reachable webhook URL |
+| 21 | Receipts, Refunds & Payment Documents (FR-94/FR-95/FR-97) | Not started — needs DECISIONS_NEEDED.md D7 (receipt half) and D8 |
+| 22 | Public Website | Deferred |
+| 23 | Lead Management | Not started |
+| 24 | Testing & Security Review | Not started |
+| 25 | Production Deployment | Not started |
+
+Phase 20A was split out of the documented Phase 20 at the Phase 20 scope
+gate: FR-90's admin-recorded offline payment is P0, was assigned to no
+phase, and has no external dependency, while Razorpay needs credentials.
+It is a prerequisite of 20B (both write the same `payments` table and feed
+the same Phase 14 balance), not a replacement. Older notes inside completed
+phases that mention earlier numberings (e.g. "Reports (Phase 21)" in
+Phase 11) are historical and left as written.
+
 ---
 
 ## Phase 1 — Project Setup
@@ -1233,14 +1258,101 @@ CSV export that never loads the full result set into browser memory.
   combining marks, so e.g. Devanagari vowel signs are dropped from a search
   term. The Phase 19 report search does not have this flaw.
 
-## Phase 20 — Razorpay Integration
+## Phase 20A — Offline Payments Ledger
+
+**Status:** ACTIVE IMPLEMENTATION — branch
+`claude/phase20-offline-payments-ledger`, based off `main` at `d561e8d`.
+
+**Scope (REQUIREMENTS.md FR-90 offline/admin-recorded, FR-91, BR-6):** an
+Admin/Super Admin records an offline payment (cash, UPI, bank transfer,
+cheque) against the correct Enrollment, and reviews every recorded payment
+in an operational ledger. Not a report, not Razorpay, not receipts/refunds.
+
+**Business rules confirmed at the Phase 20A checkpoint** (the requirements
+were silent; nothing here was inferred):
+- Overpayment is **blocked**: an amount above the enrollment's current
+  outstanding balance (Phase 14 formula) is rejected. Partial payments are
+  allowed (FR-90 lists "partial").
+- Payments are **enrollment-level only**: `installment_id` is never set and
+  the `installment` payment type is not offered — no rule yet defines how a
+  payment updates `installments.amount_paid_cache`. Offered types:
+  partial, full, registration, other (labels only; no amount rule attached).
+- Only a **confirmed** enrollment (enrolled / active / on_hold / completed —
+  the Phase 14 `CONFIRMED_ENROLLMENT_STATUSES`) can receive a payment.
+- The Admin enters the **date received** (today or earlier, Asia/Kolkata);
+  it is stored in `payments.paid_at` (start of that IST day), while
+  `created_at` records when it was entered.
+- Offline methods are BR-6's four only; `razorpay` (Phase 20B) and `other`
+  are not offered. Tax is 0 on the payment row (`total_amount = amount`):
+  the enrollment's `total_payable` already carries its tax and GST stays
+  disabled (D2).
+
+**Delivered:**
+- `/admin/payments` replaces the ComingSoon page: server-paginated ledger
+  (25/page, newest payment date first, `id` tie-breaker), search by payment
+  code, reference, student (code/name) or enrollment code, filters for
+  method, status and payment-date range (IST days), exact INR-with-paise
+  display. No edit or delete control anywhere.
+- `/admin/payments/new`: find the enrollment by exact code (deep-linkable
+  `?enrollment=`; the Enrollment page links here), review Student, Student
+  ID, Program, Batch, Enrollment code/status and the Phase 14 payable / paid
+  / refunded / outstanding figures (from `getEnrollmentFinancialSummary`,
+  shown to the paisa), then record amount, method, type, date received,
+  reference and notes. Ineligible or fully-paid enrollments get a message
+  instead of the form.
+- `/admin/payments/[id]`: read-only payment page (landing page after a
+  successful recording, with a persistent "recorded" status line).
+- Enrollment page Financial Position card: "Record offline payment" (when
+  eligible and outstanding > 0) and "View payments" links. The card itself
+  and its whole-rupee display are unchanged.
+- Audit: one `payment.recorded_offline` entry per created payment via the
+  existing `writeAuditLog` (minimal metadata: payment code, enrollment id,
+  amount, method, type, date received — no notes/reference text).
+
+**DB changes — migration `20260101000035_offline_payments_ledger.sql`
+(required; read-only review of dev found these gaps):**
+- `payments.payment_code` DEFAULT `'PAY-' || lpad(nextval('payment_id_seq'), 6, '0')`
+  (DATABASE_SCHEMA.md §3 format; same schema-completion pattern as
+  student_code/enrollment_code). The sequence is not reset.
+- FR-91 enforcement: `payments_update_admin`, `payments_delete_admin` and
+  `payments_write_admin` policies dropped (no end-user INSERT/UPDATE/DELETE
+  path on `payments`); trigger `payments_prevent_settled_change` freezes a
+  payment once its status is paid / refunded / partially_refunded, for every
+  role including service_role. Pending/authorized rows (Phase 20B) stay
+  updatable server-side by service_role only.
+- BR-5 integrity trigger `payments_enforce_enrollment_integrity`: a
+  payment's `student_id` must be its enrollment's student and any
+  `installment_id` must belong to that enrollment's plan.
+- `record_offline_payment(...)` — SECURITY DEFINER, pinned search_path,
+  EXECUTE for `authenticated` only; self-checks Admin/Super Admin and an
+  admins profile, validates input, locks the enrollment row (`FOR UPDATE`),
+  requires a confirmed status, blocks overpayment with the Phase 14 formula
+  (`max(0, payable − paid + processed refunds)`), derives `student_id` and
+  `created_by` server-side, stores `status='paid'`, and is idempotent on the
+  form's server-minted payment id (a double submit returns the same payment).
+
+**Known limitations / deferred:** no installment allocation; no
+correction/void workflow (a mistake is corrected in Phase 21 via a refund or
+by a later explicitly-designed offsetting entry); no receipt, PDF or email
+(Phase 21 / 18b); the Enrollment page's Financial Position keeps its
+existing whole-rupee display (the payment pages and reports show paise);
+"Recorded by" shows the recorder's name only where RLS lets the viewer read
+that admins row (an Admin sees their own; a Super Admin sees all); the
+`enrollments.amount_paid_cache`/`outstanding_balance_cache` columns remain
+unmaintained (balances are always computed live, as since Phase 9/14).
+
+**Razorpay is deferred to Phase 20B.** Nothing Razorpay-specific was added.
+
+## Phase 20B — Razorpay Integration
 
 **Scope:** Order creation route/action, Checkout client integration, signature
 verification, webhook route with idempotent processing, balance recompute on
 confirmed payment — full flow per `API_AND_INTEGRATIONS.md` §2.
 
-**DB changes:** None beyond Phase 2 (`payments` already modeled); this phase is
-the first to actually write rows into it.
+**DB changes:** None beyond Phase 2 (`payments` already modeled). Phase 20A
+made the first application writes into it and added migration 35 (payment
+code default, FR-91 immutability, BR-5 integrity, `record_offline_payment`);
+the webhook writes through service_role and must respect those triggers.
 
 **Security implications:** Highest-scrutiny phase alongside Phase 3 — server-
 authoritative amount, signature verification, idempotency all land here. No "Pay"
@@ -1281,8 +1393,8 @@ expanded here speculatively.
 payment confirmations (unit/integration test with simulated concurrent
 transactions).
 
-**DoD:** Every successful payment (online or offline, from Phase 14's manual-entry
-UI too) produces a real, downloadable, correctly numbered PDF receipt — no
+**DoD:** Every successful payment (online, or offline from Phase 20A's
+recording workflow) produces a real, downloadable, correctly numbered PDF receipt — no
 "Download Receipt" button appears before this phase ships.
 
 ## Phase 22 — Public Website

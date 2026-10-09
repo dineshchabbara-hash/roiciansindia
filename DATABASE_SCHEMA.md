@@ -287,6 +287,37 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
 - **Immutability rule:** application code never `UPDATE`s `amount`/`total_amount`
   once a payment reaches `paid`; corrections happen via a `payment_refunds` row or a
   new offsetting payment, never by editing history.
+- **Phase 20A (migration `20260101000035_offline_payments_ledger.sql`):**
+  - `payment_code` DEFAULT `'PAY-' || lpad(nextval('payment_id_seq')::text, 6, '0')`
+    (sequence not reset; explicit codes still accepted).
+  - Immutability is now DB-enforced: policies `payments_write_admin`,
+    `payments_update_admin`, `payments_delete_admin` dropped (end users have
+    SELECT only — `payments_select_admin` / `payments_select_own`); trigger
+    `payments_prevent_settled_change` (`prevent_settled_payment_change()`)
+    rejects any UPDATE of a row whose status is paid / refunded /
+    partially_refunded, for every role. `payments_prevent_code_change` is
+    unchanged.
+  - Trigger `payments_enforce_enrollment_integrity`
+    (`enforce_payment_enrollment_integrity()`, BEFORE INSERT / UPDATE OF
+    student_id, enrollment_id, installment_id): `student_id` must equal the
+    enrollment's student; a non-null `installment_id` must belong to the
+    enrollment's payment plan (BR-5).
+  - Function `record_offline_payment(p_payment_id uuid, p_enrollment_id uuid,
+    p_amount numeric, p_method text, p_payment_type text, p_paid_on date,
+    p_reference text, p_notes text)` returns `(recorded_payment_id,
+    recorded_payment_code, already_recorded)`. SECURITY DEFINER, search_path
+    pinned, EXECUTE granted to `authenticated` only. Admin/Super Admin with an
+    `admins` row only; methods cash/upi/bank_transfer/cheque; types
+    registration/full/partial/other; amount > 0 with ≤ 2 decimals; paid_on ≤
+    today (Asia/Kolkata), stored as that IST day's start in `paid_at`; locks
+    the enrollment `FOR UPDATE`; enrollment status must be enrolled / active
+    / on_hold / completed; amount ≤ `max(0, total_payable − Σ paid
+    total_amount + Σ processed refund amount)`; inserts `status='paid'`,
+    `tax_amount=0`, `total_amount=amount`, `created_by=current_admin_id()`,
+    `installment_id=null`; idempotent on `p_payment_id`. Error SQLSTATEs:
+    42501 not authorized, 22023 invalid input, P2001 overpayment, P2002
+    ineligible enrollment, P2003 payment id reused for a different payment,
+    P2004 enrollment not found.
 
 ### `payment_refunds`
 - `id uuid pk`

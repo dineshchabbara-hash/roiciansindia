@@ -113,6 +113,11 @@ Notes:
 - Full CRUD on Students, Programs, Batches, Enrollments (per Delete Policy —
   status-based, not hard delete for records with history).
 - Record offline payments, issue refunds, override fees/discounts — all audited.
+  (Phase 20A: Admin and Super Admin both record offline payments — the
+  matrix row above, unchanged — via `/admin/payments/new`; each recording is
+  audited as `payment.recorded_offline`. Recorded payments cannot be edited
+  or deleted by any role. Trainers have no payment access; Students only see
+  their own payments/balances in their existing portal views.)
 - Issue/revoke certificates.
 - Manage leads pipeline.
 - View all reports across all programs/batches/trainers.

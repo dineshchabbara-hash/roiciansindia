@@ -26,6 +26,12 @@ for the sake of having one.
 
 ## 2. Razorpay Integration
 
+(Phase numbering: Razorpay is **Phase 20B**. Phase 20A delivered the
+offline, Admin-recorded payment path first — a Server Action calling the
+`record_offline_payment()` database function, no new HTTP endpoint; see
+`IMPLEMENTATION_PLAN.md` Phase 20A. Nothing in this section is implemented
+yet.)
+
 ### 2.1 Why Razorpay
 Required by the brief; India-first, supports UPI/cards/netbanking/wallets, has a
 mature Orders + Webhooks model that fits a server-authoritative payment flow.

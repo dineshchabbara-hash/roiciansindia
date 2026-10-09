@@ -261,6 +261,17 @@ Full flow and idempotency strategy detailed in `API_AND_INTEGRATIONS.md`. Summar
 7. Receipt PDF is generated and emailed; dashboards read the updated, already-
    persisted state — nothing is computed client-side.
 
+(Steps 1–7 are the online flow, Phase 20B. Phase 20A's offline flow is:
+Admin finds the enrollment → reviews the Phase 14 figures → submits the
+form → `recordOfflinePaymentAction` (role check, zod) →
+`record_offline_payment()` (role check, enrollment row lock, eligibility,
+overpayment guard, insert `paid`) → `payment.recorded_offline` audit →
+read-only payment page. Code: `lib/domain/payments.ts`,
+`lib/validation/payments.ts`, `lib/data/payments.ts`,
+`lib/actions/payments.ts`, `app/admin/payments/**`. Balances are still
+computed live by the Phase 14 engine; the `enrollments.*_cache` columns are
+not maintained by either flow yet.)
+
 ## 9. Email Architecture
 
 - `lib/email/EmailSender` interface (`send(templateKey, to, data)`); concrete

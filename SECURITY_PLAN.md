@@ -155,6 +155,29 @@ before use (prevents Insecure Direct Object Reference / IDOR).
   never exposed to the browser (only the public `key_id` is sent client-side for
   Checkout initialization).
 
+### 9a. Offline payment recording (Phase 20A)
+
+- Admin/Super Admin only, checked three times: the `/admin` layout gate plus
+  an explicit role check in every Payments page and in
+  `recordOfflinePaymentAction`; and inside `record_offline_payment()` itself
+  (`is_admin_or_super()` + an `admins` profile). Trainers and Students have no
+  route, no action path and no EXECUTE path (anon has no grant); Trainers
+  still read no payment row; a Student still reads only their own.
+- The database function is the only end-user write path into `payments`
+  (no INSERT/UPDATE/DELETE policy remains). It derives `student_id` from the
+  enrollment and `created_by` from the session — the form never submits a
+  student, admin, status, tax or payment code (`recordOfflinePaymentSchema`
+  has no such fields).
+- FR-91 is enforced in the database, not by hiding an Edit button: a
+  settled payment cannot be updated by any role, service_role included.
+  Service-role deletion remains possible only for controlled operations
+  (E2E fixture cleanup by exact id); no application path deletes payments.
+- Overpayment and double submission are race-safe: the enrollment row is
+  locked for the check-and-insert, and the form carries a server-minted
+  payment id so a resubmission returns the existing payment.
+- Audit: `payment.recorded_offline` via the existing `writeAuditLog`
+  (service-role insert, append-only), minimal metadata, no free text.
+
 ## 10. Webhook Security (General)
 
 - Signature verification is mandatory for every inbound webhook (Razorpay today;

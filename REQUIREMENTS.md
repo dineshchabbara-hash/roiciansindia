@@ -40,6 +40,8 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   student.
 - BR-6: The system must support online payment (Razorpay) and admin-recorded offline
   payment (cash/UPI/bank transfer/cheque), both producing receipts.
+  (Admin-recorded offline payment: Phase 20A. Online payment: Phase 20B.
+  Receipts for both: Phase 21.)
 - BR-7: The system must scale to thousands of students without requiring architecture
   changes (pagination, indexing, no unbounded client-side loads).
 - BR-8: Must be usable day-to-day by non-technical administrative staff.
@@ -393,6 +395,19 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   `installment_id`, to check whether an installment is safe to hard-delete.)
 - FR-91 (P0): Payment record is an **immutable transaction row** (see §21/§90 fields);
   balances are never edited directly — only new payment/refund rows change them.
+  (Phase 20A implementation note — FR-90's offline/admin-recorded type and
+  FR-91 are delivered by Phase 20A, the Offline Payments Ledger, split out
+  ahead of Razorpay (now Phase 20B): an Admin/Super Admin records cash / UPI
+  / bank transfer / cheque against one confirmed enrollment through
+  `record_offline_payment()` (migration 35), the only end-user write path.
+  Immutability is enforced in the database, not the UI: no end-user
+  UPDATE/DELETE policy on `payments`, and a settled row (paid / refunded /
+  partially_refunded) is frozen by trigger for every role. Checkpoint-
+  confirmed rules: overpayment above the Phase 14 outstanding balance is
+  rejected; partial payments allowed; enrollment-level only (no installment
+  allocation yet); confirmed enrollment statuses only; the Admin enters the
+  date received (not in the future, Asia/Kolkata). See IMPLEMENTATION_PLAN.md
+  Phase 20A.)
 - FR-92 (P0): Razorpay order creation is server-side; amount is always re-derived
   server-side from the enrollment/installment, never trusted from the client.
 - FR-93 (P0): Razorpay signature verification on both the checkout-completion

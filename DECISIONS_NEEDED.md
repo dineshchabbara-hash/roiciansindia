@@ -121,6 +121,27 @@ confirmed, but nobody should make that call silently. Not urgent before any
 phase through 16 (Receipts) unless real refund volume starts making the
 distinction financially visible sooner.
 
+### D9. Offline payment recording rules — RESOLVED (Phase 20A checkpoint)
+
+The requirements did not define these; each was confirmed explicitly before
+Phase 20A code was written (none was inferred):
+- **Overpayment:** blocked — an offline payment may not exceed the
+  enrollment's current outstanding balance (Phase 14 formula). Partial
+  payments are allowed.
+- **Installment targeting:** not in Phase 20A — payments are recorded
+  against the enrollment only (`installment_id` null; the `installment`
+  payment type is not offered). How a payment allocates to installments
+  (and updates `installments.amount_paid_cache`) is still undefined and must
+  be decided before any phase links payments to installments.
+- **Eligible enrollments:** confirmed statuses only — enrolled, active,
+  on_hold, completed. Lead/applicant and cancelled/withdrawn cannot receive
+  an offline payment.
+- **Payment date:** the Admin enters the date the money was received (today
+  or earlier, Asia/Kolkata); stored in `payments.paid_at`.
+
+D8 (refund sign) is unaffected: Phase 20A records no refunds and does not
+change the outstanding formula.
+
 ---
 
 Everything else in the original brief — including all items the brief itself
