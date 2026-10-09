@@ -537,42 +537,85 @@ test.describe("Reports access is denied to non-Admin roles", () => {
     await cleanup(tracked);
   });
 
-  async function expectDenied(page: Page, home: RegExp, exportStatus: number) {
-    for (const path of [
-      "/admin/reports",
-      "/admin/reports/financial",
-      "/admin/reports/trainers",
-    ]) {
-      await page.goto(path);
-      await expect(page).toHaveURL(home);
-      await expect(page.getByRole("heading", { name: /report/i, level: 1 })).toHaveCount(
-        0,
-      );
-    }
-    for (const path of [
-      "/api/exports/students",
-      "/api/exports/financial?group=all",
-      "/api/exports/certificates",
-      "/api/exports/trainers",
-    ]) {
-      const response = await page.request.get(path, { maxRedirects: 0 });
-      expect(response.status(), path).toBe(exportStatus);
-      expect(response.headers()["content-type"], path).toMatch(/^text\/plain/);
-      expect(response.headers()["content-disposition"], path).toBeUndefined();
-    }
+  // Every Admin report, by URL slug and its exact page title (FR-120).
+  const REPORT_PAGES = [
+    { slug: "students", title: "Student report" },
+    { slug: "enrollments", title: "Enrollment report" },
+    { slug: "attendance", title: "Attendance report" },
+    { slug: "financial", title: "Financial report" },
+    { slug: "certificates", title: "Certificate report" },
+    { slug: "trainers", title: "Trainer report" },
+  ] as const;
+  const titles = REPORT_PAGES.map((r) => r.title).join("|");
+
+  /**
+   * None of the Admin Reports UI is on the page, matched by its exact
+   * identities — never a generic "report" word search, since a legitimate
+   * destination can contain it (the portal home greets the user by first
+   * name, and these synthetic users are named Phase19E2EReports…).
+   */
+  async function expectNoAdminReportsUi(page: Page) {
+    await expect(
+      page.getByRole("heading", { level: 1, name: new RegExp(`^(Reports|${titles})$`) }),
+    ).toHaveCount(0);
+    await expect(adminNav(page)).toHaveCount(0);
+    await expect(page.getByRole("form", { name: / report filters$/ })).toHaveCount(0);
+    await expect(
+      page.getByRole("table", { name: new RegExp(`^(${titles})$`) }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Export CSV" })).toHaveCount(0);
+  }
+
+  async function expectDenied(page: Page, homePath: string, exportStatus: number) {
+    // A real browser visit to the Reports area ends on the role's own
+    // destination, with no Admin Reports UI rendered.
+    await page.goto("/admin/reports");
+    await expect(page).toHaveURL(new RegExp(`${homePath.replace(/\//g, "\\/")}$`));
+    await expectNoAdminReportsUi(page);
+
+    // The overview and every individual report page are refused by the
+    // server before rendering: 307 to the same destination, and the
+    // response carries no report content.
+    await Promise.all(
+      ["/admin/reports", ...REPORT_PAGES.map((r) => `/admin/reports/${r.slug}`)].map(
+        async (path) => {
+          const response = await page.request.get(path, { maxRedirects: 0 });
+          expect(response.status(), path).toBe(307);
+          expect(
+            new URL(response.headers()["location"] ?? "", page.url()).pathname,
+            path,
+          ).toBe(homePath);
+          const body = await response.text();
+          for (const marker of [...REPORT_PAGES.map((r) => r.title), "Export CSV"]) {
+            expect(body, `${path} must not contain "${marker}"`).not.toContain(marker);
+          }
+        },
+      ),
+    );
+
+    // Every report's CSV export is refused with no file.
+    await Promise.all(
+      REPORT_PAGES.map(async ({ slug }) => {
+        const path = `/api/exports/${slug}${slug === "financial" ? "?group=all" : ""}`;
+        const response = await page.request.get(path, { maxRedirects: 0 });
+        expect(response.status(), path).toBe(exportStatus);
+        expect(response.headers()["content-type"], path).toMatch(/^text\/plain/);
+        expect(response.headers()["content-disposition"], path).toBeUndefined();
+      }),
+    );
   }
 
   test("Trainer, Student and anonymous users cannot open Reports or export", async ({
     page,
   }) => {
     await login(page, trainer);
-    await expectDenied(page, /\/trainer$/, 403);
+    await expectDenied(page, "/trainer", 403);
 
     await page.context().clearCookies();
     await login(page, student);
-    await expectDenied(page, /\/student$/, 403);
+    await expectDenied(page, "/student", 403);
 
     await page.context().clearCookies();
-    await expectDenied(page, /\/login\/admin/, 401);
+    await expectDenied(page, "/login/admin", 401);
   });
 });
