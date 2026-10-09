@@ -353,6 +353,13 @@ test.describe("Admin finds a recorded payment again", () => {
   test("ledger filters find it after a fresh sign-in; overpayment is refused", async ({
     page,
   }) => {
+    // Two full sign-ins, two recordings and four ledger loads against the
+    // remote dev project. Measured on the Windows run from the dev API log:
+    // ~34.5s from the first sign-in request to the last filtered ledger
+    // render, before the detail click — over the 30s default, while each
+    // single navigation stayed ~1–2.5s. This test only gets a 60s ceiling;
+    // every assertion keeps its default timeout.
+    test.setTimeout(60_000);
     const yesterday = istDate(-1);
     const reference = `${marker}-CASH`;
 
