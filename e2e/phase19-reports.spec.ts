@@ -62,9 +62,10 @@ async function login(page: Page, identity: Phase19Identity) {
   await page.getByRole("button", { name: "Sign in" }).click();
   // Login is complete on authentication evidence alone — never on the
   // dashboard's streamed sections finishing (they are optional content and
-  // may still be loading): the role's protected home URL, its heading, and
-  // (Admin) the shell navigation that only the server-side role-gated admin
-  // layout renders, plus the Supabase session cookie the server set.
+  // may still be loading): the role's protected home URL, the role's portal
+  // navigation (rendered only by that role's server-side role-gated layout),
+  // and the Supabase session cookie the server set. Never display text such
+  // as a greeting.
   if (identity.role === "admin") {
     await expect(page).toHaveURL(/\/admin$/);
     await expect(
@@ -73,10 +74,21 @@ async function login(page: Page, identity: Phase19Identity) {
     await expect(adminNav(page)).toBeVisible();
   } else {
     await expect(page).toHaveURL(new RegExp(`/${identity.role}$`));
-    await expect(page.getByRole("heading", { name: /^Welcome/, level: 1 })).toBeVisible();
+    // The Trainer/Student home has no streaming boundary, so its shell
+    // arrives only once all of its data has loaded — measured 3.6–4.7s after
+    // sign-in on the Windows + remote dev setup, at the edge of the default
+    // 5s window. This one check gets an approved 15s ceiling; it returns as
+    // soon as the navigation renders.
+    await expect(portalNav(page, identity.role)).toBeVisible({ timeout: 15_000 });
   }
   const cookieNames = (await page.context().cookies()).map((c) => c.name);
   expect(cookieNames.some((name) => /^sb-.+-auth-token(\.\d+)?$/.test(name))).toBe(true);
+}
+
+function portalNav(page: Page, role: "trainer" | "student"): Locator {
+  return page.getByRole("navigation", {
+    name: role === "trainer" ? "Trainer navigation" : "Student navigation",
+  });
 }
 
 function adminNav(page: Page): Locator {
@@ -571,6 +583,13 @@ test.describe("Reports access is denied to non-Admin roles", () => {
     // destination, with no Admin Reports UI rendered.
     await page.goto("/admin/reports");
     await expect(page).toHaveURL(new RegExp(`${homePath.replace(/\//g, "\\/")}$`));
+    // A signed-in Trainer/Student lands on their own real portal (its role
+    // navigation is rendered; page.goto has already waited for the load).
+    if (homePath === "/trainer" || homePath === "/student") {
+      await expect(
+        portalNav(page, homePath === "/trainer" ? "trainer" : "student"),
+      ).toBeVisible();
+    }
     await expectNoAdminReportsUi(page);
 
     // The overview and every individual report page are refused by the
@@ -608,6 +627,10 @@ test.describe("Reports access is denied to non-Admin roles", () => {
   test("Trainer, Student and anonymous users cannot open Reports or export", async ({
     page,
   }) => {
+    // Scoped to this test only (approved): two real non-Admin logins whose
+    // home pages each take ~4–5s to render on the Windows + remote dev
+    // setup, plus per-role denial checks, measured/estimated at ~28–32s.
+    test.setTimeout(60_000);
     await login(page, trainer);
     await expectDenied(page, "/trainer", 403);
 
