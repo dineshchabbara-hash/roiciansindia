@@ -413,6 +413,18 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 - FR-93 (P0): Razorpay signature verification on both the checkout-completion
   callback and the webhook; webhook processing is idempotent (dedup by Razorpay
   event ID / payment ID).
+  (Phase 20B implementation note, FR-43 "pay online" + FR-92 + FR-93, TEST
+  MODE ONLY: the Student pays for their own confirmed enrollment; the amount
+  is server-derived — next unpaid installment by oldest-first coverage, or
+  the full outstanding balance — never entered by the client. Orders are
+  created server-side and held in `payment_orders`; a ledger row is written
+  only for a payment Razorpay reports `captured`, via
+  `finalize_razorpay_payment()`, reached either from the verified Checkout
+  callback (HMAC + server-side fetch of the payment from Razorpay) or from a
+  signature-verified `payment.captured` webhook. Idempotent on the Razorpay
+  payment id (and event id); one paid row per order; non-acceptable
+  captures are held for review, never paid. See IMPLEMENTATION_PLAN.md
+  Phase 20B.)
 - FR-94 (P0): Every successful payment (online or offline) generates a sequential,
   unique receipt number and a downloadable PDF receipt; the student is emailed a
   copy.

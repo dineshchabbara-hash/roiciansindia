@@ -319,6 +319,33 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
     ineligible enrollment, P2003 payment id reused for a different payment,
     P2004 enrollment not found.
 
+- **Phase 20B (migration `20260101000036_razorpay_online_payments.sql`):**
+  unique index `payments_razorpay_order_paid_unique` on `razorpay_order_id`
+  where `status = 'paid'` (one paid row per Razorpay order). Online rows
+  are written only by `finalize_razorpay_payment()`: `method='razorpay'`,
+  `status='paid'` (or `'authorized'` + "Held for review: …" note when the
+  capture cannot be accepted), `payment_type` `installment`/`full` by
+  purpose, `installment_id` null, `created_by` null, `internal_reference` =
+  Razorpay payment id, `razorpay_signature` never stored.
+
+### `payment_orders` (Phase 20B)
+- `id uuid pk`, `provider text` (`razorpay`), `provider_order_id text unique`
+- `enrollment_id`, `student_id` (restrict FKs), `purpose`
+  (`next_installment` | `full_outstanding`), `installment_id` (set null;
+  which installment the amount was derived from — not an allocation)
+- `amount numeric(12,2) > 0`, `currency` (`INR`), `status`
+  (`created` | `superseded` | `paid` | `held`), `payment_id uuid unique` →
+  payments, `created_by_auth_user_id`, `expires_at`, timestamps
+- Unique partial index: one `created` order per enrollment.
+- RLS: SELECT admin / own student; no write policy. Written only by
+  `register_razorpay_order()` / `finalize_razorpay_payment()` (service_role).
+
+### `razorpay_webhook_events` (Phase 20B)
+- `event_id text unique` (x-razorpay-event-id), `event_type`,
+  `provider_order_id`, `provider_payment_id`, `outcome`, `received_at`,
+  `processed_at`. No payload or signature is stored. RLS: SELECT admin only;
+  written by the webhook route via service_role.
+
 ### `payment_refunds`
 - `id uuid pk`
 - `payment_id uuid not null references payments(id) on delete restrict`

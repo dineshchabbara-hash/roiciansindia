@@ -118,6 +118,10 @@ Notes:
   audited as `payment.recorded_offline`. Recorded payments cannot be edited
   or deleted by any role. Trainers have no payment access; Students only see
   their own payments/balances in their existing portal views.)
+  (Phase 20B, TEST MODE: "Initiate/verify online payment" is enforced as the
+  matrix says — only a Student, for their own confirmed enrollment, can
+  start a Razorpay payment; Admin/Super Admin see online payments in the
+  ledger but cannot initiate or confirm one; Trainers have no access.)
 - Issue/revoke certificates.
 - Manage leads pipeline.
 - View all reports across all programs/batches/trainers.

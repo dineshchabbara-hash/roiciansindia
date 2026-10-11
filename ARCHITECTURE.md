@@ -261,7 +261,15 @@ Full flow and idempotency strategy detailed in `API_AND_INTEGRATIONS.md`. Summar
 7. Receipt PDF is generated and emailed; dashboards read the updated, already-
    persisted state — nothing is computed client-side.
 
-(Steps 1–7 are the online flow, Phase 20B. Phase 20A's offline flow is:
+(Phase 20B implements steps 1–6 in TEST MODE with the refinements listed
+in `API_AND_INTEGRATIONS.md` §2 — intent in `payment_orders`, ledger row on
+capture only via `finalize_razorpay_payment()`, no cache recompute, no
+receipt yet. Code: `lib/payments/*` (config, gateway, signatures),
+`lib/domain/online-payments.ts`, `lib/data/online-payments.ts`,
+`lib/actions/online-payments.ts`, `app/api/razorpay/webhook/route.ts`,
+`components/student/payments/*`.
+
+Steps 1–7 are the online flow, Phase 20B. Phase 20A's offline flow is:
 Admin finds the enrollment → reviews the Phase 14 figures → submits the
 form → `recordOfflinePaymentAction` (role check, zod) →
 `record_offline_payment()` (role check, enrollment row lock, eligibility,

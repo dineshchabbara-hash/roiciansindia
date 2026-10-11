@@ -178,6 +178,32 @@ before use (prevents Insecure Direct Object Reference / IDOR).
 - Audit: `payment.recorded_offline` via the existing `writeAuditLog`
   (service-role insert, append-only), minimal metadata, no free text.
 
+### 9b. Online payments — Razorpay TEST MODE (Phase 20B)
+
+- Trust boundary: the browser sends only an enrollment id + option
+  (order) and Razorpay's Checkout result (verification). Amount, student,
+  ownership and success are all decided server-side; success only by
+  Razorpay (HMAC-verified callback + server-side fetch showing `captured`,
+  or an HMAC-verified `payment.captured` webhook).
+- Secrets: `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` are read only
+  in `lib/payments/razorpay-config.ts` (`server-only`); the key id reaches
+  the browser per order, never via `NEXT_PUBLIC_`. Live keys (`rzp_live_`)
+  are refused. Build-output scan: no secret name/value in `.next/static`.
+- Signatures: HMAC-SHA256 with `timingSafeEqual` (the SDK's `===`
+  comparators are not used); webhook HMAC over the raw body read before
+  parsing; body capped at 256 KB.
+- Authorization: order creation and verification are Student-only actions
+  (rate-limited, SEC-7) operating on the session's own student id; the two
+  database functions are service_role-only; `payment_orders` /
+  `razorpay_webhook_events` have no end-user write policy; Trainers read
+  nothing; Admins cannot forge an order or a finalization.
+- Webhook endpoint: no session or cookie; excluded from the session proxy;
+  responses carry no detail; non-2xx only for bad signature/body (400), not
+  configured (503) or transient failure (500 → Razorpay redelivers).
+- Data minimization: Roicians stores Razorpay ids, amount, currency and
+  status only — no card/UPI/bank data, no signature, no webhook payload;
+  order notes carry codes only (API_AND_INTEGRATIONS.md §2.9).
+
 ## 10. Webhook Security (General)
 
 - Signature verification is mandatory for every inbound webhook (Razorpay today;

@@ -32,8 +32,8 @@ finished:
 | Phase | Scope | Status |
 |---|---|---|
 | 18b | Email & multi-channel delivery | Deferred |
-| **20A** | **Offline Payments Ledger** — Admin offline payment recording + Payments ledger (FR-90/FR-91/BR-6) | Active |
-| 20B | Razorpay Integration (FR-92/FR-93) | Not started — needs test-mode keys, webhook secret and a reachable webhook URL |
+| 20A | Offline Payments Ledger — Admin offline payment recording + Payments ledger (FR-90/FR-91/BR-6) | Complete (merged `2627ae9`) |
+| **20B** | **Razorpay Integration, TEST MODE** (FR-43 pay online, FR-92, FR-93, SEC-5/6/7) | Active — awaiting your TEST keys + webhook for real Test Mode acceptance |
 | 21 | Receipts, Refunds & Payment Documents (FR-94/FR-95/FR-97) | Not started — needs DECISIONS_NEEDED.md D7 (receipt half) and D8 |
 | 22 | Public Website | Deferred |
 | 23 | Lead Management | Not started |
@@ -1372,6 +1372,98 @@ outstanding balance updates correctly and only for that enrollment.
 Assignments/Certificates/Notifications/Reports in the revised Phase 15–21
 roadmap ordering — a Phase 15–21 planning decision, not a change to this
 phase's own scope, security implications, or DoD above.)
+
+**Phase 20B status:** ACTIVE IMPLEMENTATION — branch
+`claude/phase20b-razorpay-integration`, based off `main` at `2627ae9`.
+**TEST MODE ONLY** — live keys are refused by the code; no real money.
+
+**Decisions (checkpoint, not inferred):** the **Student** initiates online
+payment for their own enrollment (FR-43; role matrix: Admin/Super Admin
+view only). The amount is never entered: the Student picks one of two
+server-derived amounts — the **next unpaid installment** (net paid covers
+plan installments oldest-first by sequence, waived skipped; the first not
+fully covered is next and its uncovered remainder is charged, capped at the
+outstanding balance) or the **full outstanding balance** (Phase 14).
+Computed when the order is created only — nothing is written to
+`installments`; the ledger row stays enrollment-level (D9 unchanged). When
+the two amounts are equal only "full outstanding" is offered.
+
+**Architecture (delivered):**
+- Razorpay is a second entry channel into the SAME `payments` ledger. A
+  server-created Razorpay Order is held in `payment_orders` (the intent —
+  not a ledger); a ledger row is written only when Razorpay reports the
+  payment **captured**, by the single function `finalize_razorpay_payment()`.
+- Order creation (`createOnlineOrderAction`, Student only, rate-limited):
+  quote from the Phase 14 summary + plan → reuse a still-open order for the
+  same amount, else `orders.create` (INR, amount in paise, receipt =
+  enrollment code + nonce, notes = enrollment/program codes + purpose, never
+  `partial_payment`) → `register_razorpay_order()` (service_role; re-checks
+  ownership, confirmed status, installment ownership and the overpayment
+  guard under a row lock; one open order per enrollment). The browser gets
+  key id + order id + amount only.
+- Checkout: Razorpay's hosted Standard Checkout (checkout.razorpay.com
+  script) — card/UPI/bank data never touch Roicians.
+- Success, two paths, one transition: (a) Checkout result → server verifies
+  `HMAC_SHA256(order_id|payment_id, key secret)` (constant-time), checks the
+  order belongs to the caller, **fetches the payment from Razorpay** and
+  finalizes only if it is `captured`; (b) `POST /api/razorpay/webhook` →
+  verifies `HMAC_SHA256(raw body, webhook secret)`, logs the event id in
+  `razorpay_webhook_events`, finalizes on `payment.captured`. This refines
+  API_AND_INTEGRATIONS.md §2.6 ("webhook is the only finalizer"): the
+  callback path finalizes only on Razorpay's own server-fetched `captured`
+  status, so a spoofed or closed browser still cannot create a payment, and
+  online payments work before a public webhook URL exists; the webhook
+  remains the backstop. Authorized-but-not-captured is never paid.
+- Idempotency: unique `razorpay_payment_id`; unique paid row per
+  `razorpay_order_id`; unique `provider_order_id`; unique webhook
+  `event_id`; enrollment row lock shared with offline recording. Proven:
+  repeated callback, repeated/redelivered webhook, callback+webhook race
+  (two real sessions) and two payments on one order → one paid row.
+- Hold, never discard: a captured payment that cannot be accepted (amount or
+  currency differs from the order, order already paid, enrollment no longer
+  eligible, amount now above the outstanding balance — e.g. an offline
+  payment was recorded meanwhile) is stored as `authorized` with a "Held for
+  review" note: visible to Admin, excluded from financial truth, resolved
+  in Phase 21. Audit: exactly one `payment.recorded_online` /
+  `payment.online_held` row per ledger row, written inside the transaction
+  (actor `system`); no secrets, signatures or payloads.
+- UI: Student enrollment page "Pay online" card; Admin ledger shows method
+  "Razorpay (online)", reference = Razorpay payment id, status "Held for
+  review" for held rows; the Admin payment page shows the Razorpay order and
+  payment ids.
+
+**DB changes — migration `20260101000036_razorpay_online_payments.sql`:**
+`payment_orders`, `razorpay_webhook_events` (both RLS on, SELECT-only
+policies: Admin all, Student own orders, nobody else), unique index
+`payments_razorpay_order_paid_unique`, functions `register_razorpay_order`
+and `finalize_razorpay_payment` (SECURITY DEFINER, EXECUTE service_role
+only). Migrations 1–35 untouched.
+
+**Capture configuration:** use Razorpay's automatic capture (Test Mode
+Dashboard → Account & Settings → Payment capture → Automatic). The code
+never captures manually; an `authorized` payment is reported to the Student
+as "being confirmed" and is finalized when `payment.captured` arrives.
+
+**Phase 21 compatibility:** every online payment is a normal `payments`
+row (method `razorpay`, provider ids stored), so receipts, refunds
+(`payment_refunds.payment_id`, Razorpay refund id column already present)
+and held-payment resolution build on it without changing payment identity.
+
+**Known limitations:** installment display statuses still come from
+`amount_paid_cache` (unchanged since Phase 14), so an installment covered by
+an online payment still shows "Due" in the schedule — the Pay card's
+next-installment amount uses the coverage rule; real hosted-Checkout card
+entry is validated manually in Test Mode (E2E stubs only Razorpay's script
+and confirms via a signed webhook); `payment.failed` events are logged and
+ignored (nothing to record); no receipt/email (Phase 21 / 18b).
+
+**Deferred go-live checklist (pre-production/UAT, NOT this phase):** live
+key id/secret and a live webhook (+ new secret) in production env only;
+remove the live-key refusal deliberately in a reviewed change; production
+webhook URL on the production domain; confirm automatic capture in Live
+Mode; ₹1 live smoke test; settlement/reconciliation procedure; Upstash rate
+limiting in production; monitoring/alerting on webhook 5xx and held
+payments.
 
 ## Phase 21 — Receipts, Refunds & Payment Documents
 

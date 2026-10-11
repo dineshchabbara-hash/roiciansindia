@@ -26,11 +26,19 @@ for the sake of having one.
 
 ## 2. Razorpay Integration
 
-(Phase numbering: Razorpay is **Phase 20B**. Phase 20A delivered the
-offline, Admin-recorded payment path first — a Server Action calling the
-`record_offline_payment()` database function, no new HTTP endpoint; see
-`IMPLEMENTATION_PLAN.md` Phase 20A. Nothing in this section is implemented
-yet.)
+(Phase 20B — implemented in TEST MODE. Differences from the original design
+below, all deliberate and documented in `IMPLEMENTATION_PLAN.md` Phase 20B:
+order creation is the Server Action `createOnlineOrderAction` (no
+`/api/razorpay/create-order` route) and the server-derived amount is the
+next unpaid installment (oldest-first coverage) or the full outstanding
+balance; the pending intent lives in `payment_orders`, not as a `pending`
+`payments` row — a ledger row is written only on capture; the callback
+path also finalizes, but only after fetching the payment from Razorpay and
+seeing `captured` (the webhook is the backstop); `enrollments.*_cache` are
+not recomputed (balances stay live, Phase 14) and no receipt is minted
+(Phase 21). Endpoint: `POST /api/razorpay/webhook`; subscribed event:
+`payment.captured` only. Phase 20A delivered the offline path via
+`record_offline_payment()`.)
 
 ### 2.1 Why Razorpay
 Required by the brief; India-first, supports UPI/cards/netbanking/wallets, has a

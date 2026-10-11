@@ -142,6 +142,18 @@ Phase 20A code was written (none was inferred):
 D8 (refund sign) is unaffected: Phase 20A records no refunds and does not
 change the outstanding formula.
 
+### D10. Online payment amount — RESOLVED (Phase 20B checkpoint)
+
+- Who: the Student, for their own enrollment (already defined by FR-43 and
+  the role matrix).
+- Amount: the Student chooses between the **next unpaid installment** and
+  the **full outstanding balance**; never a typed amount (FR-92/SEC-6).
+- Next unpaid installment = oldest-first coverage: net paid (paid −
+  processed refunds) covers plan installments by sequence, waived skipped;
+  the first not fully covered is next; amount = its uncovered remainder,
+  capped at the outstanding balance. Computed at order time only — no
+  allocation is stored (D9 still holds).
+
 ---
 
 Everything else in the original brief — including all items the brief itself
