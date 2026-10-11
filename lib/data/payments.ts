@@ -223,12 +223,17 @@ export type PaymentDetail = PaymentLedgerRow & {
   recordedByName: string | null;
   /** Whether an admin recorded it at all (false for an online payment). */
   recordedByAdmin: boolean;
+  /** Phase 20B: Razorpay identifiers for reconciliation (null for offline). */
+  providerOrderId: string | null;
+  providerPaymentId: string | null;
 };
 
 type DetailRowDb = LedgerRowDb & {
   tax_amount: string | number;
   notes: string | null;
   created_by: string | null;
+  razorpay_order_id: string | null;
+  razorpay_payment_id: string | null;
   recorder: { first_name: string; last_name: string } | null;
 };
 
@@ -238,7 +243,7 @@ export async function getPaymentDetail(id: string): Promise<DataResult<PaymentDe
     const { data, error } = await supabase
       .from("payments")
       .select(
-        `${LEDGER_SELECT}, tax_amount, notes, created_by, recorder:admins!payments_created_by_fkey(first_name, last_name)`,
+        `${LEDGER_SELECT}, tax_amount, notes, created_by, razorpay_order_id, razorpay_payment_id, recorder:admins!payments_created_by_fkey(first_name, last_name)`,
       )
       .eq("id", id)
       .maybeSingle();
@@ -255,6 +260,8 @@ export async function getPaymentDetail(id: string): Promise<DataResult<PaymentDe
         recordedByName: row.recorder
           ? `${row.recorder.first_name} ${row.recorder.last_name}`.trim()
           : null,
+        providerOrderId: row.razorpay_order_id ?? null,
+        providerPaymentId: row.razorpay_payment_id ?? null,
       },
     };
   } catch (error) {

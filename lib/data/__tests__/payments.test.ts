@@ -260,6 +260,48 @@ describe("getPaymentDetail", () => {
     });
   });
 
+  it("exposes Razorpay ids for an online payment (Phase 20B) and none for offline", async () => {
+    makeClient([
+      {
+        data: {
+          ...ledgerRow,
+          method: "razorpay",
+          tax_amount: "0.00",
+          notes: null,
+          created_by: null,
+          razorpay_order_id: "order_ABC",
+          razorpay_payment_id: "pay_DEF",
+          recorder: null,
+        },
+      },
+    ]);
+    const online = await getPaymentDetail(PAYMENT_ID);
+    expect(online.ok && online.data).toMatchObject({
+      recordedByAdmin: false,
+      providerOrderId: "order_ABC",
+      providerPaymentId: "pay_DEF",
+    });
+
+    makeClient([
+      {
+        data: {
+          ...ledgerRow,
+          tax_amount: "0.00",
+          notes: null,
+          created_by: "admin-row-1",
+          razorpay_order_id: null,
+          razorpay_payment_id: null,
+          recorder: null,
+        },
+      },
+    ]);
+    const offline = await getPaymentDetail(PAYMENT_ID);
+    expect(offline.ok && offline.data).toMatchObject({
+      providerOrderId: null,
+      providerPaymentId: null,
+    });
+  });
+
   it("reports a missing payment", async () => {
     makeClient([{ data: null }]);
     expect(await getPaymentDetail(PAYMENT_ID)).toEqual({

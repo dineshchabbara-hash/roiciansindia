@@ -70,6 +70,13 @@ export default async function PaymentDetailPage({
       payment.recordedByAdmin ? (payment.recordedByName ?? "An administrator") : "Online",
     ],
     ["Recorded on", formatTimestampAsIstDate(payment.createdAt) || "—"],
+    // Phase 20B: online payments carry Razorpay's ids for reconciliation.
+    ...(payment.providerOrderId
+      ? ([
+          ["Razorpay order", payment.providerOrderId],
+          ["Razorpay payment", payment.providerPaymentId ?? "—"],
+        ] as Array<[string, React.ReactNode]>)
+      : []),
   ];
 
   return (

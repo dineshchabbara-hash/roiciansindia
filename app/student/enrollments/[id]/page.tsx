@@ -14,6 +14,7 @@ import { StudentPaymentPlanCard } from "@/components/student/student-payment-pla
 import { StudentMaterialsCard } from "@/components/student/student-materials-card";
 import { StudentAssignmentsCard } from "@/components/student/assignments/student-assignments-card";
 import { StudentCertificatesCard } from "@/components/student/certificates/student-certificates-card";
+import { StudentPayOnlineCard } from "@/components/student/payments/student-pay-online-card";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,9 @@ export default async function StudentEnrollmentDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Phase 20B: Razorpay test-mode online payment (FR-43). */}
+      <StudentPayOnlineCard enrollmentId={enrollment.id} />
 
       <Card>
         <CardHeader>

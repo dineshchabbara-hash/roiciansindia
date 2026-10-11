@@ -90,7 +90,10 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   pending: "Pending",
-  authorized: "Authorized",
+  // Phase 20B: a captured Razorpay payment that could not be accepted as
+  // paid is stored as authorized (see finalize_razorpay_payment) — it is
+  // money received but not financial truth until reviewed (Phase 21).
+  authorized: "Held for review",
   paid: "Paid",
   failed: "Failed",
   refunded: "Refunded",
