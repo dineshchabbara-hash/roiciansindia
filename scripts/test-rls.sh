@@ -79,3 +79,6 @@ run_sql "${REPO_ROOT}/supabase/tests/phase19_reports_test.sql"
 
 echo "Running Phase 20A (Offline Payments Ledger) regression assertions..."
 run_sql "${REPO_ROOT}/supabase/tests/phase20_offline_payments_test.sql"
+
+echo "Running Phase 20B (Razorpay) regression assertions..."
+run_sql "${REPO_ROOT}/supabase/tests/phase20b_razorpay_test.sql"
