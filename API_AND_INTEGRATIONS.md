@@ -229,8 +229,10 @@ include unnecessary personal data.
   immutable once issued, matching its role as a financial record).
 - Phase 21A implementation: `lib/pdf/receipt.tsx` (one template for
   offline and Razorpay), fields from `lib/domain/receipts.ts`. Issued by
-  `issue_receipt()` after the payment is `paid`; for Razorpay it is queued
-  with `after()` once finalization reports `recorded`/`already_recorded`.
+  `issue_receipt()` after the payment is `paid`; for offline recording the
+  number is reserved before the redirect and the PDF rendered with
+  `after()`; for Razorpay the whole step is queued with `after()` once
+  finalization reports `recorded`/`already_recorded`.
   If rendering/upload fails the number stays reserved and the same path is
   retried (download route or Admin "Generate receipt"). Download:
   `GET /api/payments/[id]/receipt` (Admin any, Student own; streamed, no

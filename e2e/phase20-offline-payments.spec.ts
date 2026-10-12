@@ -7,6 +7,7 @@ import {
   createPhase20Enrollment,
   createPhase20Student,
   findExistingProgramWithBatch,
+  isReceiptPdfGenerated,
   newPhase20Tracked,
   Phase20PartialIdentityError,
   phase20Marker,
@@ -146,6 +147,9 @@ async function expectRecorded(
   await expect(
     page.getByRole("status").filter({ hasText: "recorded against" }),
   ).toHaveText(`Payment ${code} recorded against ${enrollmentCode}.`);
+  // Phase 21A: the receipt PDF is generated after the response; waiting for
+  // it keeps the exact-id cleanup of the receipt deterministic.
+  await expect.poll(() => isReceiptPdfGenerated(id)).toBe(true);
   return { id, code };
 }
 

@@ -1520,8 +1520,12 @@ real concurrency by `scripts/test-receipt-issuance-concurrency.sh` (three
 in-flight callers → one row, one number, one audit row).
 
 **When:** automatically, from the canonical ledger row —
-- offline: `recordOfflinePaymentAction` right after `record_offline_payment`
-  (a receipt failure never hides the recorded payment);
+- offline: `recordOfflinePaymentAction` reserves the number right after
+  `record_offline_payment` (one fast `issue_receipt` call, so the payment
+  page shows it at once) and the PDF is rendered/uploaded after the
+  response via `after()` — the redirect is never delayed or failed by
+  document work (Windows acceptance found synchronous rendering pushed the
+  redirect past 5s), and a receipt failure never hides the recorded payment;
 - Razorpay: after `finalize_razorpay_payment` reports `recorded` /
   `already_recorded` (webhook or verified Checkout), queued with Next's
   `after()` so the webhook response is not slowed; held captures get none.
@@ -1558,7 +1562,8 @@ receipts" card (own paid payments, receipt number, Download).
 
 **E2E impact on earlier suites:** Phase 20A/20B fixtures now remove each
 payment's receipt row and its exact PDF object before the payment;
-Phase 20B Test 1 waits for the receipt to be generated before cleanup.
+Phase 20A's recording helper and Phase 20B Test 1 wait for the receipt PDF
+to be generated before cleanup.
 
 **Known limitations:** no email (18b); no refunds/credit notes (21B — a
 receipt stays attached to its payment, so a refund can later reference the

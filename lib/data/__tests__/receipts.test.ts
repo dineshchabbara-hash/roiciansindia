@@ -26,6 +26,7 @@ import {
   getMyPaymentReceipts,
   getReceiptForPayment,
   getReceiptPdfForViewer,
+  issueReceiptNow,
   queueReceiptIssuance,
 } from "@/lib/data/receipts";
 
@@ -285,6 +286,78 @@ describe("ensureReceiptForPayment", () => {
       ok: false,
       error: "The receipt could not be issued. Please try again.",
     });
+  });
+});
+
+describe("issueReceiptNow (offline recording path)", () => {
+  it("reserves the number synchronously and defers the PDF until after the response", async () => {
+    const admin = makeClient({
+      rpc: { issue_receipt: ISSUE_FRESH },
+      tables: SOURCE_TABLES,
+    });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(admin.client as never);
+
+    const result = await issueReceiptNow(PAYMENT_ID);
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        receiptId: RECEIPT_ID,
+        receiptNumber: "REC-2026-000007",
+        alreadyIssued: false,
+        pdfReady: false,
+      },
+    });
+    // Only the number was reserved before returning: no render, no upload.
+    expect(admin.rpcCalls).toHaveLength(1);
+    expect(renderReceiptPdf).not.toHaveBeenCalled();
+    expect(admin.storageCalls).toEqual([]);
+    expect(after).toHaveBeenCalledTimes(1);
+
+    // The deferred task completes the same receipt (same number, same path).
+    const task = vi.mocked(after).mock.calls[0][0] as () => Promise<void>;
+    await task();
+    expect(admin.rpcCalls).toHaveLength(2);
+    expect(renderReceiptPdf).toHaveBeenCalledTimes(1);
+    expect(admin.storageCalls.map((c) => [c.method, c.args[0]])).toEqual([
+      ["upload", PDF_PATH],
+    ]);
+  });
+
+  it("queues nothing when the receipt's PDF already exists", async () => {
+    const admin = makeClient({
+      rpc: {
+        issue_receipt: {
+          data: [
+            {
+              ...ISSUE_FRESH.data[0],
+              pdf_generated_at: "2026-10-12T04:31:00Z",
+              already_issued: true,
+            },
+          ],
+        },
+      },
+    });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(admin.client as never);
+
+    expect(await issueReceiptNow(PAYMENT_ID)).toMatchObject({
+      ok: true,
+      data: { alreadyIssued: true, pdfReady: true },
+    });
+    expect(after).not.toHaveBeenCalled();
+  });
+
+  it("passes a refusal through without queueing anything", async () => {
+    const admin = makeClient({
+      rpc: { issue_receipt: { error: { code: "P2101", message: "x" } } },
+    });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(admin.client as never);
+
+    expect(await issueReceiptNow(PAYMENT_ID)).toEqual({
+      ok: false,
+      error: "A receipt can only be issued for a paid payment.",
+    });
+    expect(after).not.toHaveBeenCalled();
   });
 });
 

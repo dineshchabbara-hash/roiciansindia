@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { deleteReceiptOfPayment } from "./receipt-cleanup";
+import { deleteReceiptOfPayment, readReceiptOfPayment } from "./receipt-cleanup";
 import { randomBytes, randomInt } from "node:crypto";
 
 /**
@@ -316,6 +316,16 @@ export async function readPaymentAuditEntries(
     actorRole: row.actor_role,
     after: row.after_data,
   }));
+}
+
+/**
+ * Phase 21A: whether the receipt PDF of one exact payment id has been
+ * generated (read only). The PDF is produced after the recording response,
+ * so a suite waits on this before its exact-id cleanup removes the receipt.
+ */
+export async function isReceiptPdfGenerated(paymentId: string): Promise<boolean> {
+  const receipt = await readReceiptOfPayment(serviceClient(), paymentId);
+  return Boolean(receipt?.pdf_generated_at);
 }
 
 /** Count of payments on one exact enrollment id (read only). */

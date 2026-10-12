@@ -299,6 +299,36 @@ async function generateReceiptPdf(
   if (markError) throw markError;
 }
 
+/** issue_receipt(): reserves (or returns) the payment's receipt. */
+async function callIssueReceipt(
+  paymentId: string,
+): Promise<DataResult<{ admin: ServiceClient; row: IssueRow }>> {
+  try {
+    const admin = createSupabaseAdminClient();
+    const { data, error } = await admin.rpc("issue_receipt", { p_payment_id: paymentId });
+    if (error) {
+      if (error.code === "P2101") return { ok: false, error: NOT_PAID };
+      if (error.code === "P2104") return { ok: false, error: "Payment not found." };
+      throw error;
+    }
+    const first = (data as IssueRow[] | null)?.[0];
+    if (!first) throw new Error("issue_receipt returned no row");
+    return { ok: true, data: { admin, row: first } };
+  } catch (error) {
+    log("Could not issue a receipt", error);
+    return { ok: false, error: "The receipt could not be issued. Please try again." };
+  }
+}
+
+function toIssued(row: IssueRow): IssuedReceipt {
+  return {
+    receiptId: row.receipt_id,
+    receiptNumber: row.receipt_number,
+    alreadyIssued: row.already_issued,
+    pdfReady: row.pdf_generated_at !== null,
+  };
+}
+
 /**
  * Issue (idempotently) the receipt of a paid payment and make sure its PDF
  * exists. Never trusts a caller-supplied amount or identity: everything
@@ -309,30 +339,11 @@ async function generateReceiptPdf(
 export async function ensureReceiptForPayment(
   paymentId: string,
 ): Promise<DataResult<IssuedReceipt>> {
-  let admin: ServiceClient;
-  let row: IssueRow;
-  try {
-    admin = createSupabaseAdminClient();
-    const { data, error } = await admin.rpc("issue_receipt", { p_payment_id: paymentId });
-    if (error) {
-      if (error.code === "P2101") return { ok: false, error: NOT_PAID };
-      if (error.code === "P2104") return { ok: false, error: "Payment not found." };
-      throw error;
-    }
-    const first = (data as IssueRow[] | null)?.[0];
-    if (!first) throw new Error("issue_receipt returned no row");
-    row = first;
-  } catch (error) {
-    log("Could not issue a receipt", error);
-    return { ok: false, error: "The receipt could not be issued. Please try again." };
-  }
+  const issuedRow = await callIssueReceipt(paymentId);
+  if (!issuedRow.ok) return issuedRow;
+  const { admin, row } = issuedRow.data;
 
-  const issued: IssuedReceipt = {
-    receiptId: row.receipt_id,
-    receiptNumber: row.receipt_number,
-    alreadyIssued: row.already_issued,
-    pdfReady: row.pdf_generated_at !== null,
-  };
+  const issued = toIssued(row);
   if (issued.pdfReady) return { ok: true, data: issued };
 
   try {
@@ -347,6 +358,25 @@ export async function ensureReceiptForPayment(
     );
     return { ok: true, data: issued };
   }
+}
+
+/**
+ * Offline recording path: reserve the receipt number now — one fast,
+ * idempotent database call, so the payment page shows it straight away —
+ * and render/upload the PDF after the response. The Admin's redirect to
+ * the recorded payment is therefore never delayed by document work (the
+ * Phase 20A redirect timing is preserved) and never fails because of it.
+ * If the deferred PDF step fails, the number stays reserved and the
+ * download route or "Retry PDF generation" completes it.
+ */
+export async function issueReceiptNow(
+  paymentId: string,
+): Promise<DataResult<IssuedReceipt>> {
+  const issuedRow = await callIssueReceipt(paymentId);
+  if (!issuedRow.ok) return issuedRow;
+  const issued = toIssued(issuedRow.data.row);
+  if (!issued.pdfReady) queueReceiptIssuance(paymentId);
+  return { ok: true, data: issued };
 }
 
 /**

@@ -33,8 +33,9 @@ import {
  * scripts/test-receipt-issuance-concurrency.sh, not here.
  *
  *   1. An Admin records an offline payment through the real UI; the
- *      payment page shows its one receipt; the PDF downloads and prints
- *      the canonical payment; downloading again creates nothing new.
+ *      payment page shows its one receipt number at once, the PDF is
+ *      generated after the response, downloads and prints the canonical
+ *      payment; downloading again creates nothing new.
  *   2. A Student's Razorpay payment (synthetic order + signed webhook, no
  *      Razorpay API call) gets the same kind of receipt; the Student
  *      downloads their own, cannot download another Student's (and that
@@ -148,7 +149,7 @@ test.describe("Admin records an offline payment and gets its receipt", () => {
     page,
   }) => {
     // One sign-in, one recording (the first PDF render of the server
-    // process happens inside it), two payment-page loads and two PDF
+    // process happens right after it), three payment-page loads and two PDF
     // downloads against the remote dev project. The comparable Phase 20A
     // Windows run measured ~34.5s for two sign-ins + two recordings + four
     // ledger loads; this test gets the same 60s ceiling and every assertion
@@ -180,16 +181,21 @@ test.describe("Admin records an offline payment and gets its receipt", () => {
       (await page.getByRole("heading", { level: 1 }).textContent()) ?? "";
     expect(paymentCode).toMatch(/^PAY-\d{6,}$/);
 
-    // The payment page shows exactly the receipt the database issued.
+    // The receipt number is reserved before the redirect, so the payment
+    // page shows exactly the number the database issued straight away.
     const card = receiptCard(page);
-    await expect(definition(card, "Document")).toHaveText("PDF ready");
     const shownNumber = (await definition(card, "Receipt number").textContent()) ?? "";
     expect(shownNumber).toMatch(RECEIPT_NUMBER);
 
+    // The PDF is generated after the response (never in the redirect's way).
+    await expect
+      .poll(async () => (await readPaymentReceipt(paymentId))?.pdf_generated_at ?? null)
+      .not.toBeNull();
     const receipt = await readPaymentReceipt(paymentId);
     expect(receipt).not.toBeNull();
     expect(receipt!.receipt_number).toBe(shownNumber);
-    expect(receipt!.pdf_generated_at).not.toBeNull();
+    await page.reload();
+    await expect(definition(card, "Document")).toHaveText("PDF ready");
     expect(await readReceiptAudit(receipt!.id)).toEqual([
       expect.objectContaining({
         action: "receipt.issued",
