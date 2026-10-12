@@ -76,7 +76,7 @@ the same concurrency-safety guarantee applies everywhere:
 create sequence student_id_seq start 10001 increment 1;
 create sequence enrollment_id_seq start 1 increment 1;
 create sequence payment_id_seq start 1 increment 1;
-create sequence receipt_number_seq start 1 increment 1;   -- reset logic below
+create sequence receipt_number_seq start 1 increment 1;   -- global, never reset (D7)
 create sequence certificate_number_seq start 1 increment 1; -- reset logic below
 ```
 
@@ -93,13 +93,16 @@ create sequence certificate_number_seq start 1 increment 1; -- reset logic below
   from Razorpay's own `order_id`/`payment_id`, which are stored in separate columns.
 - **Receipt number** (`receipts.receipt_number`): formatted
   `REC-{year}-{nextval('receipt_number_seq')::text padded to 6}`, e.g.
-  `REC-2026-000001`. The sequence resets per calendar year via a scheduled admin
-  action or a year-partitioned sequence name resolved at generation time (see
-  implementation note below); format itself is configurable in `company_settings`
-  (prefix, padding width, year inclusion) without changing the underlying
-  concurrency mechanism. Immutable after creation, alongside `payment_id` and
-  `pdf_path` — a trigger blocks changes to all three; only `emailed_at` may be
-  updated later (when the confirmation email actually sends).
+  `REC-2026-000001`. The sequence is global and **never resets**
+  (`DECISIONS_NEEDED.md` D7, resolved Phase 21A): `{year}` is only the
+  Asia/Kolkata year of issue, so numbers stay unique across years and gaps
+  from rolled-back transactions are accepted. Format comes from
+  `company_settings.receipt_number_format` (a format without `{seq:N}`
+  falls back to the default). Minted only by `next_receipt_number()` inside
+  `issue_receipt()` (service_role, `20260101000037`). Immutable after
+  creation, alongside `payment_id`, `pdf_path` and `created_at` — a trigger
+  blocks changes; `pdf_generated_at` may be set once; only `emailed_at` may
+  be updated later (when the confirmation email actually sends).
 - **Certificate ID** (`certificates.certificate_number`): same pattern,
   `CERT-{year}-{nextval('certificate_number_seq')::text padded to 6}`. Immutable
   after creation, alongside `enrollment_id`/`student_id`/`program_id`/
@@ -360,9 +363,11 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
 - `id uuid pk`
 - `receipt_number text unique not null`
 - `payment_id uuid unique not null references payments(id) on delete restrict`
-- `pdf_path text not null` — Storage object key
+- `pdf_path text not null` — Storage object key (`{student_id}/{receipt_id}.pdf` in the private `receipts` bucket)
+- `pdf_generated_at timestamptz` — Phase 21A: set once when the PDF has been stored; null = issued, PDF pending (retried on the same path)
 - `emailed_at timestamptz`
 - `created_at`
+- Written only by `issue_receipt(payment_id)` (service_role): locks the payment, requires `status = 'paid'`, reuses an existing receipt, mints the number, writes one `receipt.issued` audit row. A BEFORE INSERT trigger rejects a receipt for a non-paid payment for every writer. RLS: SELECT only (Admin all, Student own via the payment); no end-user insert/update/delete.
 
 ### `class_sessions`
 - `id uuid pk`

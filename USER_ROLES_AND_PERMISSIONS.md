@@ -54,6 +54,11 @@ Update, Scoped, **–** = No access.
 | Record offline payment | F | F | – | – |
 | Initiate/verify online payment | F (view only) | F (view only) | – | CS (self, pay only) |
 | View payments/receipts | F | F | – | RS (self) |
+
+(Phase 21A: receipts are issued by the system, never typed — Admin/Super
+Admin view/download any receipt and may only trigger "Generate receipt" for
+a paid payment whose automatic issuance did not complete; nobody can edit
+or delete an issued receipt. Student: own receipts only. Trainer: none.)
 | Issue refund | F | F (audited) | – | – |
 | Manage Class Sessions | F | F | CS (assigned batches) | R (enrolled) |
 | Mark/Edit Attendance | F | F | CS (assigned batches only) | R (self) |

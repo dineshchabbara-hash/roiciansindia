@@ -10,6 +10,7 @@ import {
   readEnrollmentOrders,
   readEnrollmentPayments,
   readPaymentAudit,
+  readPaymentReceipt,
   readWebhookEvents,
   signedCapturedWebhook,
   syntheticPaymentId,
@@ -210,6 +211,13 @@ test.describe("Student pays online and the webhook reconciles once", () => {
     const orders = await readEnrollmentOrders(enrollmentId);
     expect(orders).toHaveLength(1);
     expect(orders[0]).toMatchObject({ status: "paid", purpose: "next_installment" });
+    // Phase 21A: the now-paid payment gets exactly one receipt, issued after
+    // the webhook response; waiting for it also keeps cleanup exact.
+    await expect
+      .poll(
+        async () => (await readPaymentReceipt(payments[0].id))?.pdf_generated_at ?? null,
+      )
+      .not.toBeNull();
 
     // Phase 14 figures on the Student page moved by exactly ₹2,000.
     await page.reload();

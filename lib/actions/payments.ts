@@ -6,6 +6,7 @@ import { getCurrentUserContext } from "@/lib/auth/session";
 import { isAdminOrSuperAdmin } from "@/lib/domain/rbac";
 import { recordOfflinePayment } from "@/lib/data/payments";
 import { writeAuditLog } from "@/lib/data/audit-log";
+import { ensureReceiptForPayment } from "@/lib/data/receipts";
 import { parseRecordOfflinePaymentFormData } from "@/lib/validation/payments";
 
 /**
@@ -20,6 +21,11 @@ import { parseRecordOfflinePaymentFormData } from "@/lib/validation/payments";
  * no reference text. An idempotent resubmission of the same form (the
  * database reports already_recorded) creates no second payment and no
  * second audit entry; it lands on the same payment page.
+ *
+ * Phase 21A: the payment's receipt (FR-94) is issued right after it is
+ * recorded — idempotently, so a resubmission reuses the same receipt. A
+ * receipt failure never undoes or hides the recorded payment: the detail
+ * page shows the receipt as pending and offers a retry.
  */
 
 const NOT_AUTHORIZED = "You are not authorized to record payments.";
@@ -63,6 +69,13 @@ export async function recordOfflinePaymentAction(
         paidOn: parsed.data.paidOn,
       },
     });
+  }
+
+  const receipt = await ensureReceiptForPayment(result.data.id);
+  if (!receipt.ok) {
+    console.error(
+      `[payments] receipt not issued for ${result.data.paymentCode}: ${receipt.error}`,
+    );
   }
 
   revalidatePath("/admin/payments");

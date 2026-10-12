@@ -15,6 +15,8 @@ import { StudentMaterialsCard } from "@/components/student/student-materials-car
 import { StudentAssignmentsCard } from "@/components/student/assignments/student-assignments-card";
 import { StudentCertificatesCard } from "@/components/student/certificates/student-certificates-card";
 import { StudentPayOnlineCard } from "@/components/student/payments/student-pay-online-card";
+import { StudentReceiptsCard } from "@/components/student/payments/student-receipts-card";
+import { getMyPaymentReceipts } from "@/lib/data/receipts";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +51,7 @@ export default async function StudentEnrollmentDetailPage({
   const materialsResult = await getMyMaterialsForEnrollment(id);
   const assignmentsResult = await getMyAssignmentsForEnrollment(id);
   const certificatesResult = await getCertificatesForEnrollment(id);
+  const receiptsResult = await getMyPaymentReceipts(id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -100,6 +103,12 @@ export default async function StudentEnrollmentDetailPage({
 
       {/* Phase 20B: Razorpay test-mode online payment (FR-43). */}
       <StudentPayOnlineCard enrollmentId={enrollment.id} />
+
+      {/* Phase 21A: own paid payments and their receipts (FR-94). */}
+      <StudentReceiptsCard
+        rows={receiptsResult.ok ? receiptsResult.data : []}
+        loadError={receiptsResult.ok ? undefined : receiptsResult.error}
+      />
 
       <Card>
         <CardHeader>

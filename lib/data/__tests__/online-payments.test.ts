@@ -15,11 +15,13 @@ vi.mock("@/lib/data/student-portal", () => ({ getMyEnrollment: vi.fn() }));
 vi.mock("@/lib/data/payment-plans", () => ({ getPaymentPlanForEnrollment: vi.fn() }));
 vi.mock("@/lib/payments/razorpay-gateway", () => ({ createRazorpayGateway: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
+vi.mock("@/lib/data/receipts", () => ({ queueReceiptIssuance: vi.fn() }));
 
 import { getMyEnrollment } from "@/lib/data/student-portal";
 import { getPaymentPlanForEnrollment } from "@/lib/data/payment-plans";
 import { createRazorpayGateway } from "@/lib/payments/razorpay-gateway";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { queueReceiptIssuance } from "@/lib/data/receipts";
 import {
   createMyOnlineOrder,
   getMyOnlinePaymentQuote,
@@ -423,6 +425,8 @@ describe("verifyMyCheckout", () => {
         },
       },
     ]);
+    // Phase 21A: the now-paid payment's receipt is queued (after the response).
+    expect(queueReceiptIssuance).toHaveBeenCalledExactlyOnceWith("p1");
   });
 
   it("treats a repeated callback (already recorded) as paid", async () => {
@@ -449,6 +453,8 @@ describe("verifyMyCheckout", () => {
     expect(
       await verifyMyCheckout({ checkout: checkout(), studentId: STUDENT_ID }),
     ).toMatchObject({ status: "paid" });
+    // Idempotent: the receipt step reuses the existing receipt, if any.
+    expect(queueReceiptIssuance).toHaveBeenCalledExactlyOnceWith("p1");
   });
 
   it.each([
@@ -517,6 +523,8 @@ describe("verifyMyCheckout", () => {
       status: "held",
       enrollmentId: ENROLLMENT_ID,
     });
+    // A held capture is not paid: no receipt.
+    expect(queueReceiptIssuance).not.toHaveBeenCalled();
   });
 });
 
@@ -612,6 +620,7 @@ describe("processRazorpayWebhook", () => {
     expect(calls.find((c) => c.method === "update")?.args[0]).toMatchObject({
       outcome: "recorded",
     });
+    expect(queueReceiptIssuance).toHaveBeenCalledExactlyOnceWith("p1");
   });
 
   it("acknowledges an already-processed event id without finalizing again", async () => {
@@ -630,6 +639,7 @@ describe("processRazorpayWebhook", () => {
       outcome: "duplicate",
     });
     expect(rpcCalls).toEqual([]);
+    expect(queueReceiptIssuance).not.toHaveBeenCalled();
   });
 
   it("ignores other events and incomplete captured events", async () => {

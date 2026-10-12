@@ -6,6 +6,8 @@ import { formatPaiseExact } from "@/components/admin/payments/payment-amount";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { isAdminOrSuperAdmin, roleHomePath } from "@/lib/domain/rbac";
 import { getPaymentDetail } from "@/lib/data/payments";
+import { getReceiptForPayment } from "@/lib/data/receipts";
+import { PaymentReceiptCard } from "@/components/admin/payments/payment-receipt-card";
 import { formatTimestampAsIstDate } from "@/lib/domain/reports";
 import { paymentMethodLabel, paymentTypeLabel } from "@/lib/domain/payments";
 
@@ -34,6 +36,7 @@ export default async function PaymentDetailPage({
   const result = await getPaymentDetail(id);
   if (!result.ok) notFound();
   const payment = result.data;
+  const receiptResult = await getReceiptForPayment(payment.id);
   const justRecorded = (await searchParams).recorded === "1";
 
   const facts: Array<[string, React.ReactNode]> = [
@@ -133,6 +136,14 @@ export default async function PaymentDetailPage({
           </p>
         </CardContent>
       </Card>
+
+      {/* Phase 21A: the payment's receipt (FR-94). */}
+      <PaymentReceiptCard
+        paymentId={payment.id}
+        paymentStatus={payment.status}
+        receipt={receiptResult.ok ? receiptResult.data : null}
+        loadError={receiptResult.ok ? undefined : receiptResult.error}
+      />
     </div>
   );
 }

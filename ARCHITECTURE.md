@@ -267,7 +267,10 @@ capture only via `finalize_razorpay_payment()`, no cache recompute, no
 receipt yet. Code: `lib/payments/*` (config, gateway, signatures),
 `lib/domain/online-payments.ts`, `lib/data/online-payments.ts`,
 `lib/actions/online-payments.ts`, `app/api/razorpay/webhook/route.ts`,
-`components/student/payments/*`.
+`components/student/payments/*`. Phase 21A adds step 7's receipt (no
+email yet): `issue_receipt()` after the payment is paid, PDF in the private
+`receipts` bucket — `lib/data/receipts.ts`, `lib/pdf/receipt.tsx`,
+`app/api/payments/[id]/receipt/route.ts`.
 
 Steps 1–7 are the online flow, Phase 20B. Phase 20A's offline flow is:
 Admin finds the enrollment → reviews the Phase 14 figures → submits the
@@ -332,6 +335,8 @@ not maintained by either flow yet.)
   design. Trade-offs documented in `API_AND_INTEGRATIONS.md`.
 - Generated PDFs are stored in Supabase Storage (not regenerated on every download)
   and served via signed URL, so a receipt is a durable artifact, not a live render.
+  (Phase 21A: receipts are streamed through an authorized route handler instead
+  of a signed URL, so the storage path never reaches the browser.)
 
 ## 12. Deployment Architecture
 

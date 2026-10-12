@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomInt } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { deleteReceiptOfPayment, readReceiptOfPayment } from "./receipt-cleanup";
 
 /**
  * Node-side setup/teardown for the Phase 20B (Razorpay test mode) E2E
@@ -22,7 +23,8 @@ import { createClient } from "@supabase/supabase-js";
  * Cleanup is exact-id and children-first: payment_orders and payments are
  * selected strictly by this run's tracked enrollment ids (exact foreign
  * key), webhook-log rows strictly by this run's exact provider order ids,
- * then installments -> payment_plans -> enrollments -> students ->
+ * each payment's receipt (row + exact PDF object, Phase 21A) by that exact
+ * payment id, then installments -> payment_plans -> enrollments -> students ->
  * profile/auth user. Never by amount, date, method, status or id prefix;
  * audit_logs are never touched.
  *
@@ -301,6 +303,11 @@ export async function readPaymentAudit(paymentId: string) {
   return data ?? [];
 }
 
+/** Phase 21A: the receipt of one exact payment id (read only), or null. */
+export async function readPaymentReceipt(paymentId: string) {
+  return readReceiptOfPayment(serviceClient(), paymentId);
+}
+
 export async function readWebhookEvents(orderId: string) {
   const supabase = serviceClient();
   const { data, error } = await supabase
@@ -356,8 +363,11 @@ export async function cleanupPhase20B(tracked: Phase20BTracked): Promise<string[
     );
     if (paymentsError)
       failures.push(`payments for ${enrollmentId}: ${paymentsError.message}`);
-    for (const payment of payments ?? [])
+    for (const payment of payments ?? []) {
+      // Phase 21A: the paid payment's receipt (row + exact PDF) goes first.
+      push(await deleteReceiptOfPayment(supabase, payment.id));
       push(await deleteWhere("payments", "id", payment.id));
+    }
   }
   for (const id of tracked.installmentIds)
     push(await deleteWhere("installments", "id", id));

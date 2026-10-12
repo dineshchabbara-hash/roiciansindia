@@ -19,6 +19,10 @@ vi.mock("@/lib/data/audit-log", () => ({
   writeAuditLog: vi.fn(),
 }));
 
+vi.mock("@/lib/data/receipts", () => ({
+  ensureReceiptForPayment: vi.fn(),
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
@@ -33,6 +37,7 @@ import { recordOfflinePaymentAction } from "@/lib/actions/payments";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { recordOfflinePayment } from "@/lib/data/payments";
 import { writeAuditLog } from "@/lib/data/audit-log";
+import { ensureReceiptForPayment } from "@/lib/data/receipts";
 import { revalidatePath } from "next/cache";
 
 const PAYMENT_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
@@ -67,6 +72,15 @@ function validForm(overrides: Record<string, string> = {}): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(ensureReceiptForPayment).mockResolvedValue({
+    ok: true,
+    data: {
+      receiptId: "receipt-1",
+      receiptNumber: "REC-2026-000001",
+      alreadyIssued: false,
+      pdfReady: true,
+    },
+  });
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-09T10:00:00Z"));
 });
@@ -84,6 +98,7 @@ describe("recordOfflinePaymentAction — authorization", () => {
       expect(result).toEqual({ formError: "You are not authorized to record payments." });
       expect(recordOfflinePayment).not.toHaveBeenCalled();
       expect(writeAuditLog).not.toHaveBeenCalled();
+      expect(ensureReceiptForPayment).not.toHaveBeenCalled();
     },
   );
 
@@ -115,6 +130,7 @@ describe("recordOfflinePaymentAction — input", () => {
     });
     expect(writeAuditLog).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(ensureReceiptForPayment).not.toHaveBeenCalled();
   });
 });
 
@@ -160,6 +176,8 @@ describe("recordOfflinePaymentAction — success", () => {
       });
       expect(revalidatePath).toHaveBeenCalledWith("/admin/payments");
       expect(revalidatePath).toHaveBeenCalledWith(`/admin/enrollments/${ENROLLMENT_ID}`);
+      // Phase 21A: the recorded payment's receipt is issued straight away.
+      expect(ensureReceiptForPayment).toHaveBeenCalledExactlyOnceWith(PAYMENT_ID);
     },
   );
 
@@ -173,5 +191,24 @@ describe("recordOfflinePaymentAction — success", () => {
       `NEXT_REDIRECT:/admin/payments/${PAYMENT_ID}?recorded=1`,
     );
     expect(writeAuditLog).not.toHaveBeenCalled();
+    // Receipt issuance is idempotent; a resubmission reuses the receipt.
+    expect(ensureReceiptForPayment).toHaveBeenCalledExactlyOnceWith(PAYMENT_ID);
+  });
+
+  it("still lands on the recorded payment when the receipt cannot be issued", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getCurrentUserContext).mockResolvedValue(context("admin"));
+    vi.mocked(recordOfflinePayment).mockResolvedValue({
+      ok: true,
+      data: { id: PAYMENT_ID, paymentCode: "PAY-000043", alreadyRecorded: false },
+    });
+    vi.mocked(ensureReceiptForPayment).mockResolvedValue({
+      ok: false,
+      error: "The receipt could not be issued. Please try again.",
+    });
+    await expect(recordOfflinePaymentAction({}, validForm())).rejects.toThrow(
+      `NEXT_REDIRECT:/admin/payments/${PAYMENT_ID}?recorded=1`,
+    );
+    expect(writeAuditLog).toHaveBeenCalledTimes(1);
   });
 });

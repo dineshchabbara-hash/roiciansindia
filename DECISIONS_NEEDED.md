@@ -75,7 +75,7 @@ only, no enforced pattern. **Needed from you:** if you want a *mandatory* format
 we'll add server-side validation for it in Phase 7 — otherwise Admin can type any
 unique code.
 
-### D7. Receipt/Certificate numbering reset behavior — certificate half RESOLVED (Phase 17), receipt half still open
+### D7. Receipt/Certificate numbering reset behavior — RESOLVED (certificates Phase 17, receipts Phase 21A)
 
 **Certificate numbering (resolved):** explicit checkpoint decision — the
 `certificate_number_seq` underlying `generate_certificate_number()`
@@ -85,13 +85,14 @@ string is a cosmetic label computed from the current date at mint time, not a
 per-year-restarting counter. A certificate number is therefore never reused or
 ambiguous across years.
 
-**Receipt numbering (still open):** `REC-{year}-{seq:6}` default numbering still
-implies the sequence portion is scoped per calendar year (so 2027 receipts
-restart at `000001`). **Confirm** this is the desired behavior versus a single
-never-resetting sequence across all years (e.g. `REC-000001`, `REC-000002`, …
-indefinitely) before Phase 21 (Receipts, Refunds & Payment Documents) — this is
-a separate decision from the certificate half above; the same monotonic-sequence
-approach could be reused for consistency, but that itself needs confirming.
+**Receipt numbering (resolved at the Phase 21A checkpoint):** one global
+`receipt_number_seq` that never resets — the same rule as certificates.
+`{year}` in `REC-{year}-{seq:6}` is a cosmetic label (the Asia/Kolkata year
+of issue), so 2027 receipts continue the sequence (e.g. `REC-2027-000245`).
+Gaps from rolled-back or failed transactions are acceptable; uniqueness and
+immutability are required; gapless numbering is not. Implemented by
+`next_receipt_number()` / `issue_receipt()` in
+`20260101000037_receipts_issuance.sql`.
 
 ### D8. Outstanding-balance refund sign (FR-31) — confirm which direction is correct
 

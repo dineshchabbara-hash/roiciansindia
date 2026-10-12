@@ -492,6 +492,31 @@ export type Database = {
           },
         ];
       };
+      // Phase 21A (Receipts) — 20260101000007 / 20260101000037. Written only
+      // by issue_receipt() (service_role); end users read through RLS.
+      receipts: {
+        Row: {
+          id: string;
+          receipt_number: string;
+          payment_id: string;
+          pdf_path: string;
+          pdf_generated_at: string | null;
+          emailed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["receipts"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["receipts"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "receipts_payment_id_fkey";
+            columns: ["payment_id"];
+            isOneToOne: true;
+            referencedRelation: "payments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payment_refunds: {
         Row: {
           id: string;

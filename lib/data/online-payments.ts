@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { queueReceiptIssuance } from "@/lib/data/receipts";
 import type { DataResult } from "@/lib/data/dashboard";
 import { getMyEnrollment } from "@/lib/data/student-portal";
 import { getPaymentPlanForEnrollment } from "@/lib/data/payment-plans";
@@ -295,6 +296,15 @@ async function finalizeCaptured(input: {
   if (error) throw error;
   const row = (data as FinalizeRow[] | null)?.[0];
   if (!row) throw new Error("finalize_razorpay_payment returned no row");
+  // Phase 21A: a payment that is now canonically paid gets its receipt,
+  // after the response (idempotent — a redelivery reuses the receipt).
+  // Held captures are not paid and get none.
+  if (
+    (row.outcome === "recorded" || row.outcome === "already_recorded") &&
+    row.payment_id
+  ) {
+    queueReceiptIssuance(row.payment_id);
+  }
   return row;
 }
 

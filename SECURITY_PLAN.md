@@ -204,6 +204,31 @@ before use (prevents Insecure Direct Object Reference / IDOR).
   status only — no card/UPI/bank data, no signature, no webhook payload;
   order notes carry codes only (API_AND_INTEGRATIONS.md §2.9).
 
+### 9c. Receipts & payment documents (Phase 21A)
+
+- Issuance is server-only: `issue_receipt()` is service_role-only and is
+  reached from the Admin recording action, the Razorpay finalization path
+  (after a verified `recorded` outcome) and the download route — each after
+  its own authorization. Receipt numbers are minted DB-side from a global
+  sequence; end-user roles have no sequence privileges.
+- Only `paid` payments qualify (function check + BEFORE INSERT trigger for
+  every writer); one receipt per payment (unique constraint); number,
+  payment, path and issue time are immutable; no end-user write or delete
+  policy on `receipts` or the `receipts` bucket.
+- Amounts and identities are read from the canonical ledger row and the
+  database — never from request input, Razorpay's API or a Checkout
+  callback; tax is never recalculated.
+- Downloads: `GET /api/payments/[id]/receipt` reads through the viewer's
+  own RLS session (payments, receipts, storage object) and streams the PDF
+  with `Cache-Control: private, no-store`; the storage path is never sent
+  to the browser; another Student's payment id → 404 (indistinguishable
+  from unknown) and triggers no issuance; Trainer 403; anonymous 401.
+- The PDF never contains auth ids, internal uuids, storage paths, Razorpay
+  order ids, signatures, webhook data or card/bank details (unit-tested on
+  the rendered PDF text).
+- Audit: one `receipt.issued` row per receipt (system actor), written in
+  the issuing transaction; downloads are not audited.
+
 ## 10. Webhook Security (General)
 
 - Signature verification is mandatory for every inbound webhook (Razorpay today;

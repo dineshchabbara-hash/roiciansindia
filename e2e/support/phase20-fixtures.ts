@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { deleteReceiptOfPayment } from "./receipt-cleanup";
 import { randomBytes, randomInt } from "node:crypto";
 
 /**
@@ -18,7 +19,8 @@ import { randomBytes, randomInt } from "node:crypto";
  * Markers: every synthetic auth email is on @phase20-e2e.internal.test and
  * every synthetic name starts with "Phase20E2E" plus this run's RUN_ID.
  *
- * Cleanup is by exact id only, children before parents: payments ->
+ * Cleanup is by exact id only, children before parents: receipts (row +
+ * exact PDF object, Phase 21A) -> payments ->
  * enrollments -> students -> admin profile/auth user. Payments are
  * recorded through the UI, so their ids are captured by the spec when
  * known AND re-derived at cleanup time strictly as "payments whose
@@ -405,6 +407,12 @@ export async function cleanupPhase20(tracked: Phase20Tracked): Promise<string[]>
   if (derived.failure) failures.push(derived.failure);
   const paymentIds = [...new Set([...tracked.paymentIds, ...derived.ids])];
 
+  // Phase 21A: a recorded payment now carries its receipt (row + PDF);
+  // both go first, by this exact payment id.
+  for (const id of paymentIds) {
+    const receiptFailure = await deleteReceiptOfPayment(serviceClient(), id);
+    if (receiptFailure) failures.push(receiptFailure);
+  }
   for (const id of paymentIds)
     await run(`payment ${id}`, () => deleteIfSafe("payments", id));
   for (const id of tracked.enrollmentIds)

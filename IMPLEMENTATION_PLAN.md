@@ -25,7 +25,7 @@ ordering created a dependency contradiction during analysis.
 
 ### Current roadmap (authoritative; supersedes older phase lists)
 
-Phases 1–19 are complete and merged (numbering unchanged). Remaining order,
+Phases 1–19, 20A and 20B are complete and merged (numbering unchanged). Remaining order,
 private LMS first — the public website is deferred until the private LMS is
 finished:
 
@@ -33,8 +33,9 @@ finished:
 |---|---|---|
 | 18b | Email & multi-channel delivery | Deferred |
 | 20A | Offline Payments Ledger — Admin offline payment recording + Payments ledger (FR-90/FR-91/BR-6) | Complete (merged `2627ae9`) |
-| **20B** | **Razorpay Integration, TEST MODE** (FR-43 pay online, FR-92, FR-93, SEC-5/6/7) | Active — awaiting your TEST keys + webhook for real Test Mode acceptance |
-| 21 | Receipts, Refunds & Payment Documents (FR-94/FR-95/FR-97) | Not started — needs DECISIONS_NEEDED.md D7 (receipt half) and D8 |
+| 20B | Razorpay Integration, TEST MODE (FR-43 pay online, FR-92, FR-93, SEC-5/6/7) | Complete (merged `b3b4a3a`; live Razorpay not activated) |
+| **21A** | **Receipts & Payment Documents** (FR-94, FR-95) | Active — awaiting migration 37 on dev + browser acceptance |
+| 21B | Refunds (FR-97) | Not started — needs DECISIONS_NEEDED.md D8 |
 | 22 | Public Website | Deferred |
 | 23 | Lead Management | Not started |
 | 24 | Testing & Security Review | Not started |
@@ -1455,7 +1456,8 @@ an online payment still shows "Due" in the schedule — the Pay card's
 next-installment amount uses the coverage rule; real hosted-Checkout card
 entry is validated manually in Test Mode (E2E stubs only Razorpay's script
 and confirms via a signed webhook); `payment.failed` events are logged and
-ignored (nothing to record); no receipt/email (Phase 21 / 18b).
+ignored (nothing to record); no receipt/email (Phase 21 / 18b) — receipts
+were added in Phase 21A.
 
 **Deferred go-live checklist (pre-production/UAT, NOT this phase):** live
 key id/secret and a live webhook (+ new secret) in production env only;
@@ -1488,6 +1490,81 @@ transactions).
 **DoD:** Every successful payment (online, or offline from Phase 20A's
 recording workflow) produces a real, downloadable, correctly numbered PDF receipt — no
 "Download Receipt" button appears before this phase ships.
+
+### Phase 21A — Receipts & Payment Documents (implemented)
+
+Phase 21 is split: **21A** receipts (FR-94 minus email, FR-95), **21B**
+refunds (FR-97, needs D8). Email delivery stays with Phase 18b.
+
+**Numbering (checkpoint decision, DECISIONS_NEEDED.md D7 receipt half):**
+one global `receipt_number_seq` that never resets; format from
+`company_settings.receipt_number_format` (default `REC-{year}-{seq:6}`),
+where `{year}` is only the Asia/Kolkata year of issue — the same rule as
+certificates. Gaps from rolled-back transactions are accepted; uniqueness
+and immutability are required; gapless numbering is not. A configured
+format without a `{seq:N}` token falls back to the default.
+
+**Eligibility:** only `payments.status = 'paid'` — never pending,
+authorized ("Held for review"), failed or cancelled; never an unverified
+Checkout result or an open order. Enforced in `issue_receipt()` and, for
+every writer, by a BEFORE INSERT trigger.
+
+**Issuance (migration `20260101000037_receipts_issuance.sql`):**
+`issue_receipt(payment_id)` (service_role only) locks the payment row,
+returns the existing receipt if there is one (no number consumed),
+otherwise mints the number DB-side, inserts the row with a server-built
+`pdf_path` (`{student_id}/{receipt_id}.pdf`) and writes one
+`receipt.issued` audit row — one transaction. One receipt per payment is
+the pre-existing `receipts.payment_id` unique constraint. Proven under
+real concurrency by `scripts/test-receipt-issuance-concurrency.sh` (three
+in-flight callers → one row, one number, one audit row).
+
+**When:** automatically, from the canonical ledger row —
+- offline: `recordOfflinePaymentAction` right after `record_offline_payment`
+  (a receipt failure never hides the recorded payment);
+- Razorpay: after `finalize_razorpay_payment` reports `recorded` /
+  `already_recorded` (webhook or verified Checkout), queued with Next's
+  `after()` so the webhook response is not slowed; held captures get none.
+  Finalization itself is unchanged; no Razorpay API call is involved;
+- recovery: the download route issues/generates on demand for an
+  authorized viewer of a paid payment, and the Admin payment page offers
+  "Generate receipt" / "Retry PDF generation" when the automatic step did
+  not complete. A failed render/upload keeps the number on its row
+  (`pdf_generated_at` null) and retries the same path.
+
+**Document:** `lib/pdf/receipt.tsx` (`@react-pdf/renderer`, server-side,
+one template for both sources) from `lib/domain/receipts.ts`'s
+`buildReceiptDocument` — legal name, address/contact/GSTIN from
+`company_settings` (GSTIN only if configured), receipt number and date,
+payment ID/date/source/method, offline reference or Razorpay payment id,
+Student name/ID, enrollment, program, batch, amount in INR exactly as the
+ledger row (tax line only if the row carries tax — tax is disabled, so
+none). Never auth ids, internal uuids, storage paths, Razorpay order ids,
+signatures, webhook data or card/bank details. Outstanding balance is not
+printed (it changes after issuance; FR-94 does not ask for it).
+
+**Storage & download:** private `receipts` bucket, SELECT-only policies
+(Admin all; Student only objects that are the `pdf_path` of a receipt for
+their own payment); the server writes with service_role. Downloads go
+through `GET /api/payments/[id]/receipt`, which reads the payment, receipt
+and object through the viewer's own RLS session and streams the PDF as a
+private attachment — the storage path never reaches the browser; another
+Student's payment id answers 404 like an unknown one; Trainer 403;
+anonymous 401. Downloads are not audited.
+
+**UI:** Admin payment detail → "Receipt" card (number, issue date, PDF
+state, Download / Generate / Retry). Student enrollment page → "Payments &
+receipts" card (own paid payments, receipt number, Download).
+
+**E2E impact on earlier suites:** Phase 20A/20B fixtures now remove each
+payment's receipt row and its exact PDF object before the payment;
+Phase 20B Test 1 waits for the receipt to be generated before cleanup.
+
+**Known limitations:** no email (18b); no refunds/credit notes (21B — a
+receipt stays attached to its payment, so a refund can later reference the
+same payment); company letterhead uses placeholders until
+`company_settings` is filled in; existing paid payments from before 21A get
+their receipt on first download or via "Generate receipt" (none on dev).
 
 ## Phase 22 — Public Website
 

@@ -431,6 +431,16 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 - FR-95 (P0): Receipt numbering and Student ID generation must be concurrency-safe
   (Postgres sequences / `SELECT … FOR UPDATE` inside a transaction — never
   `MAX(x)+1` read-then-write).
+  (Phase 21A implementation note for FR-94/FR-95: receipts are issued only
+  for `paid` payments — offline and Razorpay alike, one template — by the
+  service-role `issue_receipt()` function, which locks the payment, reuses
+  an existing receipt and otherwise mints the number from the one global,
+  never-resetting `receipt_number_seq` (`DECISIONS_NEEDED.md` D7; `{year}`
+  is a label, gaps allowed, gapless not required). One receipt per payment
+  (unique constraint); number, payment, path and issue time immutable.
+  The PDF is rendered server-side and stored in the private `receipts`
+  bucket; Admin and the paying Student download it. FR-94's email copy is
+  deferred to Phase 18b. See IMPLEMENTATION_PLAN.md Phase 21A.)
 - FR-96 (P1): Configurable installment plans per enrollment (amount, due date,
   status: Upcoming/Due/Partially Paid/Paid/Overdue/Waived).
   (Phase 14 implementation note: the `payment_plans`/`installments` tables

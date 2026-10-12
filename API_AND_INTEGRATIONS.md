@@ -227,6 +227,14 @@ include unnecessary personal data.
 - Generated once, at payment confirmation time, and stored in the `receipts`
   bucket — never regenerated on each download (a receipt's content must be
   immutable once issued, matching its role as a financial record).
+- Phase 21A implementation: `lib/pdf/receipt.tsx` (one template for
+  offline and Razorpay), fields from `lib/domain/receipts.ts`. Issued by
+  `issue_receipt()` after the payment is `paid`; for Razorpay it is queued
+  with `after()` once finalization reports `recorded`/`already_recorded`.
+  If rendering/upload fails the number stays reserved and the same path is
+  retried (download route or Admin "Generate receipt"). Download:
+  `GET /api/payments/[id]/receipt` (Admin any, Student own; streamed, no
+  signed URL). Email delivery: Phase 18b (`receipts.emailed_at`).
 
 ### 5.2 Certificates
 - **Recommended: `@react-pdf/renderer` for V1**, matching the receipt approach for
