@@ -242,6 +242,41 @@ describe("getPaymentDetail", () => {
     expect(result.ok && "createdBy" in result.data).toBe(false);
   });
 
+  it("carries the enrollment's total payable from the same query (Phase 21B)", async () => {
+    const { queries } = makeClient([
+      {
+        data: {
+          ...ledgerRow,
+          enrollment: { ...ledgerRow.enrollment, total_payable: "10000.00" },
+          tax_amount: "0.00",
+          notes: null,
+          created_by: null,
+          recorder: null,
+        },
+      },
+    ]);
+    const result = await getPaymentDetail(PAYMENT_ID);
+    expect(result.ok && result.data.enrollmentTotalPayable).toBe("10000.00");
+    expect(queries).toHaveLength(1);
+    const select = String(queries[0].calls.find((c) => c.method === "select")?.args[0]);
+    expect(select).toContain("enrollment:enrollments(enrollment_code, total_payable,");
+
+    makeClient([
+      {
+        data: {
+          ...ledgerRow,
+          enrollment: null,
+          tax_amount: "0.00",
+          notes: null,
+          created_by: null,
+          recorder: null,
+        },
+      },
+    ]);
+    const hidden = await getPaymentDetail(PAYMENT_ID);
+    expect(hidden.ok && hidden.data.enrollmentTotalPayable).toBeNull();
+  });
+
   it("keeps the recorder hidden when RLS does not expose that admin row", async () => {
     makeClient([
       {

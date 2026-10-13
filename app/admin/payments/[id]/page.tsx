@@ -8,7 +8,8 @@ import { getCurrentUserContext } from "@/lib/auth/session";
 import { isAdminOrSuperAdmin, roleHomePath } from "@/lib/domain/rbac";
 import { getPaymentDetail } from "@/lib/data/payments";
 import { getReceiptForPayment } from "@/lib/data/receipts";
-import { getEnrollmentOutstandingPaise, getPaymentRefunds } from "@/lib/data/refunds";
+import { getPaymentRefunds } from "@/lib/data/refunds";
+import { getEnrollmentFinancialSummary } from "@/lib/data/enrollments";
 import { PaymentRefundsCard } from "@/components/admin/payments/payment-refunds-card";
 import { paymentDisplayStatus, summarizePaymentRefunds } from "@/lib/domain/refunds";
 import { PaymentReceiptCard } from "@/components/admin/payments/payment-receipt-card";
@@ -45,11 +46,19 @@ export default async function PaymentDetailPage({
   const result = await getPaymentDetail(id);
   if (!result.ok) notFound();
   const payment = result.data;
-  const receiptResult = await getReceiptForPayment(payment.id);
-  // Phase 21B: refund history + the enrollment's live Phase 14 outstanding.
-  const [refundsResult, outstandingResult] = await Promise.all([
+  // Receipt, refund history (Phase 21B) and the enrollment's live Phase 14
+  // financial summary are independent reads, so they run together: this
+  // page is also the response to every refund action, so each serial round
+  // trip here delays the Admin seeing the recorded refund.
+  const [receiptResult, refundsResult, financialResult] = await Promise.all([
+    getReceiptForPayment(payment.id),
     getPaymentRefunds(payment.id),
-    getEnrollmentOutstandingPaise(payment.enrollmentId),
+    payment.enrollmentTotalPayable === null
+      ? null
+      : getEnrollmentFinancialSummary(
+          payment.enrollmentId,
+          payment.enrollmentTotalPayable,
+        ),
   ]);
   const refunds = refundsResult.ok ? refundsResult.data : [];
   const displayStatus = paymentDisplayStatus(
@@ -167,7 +176,9 @@ export default async function PaymentDetailPage({
           paidAt: payment.paidAt,
         }}
         refunds={refunds}
-        outstandingPaise={outstandingResult.ok ? outstandingResult.data : null}
+        outstandingPaise={
+          financialResult?.ok ? financialResult.data.outstandingPaise : null
+        }
         refundId={randomUUID()}
         today={istToday()}
         loadError={refundsResult.ok ? undefined : refundsResult.error}

@@ -111,9 +111,11 @@ export type PaymentLedgerPage = {
 };
 
 // No auth ids, no razorpay_* fields, no notes in the list (notes are on the
-// detail page). created_by is an admins.id, never displayed.
+// detail page). created_by is an admins.id, never displayed. The
+// enrollment's total_payable rides along so the detail page can compute the
+// Phase 14 outstanding without another round trip (Phase 21B).
 const LEDGER_SELECT =
-  "id, payment_code, paid_at, created_at, total_amount, method, payment_type, status, internal_reference, enrollment_id, student_id, enrollment:enrollments(enrollment_code, program:programs(name), batch:batches(name)), student:students(student_code, first_name, last_name), refunds:payment_refunds(amount, status)";
+  "id, payment_code, paid_at, created_at, total_amount, method, payment_type, status, internal_reference, enrollment_id, student_id, enrollment:enrollments(enrollment_code, total_payable, program:programs(name), batch:batches(name)), student:students(student_code, first_name, last_name), refunds:payment_refunds(amount, status)";
 
 type LedgerRowDb = {
   id: string;
@@ -129,6 +131,7 @@ type LedgerRowDb = {
   student_id: string;
   enrollment: {
     enrollment_code: string;
+    total_payable?: string | number | null;
     program: { name: string } | null;
     batch: { name: string } | null;
   } | null;
@@ -233,6 +236,8 @@ export type PaymentDetail = PaymentLedgerRow & {
   /** Phase 20B: Razorpay identifiers for reconciliation (null for offline). */
   providerOrderId: string | null;
   providerPaymentId: string | null;
+  /** Phase 21B: the enrollment's total payable (Phase 14 summary input). */
+  enrollmentTotalPayable: string | null;
 };
 
 type DetailRowDb = LedgerRowDb & {
@@ -269,6 +274,10 @@ export async function getPaymentDetail(id: string): Promise<DataResult<PaymentDe
           : null,
         providerOrderId: row.razorpay_order_id ?? null,
         providerPaymentId: row.razorpay_payment_id ?? null,
+        enrollmentTotalPayable:
+          row.enrollment?.total_payable == null
+            ? null
+            : String(row.enrollment.total_payable),
       },
     };
   } catch (error) {

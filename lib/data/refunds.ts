@@ -3,7 +3,6 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DataResult } from "@/lib/data/dashboard";
-import { getEnrollmentFinancialSummary } from "@/lib/data/enrollments";
 import { toPaise } from "@/lib/domain/money";
 import { rupeeStringToPaise } from "@/lib/domain/payments";
 import type { RefundStatus } from "@/lib/domain/refunds";
@@ -119,31 +118,6 @@ export async function getPaymentRefunds(
   } catch (error) {
     log("Could not load refunds", error);
     return { ok: false, error: "Could not load refunds." };
-  }
-}
-
-/** The enrollment's live Phase 14 outstanding (for the refund preview). */
-export async function getEnrollmentOutstandingPaise(
-  enrollmentId: string,
-): Promise<DataResult<number>> {
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("enrollments")
-      .select("total_payable")
-      .eq("id", enrollmentId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return { ok: false, error: "Enrollment not found." };
-    const summary = await getEnrollmentFinancialSummary(
-      enrollmentId,
-      String(data.total_payable),
-    );
-    if (!summary.ok) return summary;
-    return { ok: true, data: summary.data.outstandingPaise };
-  } catch (error) {
-    log("Could not load the outstanding balance", error);
-    return { ok: false, error: "Could not load the outstanding balance." };
   }
 }
 

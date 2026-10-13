@@ -12,7 +12,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({ createSupabaseServerClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
-vi.mock("@/lib/data/enrollments", () => ({ getEnrollmentFinancialSummary: vi.fn() }));
 vi.mock("@/lib/payments/razorpay-gateway", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/payments/razorpay-gateway")>();
   return { ...actual, createRazorpayGateway: vi.fn() };
@@ -20,11 +19,9 @@ vi.mock("@/lib/payments/razorpay-gateway", async (importOriginal) => {
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getEnrollmentFinancialSummary } from "@/lib/data/enrollments";
 import { createRazorpayGateway } from "@/lib/payments/razorpay-gateway";
 import {
   applyRefundWebhook,
-  getEnrollmentOutstandingPaise,
   getPaymentRefunds,
   initiateRazorpayRefund,
   recordOfflineRefund,
@@ -161,27 +158,6 @@ describe("reads", () => {
         },
       ],
     });
-  });
-
-  it("reads the outstanding balance from the Phase 14 engine", async () => {
-    const viewer = makeClient({
-      tables: { enrollments: [{ data: { total_payable: "10000.00" } }] },
-    });
-    vi.mocked(createSupabaseServerClient).mockResolvedValue(viewer.client as never);
-    vi.mocked(getEnrollmentFinancialSummary).mockResolvedValue({
-      ok: true,
-      data: {
-        totalPayablePaise: 1_000_000,
-        totalPaidPaise: 1_000_000,
-        totalRefundedPaise: 200_000,
-        outstandingPaise: 200_000,
-      },
-    });
-    expect(await getEnrollmentOutstandingPaise("enr-1")).toEqual({
-      ok: true,
-      data: 200_000,
-    });
-    expect(getEnrollmentFinancialSummary).toHaveBeenCalledWith("enr-1", "10000.00");
   });
 });
 
