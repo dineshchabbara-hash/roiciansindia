@@ -97,9 +97,14 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   removed as a separate stage — Phase 9 manual-acceptance correction, Sept
   2026 — Registered and Enrolled are not distinct stages for this workflow.)
 - FR-31 (P0): Outstanding balance is **derived**, not stored as a freely-editable
-  number: `max(0, total payable − sum(paid payments) + sum(processed
-  refunds))`. A refund reverses money received, so the amount owed goes back
-  up by the refunded amount. See §91 logic, reproduced in `DATABASE_SCHEMA.md`.
+  number. Financial identity: `outstanding = total payable − sum(paid
+  payments) + sum(processed refunds)`. A refund reverses money received, so
+  the amount owed goes back up by the refunded amount. See §91 logic,
+  reproduced in `DATABASE_SCHEMA.md`. Separately, the existing Phase 14
+  implementation never exposes a negative outstanding value: it applies its
+  existing zero floor to the per-enrollment balance it returns and displays.
+  That floor is an implementation/presentation rule, not part of the
+  identity.
   (Corrected at the Phase 21B checkpoint — `DECISIONS_NEEDED.md` D8, Option
   A. The earlier wording here, "− sum(approved refunds/credits)", was a
   drafting error that contradicted §91 and the code; the code and its tests

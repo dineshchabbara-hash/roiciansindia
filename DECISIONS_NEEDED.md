@@ -96,14 +96,24 @@ immutability are required; gapless numbering is not. Implemented by
 
 ### D8. Outstanding-balance refund sign (FR-31) — RESOLVED (Phase 21B checkpoint, Option A)
 
-**Decision:** `outstanding = max(0, total_payable − sum(paid payments) +
-sum(processed refunds))`. A refund reverses money received, so the amount
-owed goes back up by the refunded amount. This is the formula the code
-already implemented (`computeOutstandingFeesPaise` in
-`lib/domain/dashboard-metrics.ts`, used by the Phase 14 enrollment financial
-summary `getEnrollmentFinancialSummary` and the Phase 19 reports); it was
-**not** changed. Only the FR-31 prose
+**Decision — canonical accounting identity:**
+
+```
+outstanding = total_payable − sum(paid payments) + sum(processed refunds)
+```
+
+A refund reverses money received, so the amount owed goes back up by the
+refunded amount. This is the formula the code already implemented
+(`computeOutstandingFeesPaise` in `lib/domain/dashboard-metrics.ts`, used by
+the Phase 14 enrollment financial summary `getEnrollmentFinancialSummary`
+and the Phase 19 reports); it was **not** changed. Only the FR-31 prose
 sentence was wrong and has been corrected in `REQUIREMENTS.md`.
+
+Separately, as an implementation/presentation rule and not part of the
+identity above: the existing Phase 14 per-enrollment calculation floors the
+balance it returns at zero (`Math.max(0, …)`), so the application never
+displays or returns a negative outstanding value. That existing behaviour is
+unchanged.
 
 Refund statuses and the formula (Phase 21B):
 - `processed` — money has been returned; the only status that changes
