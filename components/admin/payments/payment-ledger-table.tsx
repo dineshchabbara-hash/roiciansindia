@@ -6,10 +6,22 @@ import {
   paymentStatusLabel,
   paymentTypeLabel,
 } from "@/lib/domain/payments";
+import { paymentDisplayStatus, summarizePaymentRefunds } from "@/lib/domain/refunds";
 import type { PaymentLedgerRow } from "@/lib/data/payments";
 import { formatPaiseExact } from "@/components/admin/payments/payment-amount";
 
-export function PaymentStatusBadge({ status }: { status: string }) {
+/**
+ * `label` overrides the text only — Phase 21B passes the derived
+ * "Paid — Partially / Fully Refunded" display state; the stored status
+ * (and so the colour) is never changed by a refund.
+ */
+export function PaymentStatusBadge({
+  status,
+  label,
+}: {
+  status: string;
+  label?: string;
+}) {
   const variant =
     status === "paid"
       ? "success"
@@ -18,7 +30,7 @@ export function PaymentStatusBadge({ status }: { status: string }) {
         : status === "failed" || status === "cancelled"
           ? "destructive"
           : "secondary";
-  return <Badge variant={variant}>{paymentStatusLabel(status)}</Badge>;
+  return <Badge variant={variant}>{label ?? paymentStatusLabel(status)}</Badge>;
 }
 
 /**
@@ -112,7 +124,14 @@ export function PaymentLedgerTable({ rows }: { rows: PaymentLedgerRow[] }) {
               <td className="py-2 pr-3">{paymentTypeLabel(row.paymentType)}</td>
               <td className="py-2 pr-3">{row.reference ?? "—"}</td>
               <td className="py-2">
-                <PaymentStatusBadge status={row.status} />
+                <PaymentStatusBadge
+                  status={row.status}
+                  label={paymentDisplayStatus(
+                    row.status,
+                    paymentStatusLabel(row.status),
+                    summarizePaymentRefunds(row.amountPaise, row.refunds),
+                  )}
+                />
               </td>
             </tr>
           ))}

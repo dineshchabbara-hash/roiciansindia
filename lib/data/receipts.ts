@@ -111,6 +111,8 @@ export type PaymentReceiptRow = {
   amountPaise: number;
   method: string;
   receipt: ReceiptSummary | null;
+  /** Phase 21B: this payment's refunds, read-only (own rows via RLS). */
+  refunds: Array<{ amountPaise: number; status: string; refundedOn: string | null }>;
 };
 
 type PaymentWithReceiptDb = {
@@ -120,6 +122,11 @@ type PaymentWithReceiptDb = {
   total_amount: string | number;
   method: string;
   receipt: ReceiptRowDb | ReceiptRowDb[] | null;
+  refunds?: Array<{
+    amount: string | number;
+    status: string;
+    refunded_on: string | null;
+  }> | null;
 };
 
 /**
@@ -135,7 +142,7 @@ export async function getMyPaymentReceipts(
     const { data, error } = await supabase
       .from("payments")
       .select(
-        "id, payment_code, paid_at, total_amount, method, receipt:receipts(id, receipt_number, created_at, pdf_generated_at)",
+        "id, payment_code, paid_at, total_amount, method, receipt:receipts(id, receipt_number, created_at, pdf_generated_at), refunds:payment_refunds(amount, status, refunded_on)",
       )
       .eq("enrollment_id", enrollmentId)
       .eq("status", "paid")
@@ -155,6 +162,11 @@ export async function getMyPaymentReceipts(
           amountPaise: toPaise(row.total_amount),
           method: row.method,
           receipt: receipt ? toSummary(receipt) : null,
+          refunds: (row.refunds ?? []).map((r) => ({
+            amountPaise: toPaise(r.amount),
+            status: r.status,
+            refundedOn: r.refunded_on,
+          })),
         };
       }),
     };

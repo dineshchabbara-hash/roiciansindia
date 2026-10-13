@@ -44,6 +44,7 @@ const row: PaymentLedgerRow = {
   studentName: "आशा Rao",
   programName: "QA Program",
   batchName: "Weekend Batch",
+  refunds: [],
 };
 
 describe("formatPaiseExact", () => {

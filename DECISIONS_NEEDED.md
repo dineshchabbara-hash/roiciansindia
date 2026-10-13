@@ -94,33 +94,39 @@ immutability are required; gapless numbering is not. Implemented by
 `next_receipt_number()` / `issue_receipt()` in
 `20260101000037_receipts_issuance.sql`.
 
-### D8. Outstanding-balance refund sign (FR-31) — confirm which direction is correct
+### D8. Outstanding-balance refund sign (FR-31) — RESOLVED (Phase 21B checkpoint, Option A)
 
-`REQUIREMENTS.md` FR-31 was previously listed below as "resolved with a stated
-engineering default," but re-inspection during Phase 14 found that the
-resolution text is internally inconsistent, not actually settled. FR-31's own
-prose reads `total payable − sum(valid payments) − sum(approved
-refunds/credits)` (a refund *further reduces* what's owed), but the `§91`
-logic it cites as its source, in `DATABASE_SCHEMA.md`, actually computes
-`outstanding_balance = total_payable − (valid_payments_sum −
-approved_refunds_sum)` — algebraically `total_payable − payments + refunds`
-(a refund *adds back* to what's owed, since it reverses a payment). The
-actual code (`lib/domain/dashboard-metrics.ts`) implements the second
-version, backed by an existing unit test that cites "the Phase 2
-verification report" as its own authority.
+**Decision:** `outstanding = max(0, total_payable − sum(paid payments) +
+sum(processed refunds))`. A refund reverses money received, so the amount
+owed goes back up by the refunded amount. This is the formula the code
+already implemented (`computeOutstandingFeesPaise` in
+`lib/domain/dashboard-metrics.ts`, used by the Phase 14 enrollment financial
+summary `getEnrollmentFinancialSummary` and the Phase 19 reports); it was
+**not** changed. Only the FR-31 prose
+sentence was wrong and has been corrected in `REQUIREMENTS.md`.
 
-**Default in effect today:** the second interpretation (refund adds back to
-outstanding — the standard accounting reading: a refunded payment no longer
-counts as paid, so the amount is owed again). No phase through Phase 14 has
-changed this or depends on changing it — Payment Plans (Phase 14) never
-touch this formula at all. **Needed from you:** confirm the second
-interpretation is correct (in which case FR-31's own prose sentence should
-be corrected to match its own cited source), or tell us the first
-interpretation was actually intended (in which case the code and its
-existing test both need to change) — either way this is a one-line fix once
-confirmed, but nobody should make that call silently. Not urgent before any
-phase through 16 (Receipts) unless real refund volume starts making the
-distinction financially visible sooner.
+Refund statuses and the formula (Phase 21B):
+- `processed` — money has been returned; the only status that changes
+  financial truth (outstanding, net collected, reports).
+- `initiated` — a Razorpay refund in progress; does **not** change
+  outstanding but **reserves** refundable capacity on the payment.
+- `failed` — does not change outstanding and releases its reservation.
+
+A refund never changes the contractual payable (agreed fee, discount,
+registration fee, tax, total payable), any installment, or the payment
+row. There is no approved post-enrollment payable adjustment / cancellation
+settlement mechanism — see "Open future gap" below; it was deliberately
+not built in Phase 21B.
+
+**Open future gap — post-enrollment payable adjustment / cancellation
+settlement.** Today an enrollment's fee terms are set at creation only;
+waiving an installment changes neither payable nor outstanding; nothing
+settles a cancellation. So refunding money to a student who is leaving
+raises that enrollment's outstanding balance by the refunded amount, and
+there is no approved way to write the remaining payable off. A future
+phase must define (with a product decision) who may adjust payable after
+enrollment, how it is audited, and how it interacts with receipts and
+reports. Not decided, not built.
 
 ### D9. Offline payment recording rules — RESOLVED (Phase 20A checkpoint)
 
@@ -140,8 +146,9 @@ Phase 20A code was written (none was inferred):
 - **Payment date:** the Admin enters the date the money was received (today
   or earlier, Asia/Kolkata); stored in `payments.paid_at`.
 
-D8 (refund sign) is unaffected: Phase 20A records no refunds and does not
-change the outstanding formula.
+D8 (refund sign) was unaffected by Phase 20A (it recorded no refunds and did
+not change the outstanding formula); D8 itself was resolved at the Phase 21B
+checkpoint.
 
 ### D10. Online payment amount — RESOLVED (Phase 20B checkpoint)
 
@@ -162,5 +169,5 @@ flagged as ambiguous (Student ID format, Enrollment ID format, email-uniqueness
 handling, program-module structure, trainer-multiplicity modeling,
 invoice-vs-receipt separation) — has been resolved with a stated engineering
 default in `REQUIREMENTS.md` §7 and does not require your input to begin
-implementation. (Amount-paid/outstanding-balance derivation is no longer
-listed here as settled — see D8 above.)
+implementation. (Amount-paid/outstanding-balance derivation was settled by D8 above at the
+Phase 21B checkpoint.)

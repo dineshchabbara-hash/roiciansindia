@@ -270,7 +270,14 @@ receipt yet. Code: `lib/payments/*` (config, gateway, signatures),
 `components/student/payments/*`. Phase 21A adds step 7's receipt (no
 email yet): `issue_receipt()` after the payment is paid, PDF in the private
 `receipts` bucket — `lib/data/receipts.ts`, `lib/pdf/receipt.tsx`,
-`app/api/payments/[id]/receipt/route.ts`.
+`app/api/payments/[id]/receipt/route.ts`. Phase 21B adds refunds as
+separate `payment_refunds` rows (the payment and receipt never change):
+offline → `record_offline_refund()` (processed); Razorpay →
+`reserve_razorpay_refund()` then the Razorpay refund API, confirmed by the
+`refund.processed` / `refund.failed` webhook or a manual status check via
+`apply_razorpay_refund_status()` — `lib/domain/refunds.ts`,
+`lib/data/refunds.ts`, `lib/actions/refunds.ts`,
+`components/admin/payments/payment-refunds-card.tsx`.
 
 Steps 1–7 are the online flow, Phase 20B. Phase 20A's offline flow is:
 Admin finds the enrollment → reviews the Phase 14 figures → submits the

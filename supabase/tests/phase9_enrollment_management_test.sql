@@ -417,11 +417,15 @@ insert into payments (id, payment_code, student_id, enrollment_id, payment_type,
   ('f8000000-0000-0000-0000-000000000001', 'PHASE9-PAY-A1', 'f4000000-0000-0000-0000-000000000001', 'f7000000-0000-0000-0000-000000000001', 'partial', 20000.00, 20000.00, 'cash', 'paid'),
   ('f8000000-0000-0000-0000-000000000002', 'PHASE9-PAY-A2', 'f4000000-0000-0000-0000-000000000001', 'f7000000-0000-0000-0000-000000000001', 'partial', 10000.00, 10000.00, 'upi', 'paid');
 
+-- Phase 21B: payment_refunds has no end-user INSERT policy any more (the
+-- write paths are record_offline_refund() / reserve_razorpay_refund(),
+-- 20260101000038), and a processed refund carries its reason and date, so
+-- this fixture row is also seeded as the database owner.
+insert into payment_refunds (id, payment_id, amount, status, reason, refunded_on, processed_at) values
+  ('f9000000-0000-0000-0000-000000000001', 'f8000000-0000-0000-0000-000000000001', 5000.00, 'processed', 'Phase 9 fixture refund', current_date, now());
+
 set local role authenticated;
 set local "request.jwt.claims" to '{"sub":"f1000000-0000-0000-0000-000000000001","role":"authenticated"}';
-
-insert into payment_refunds (id, payment_id, amount, status) values
-  ('f9000000-0000-0000-0000-000000000001', 'f8000000-0000-0000-0000-000000000001', 5000.00, 'processed');
 
 do $$
 declare

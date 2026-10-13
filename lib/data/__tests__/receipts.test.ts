@@ -430,6 +430,10 @@ describe("viewer reads", () => {
                   created_at: "2026-10-12T04:30:00Z",
                   pdf_generated_at: "2026-10-12T04:31:00Z",
                 },
+                refunds: [
+                  { amount: "500.00", status: "processed", refunded_on: "2026-10-13" },
+                  { amount: 100, status: "initiated", refunded_on: null },
+                ],
               },
               {
                 id: "p2",
@@ -473,6 +477,10 @@ describe("viewer reads", () => {
             issuedAt: "2026-10-12T04:30:00Z",
             pdfGeneratedAt: "2026-10-12T04:31:00Z",
           },
+          refunds: [
+            { amountPaise: 50000, status: "processed", refundedOn: "2026-10-13" },
+            { amountPaise: 10000, status: "initiated", refundedOn: null },
+          ],
         },
         {
           paymentId: "p2",
@@ -481,6 +489,7 @@ describe("viewer reads", () => {
           amountPaise: 50000,
           method: "cash",
           receipt: null,
+          refunds: [],
         },
       ],
     });

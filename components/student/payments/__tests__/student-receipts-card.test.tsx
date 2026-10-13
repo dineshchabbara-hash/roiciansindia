@@ -18,6 +18,7 @@ const ROWS = [
       issuedAt: "2026-10-12T04:30:00Z",
       pdfGeneratedAt: "2026-10-12T04:31:00Z",
     },
+    refunds: [],
   },
   {
     paymentId: "aaaaaaaa-bbbb-4ccc-8ddd-000000000002",
@@ -26,6 +27,7 @@ const ROWS = [
     amountPaise: 50050,
     method: "cash",
     receipt: null,
+    refunds: [],
   },
 ];
 

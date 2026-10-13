@@ -229,6 +229,35 @@ before use (prevents Insecure Direct Object Reference / IDOR).
 - Audit: one `receipt.issued` row per receipt (system actor), written in
   the issuing transaction; downloads are not audited.
 
+### 9d. Refunds (Phase 21B)
+
+- Who: Admin and Super Admin only (server action role check **and** an
+  `is_admin_or_super()` check inside each SECURITY DEFINER function).
+  Students see their own refunds read-only (existing
+  `payment_refunds_select_own`); Trainers and anonymous users have no
+  access. No approval workflow.
+- No end-user INSERT/UPDATE/DELETE on `payment_refunds` (write/update
+  policies dropped); writes go only through `record_offline_refund`,
+  `reserve_razorpay_refund` (authenticated, admin-checked) and
+  `apply_razorpay_refund_status` / `fail_unsent_razorpay_refund`
+  (service_role only).
+- Over-refund is impossible at the database: a trigger locks the payment
+  row and caps processed + in-progress refunds at the payment amount
+  (proven with two concurrent sessions — exactly one of two over-cap
+  refunds commits). A refund row's amount, payment, reason and initiator
+  are immutable; processed/failed are final.
+- Razorpay: the refund is always sent against the `razorpay_payment_id`
+  stored on the payment, never request input; TEST keys only; refund
+  webhooks are signature-verified, deduped by event id, and must match
+  payment id, amount and currency before anything changes. Nothing from a
+  webhook payload is stored beyond ids and the outcome.
+- Financial integrity: a refund never edits the payment (stays `paid`,
+  Phase 20A immutability unchanged), the receipt, or the enrollment's fee
+  terms/installments. Only `processed` refunds change outstanding.
+- Audit (append-only): `refund.recorded_offline`, `refund.initiated`
+  (Admin actor), `refund.processed`, `refund.failed` (system actor, once per
+  transition).
+
 ## 10. Webhook Security (General)
 
 - Signature verification is mandatory for every inbound webhook (Razorpay today;

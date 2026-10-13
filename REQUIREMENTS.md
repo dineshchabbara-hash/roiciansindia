@@ -97,28 +97,16 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   removed as a separate stage — Phase 9 manual-acceptance correction, Sept
   2026 — Registered and Enrolled are not distinct stages for this workflow.)
 - FR-31 (P0): Outstanding balance is **derived**, not stored as a freely-editable
-  number: `total payable − sum(valid payments) − sum(approved refunds/credits)`. See
-  §91 logic, reproduced in `DATABASE_SCHEMA.md`.
-  (UNRESOLVED DISCREPANCY, flagged during Phase 9, re-confirmed during Phase
-  14 review, not fixed by either: this sentence's own refund term — "−
-  sum(approved refunds/credits)", i.e. a refund *further reduces*
-  outstanding — does not match the §91 formula it cites as its source.
-  `DATABASE_SCHEMA.md` §91 actually gives `amount_paid = valid_payments_sum
-  − approved_refunds_sum` then `outstanding_balance = total_payable −
-  amount_paid`, which algebraically is `total_payable − valid_payments_sum
-  + approved_refunds_sum` — a refund *adds back* to outstanding (the
-  standard "a refund reverses a payment, so the amount owed goes back up"
-  interpretation). The actual code
-  (`lib/domain/dashboard-metrics.ts`'s `computeOutstandingFeesPaise`) matches
-  §91, not this sentence, and is covered by an existing unit test that cites
-  "the Phase 2 verification report" as its own source of truth — two of the
-  three sources agree with each other; only this sentence disagrees with the
-  section it names as its own source. This reads as a drafting error in this
-  sentence, not a code defect, but per explicit instruction it is documented
-  here rather than silently "corrected." No phase through Phase 14 has
-  touched `amount_paid_cache`/`outstanding_balance_cache`/this formula — an
-  explicit product decision on the correct sign is still needed before any
-  future phase relies on it more heavily than Phase 9/10 already do.)
+  number: `max(0, total payable − sum(paid payments) + sum(processed
+  refunds))`. A refund reverses money received, so the amount owed goes back
+  up by the refunded amount. See §91 logic, reproduced in `DATABASE_SCHEMA.md`.
+  (Corrected at the Phase 21B checkpoint — `DECISIONS_NEEDED.md` D8, Option
+  A. The earlier wording here, "− sum(approved refunds/credits)", was a
+  drafting error that contradicted §91 and the code; the code and its tests
+  were already correct and did not change. Only `processed` refunds count:
+  an in-progress (`initiated`) Razorpay refund reserves refundable capacity
+  but does not change outstanding, and a `failed` refund changes nothing. A
+  refund never changes total payable or any fee term.)
 - FR-32 (P0): A student can hold many enrollments; enrollments are never merged into
   a single "profile balance."
 
@@ -471,6 +459,19 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   Enrollment-level field, independent of any installment schedule.)
 - FR-97 (P2): Refund transactions link back to the original payment; original payment
   rows are never deleted or overwritten.
+  (Phase 21B implementation note: Admin and Super Admin record refunds on
+  the payment detail page — offline payments as a manual refund recorded
+  directly as `processed` (amount, required reason, refund date, optional
+  reference); Razorpay payments through the Razorpay refund API in TEST mode
+  only (`initiated` until Razorpay confirms via the `refund.processed` /
+  `refund.failed` webhook or a manual status check). Partial and multiple
+  refunds are allowed; the database caps processed + in-progress refunds at
+  the payment amount under a row lock. The original payment stays `paid`
+  forever — "Paid — Partially Refunded" / "Paid — Fully Refunded" are
+  display labels derived from `payment_refunds`. The receipt is immutable;
+  no credit note is issued. Refunds do not change payable, fees,
+  installments or the payment. Students see their refunds read-only;
+  Trainers and anonymous users have no access. No approval workflow.)
 
 ### 2.11 Certificates
 - FR-100 (P1): Admin issues certificates per enrollment; sequential unique Certificate
@@ -646,8 +647,12 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   what changes later).
 - FUT-3: Placement/career module (resume, interview prep, referrals) — data model
   leaves room (student ↔ future `placement_profile` 1:1) but is not implemented.
-- FUT-4: Refunds — schema supports it (`payment_refunds` table) but the operational
-  refund workflow (Razorpay refund API call) ships after V1 unless required sooner.
+- FUT-4: Refunds — the operational refund workflow shipped in Phase 21B (FR-97),
+  Razorpay in TEST mode only. Still future: Live-mode Razorpay refunds,
+  importing refunds created outside the LMS (e.g. from the Razorpay
+  Dashboard), credit notes, a refund approval workflow, and a
+  post-enrollment payable adjustment / cancellation settlement
+  (`DECISIONS_NEEDED.md` D8, "Open future gap").
 - FUT-5: Advanced analytics, mobile app, automation — explicitly deferred.
 
 ## 7. Requirements Changed / Clarified From the Original Brief

@@ -6,11 +6,12 @@ import { processRazorpayWebhook } from "@/lib/data/online-payments";
  * Authenticated by Razorpay's HMAC signature over the RAW body (read with
  * request.text() before any parsing), not by a user session — no cookie is
  * read or required (the path is also excluded from the session-refresh
- * proxy). Only `payment.captured` changes anything; every other event is
- * logged as ignored. Responses carry no detail: 400 bad signature/body,
+ * proxy). Only `payment.captured` (Phase 20B) and `refund.processed` /
+ * `refund.failed` (Phase 21B) change anything; every other event is logged
+ * as ignored. Responses carry no detail: 400 bad signature/body,
  * 503 not configured, 500 transient failure (Razorpay redelivers; the
- * finalization is idempotent), 200 otherwise — including duplicates and
- * orders this system does not know.
+ * finalization and refund application are idempotent), 200 otherwise —
+ * including duplicates and orders/refunds this system does not know.
  */
 
 export const dynamic = "force-dynamic";

@@ -178,9 +178,9 @@ $$;
 -- raises A1's outstanding back; the RPC's ceiling must follow exactly.
 
 reset role;
-insert into payment_refunds (id, payment_id, amount, status) values
-  ('20b00000-0000-0000-0000-000000000001', '20a00000-0000-0000-0000-000000000001', 50.50, 'processed'),
-  ('20b00000-0000-0000-0000-000000000002', '20a00000-0000-0000-0000-000000000001', 10.00, 'initiated');
+insert into payment_refunds (id, payment_id, amount, status, reason, refunded_on, processed_at) values
+  ('20b00000-0000-0000-0000-000000000001', '20a00000-0000-0000-0000-000000000001', 50.50, 'processed', 'Phase 20A fixture refund', current_date, now()),
+  ('20b00000-0000-0000-0000-000000000002', '20a00000-0000-0000-0000-000000000001', 10.00, 'initiated', 'Phase 20A fixture refund', null, null);
 set local role authenticated;
 set local "request.jwt.claims" to '{"sub":"20000000-0000-0000-0000-000000000001","role":"authenticated"}';
 

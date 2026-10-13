@@ -523,6 +523,17 @@ export type Database = {
           payment_id: string;
           amount: string;
           status: "initiated" | "processed" | "failed";
+          // Added Phase 21B (20260101000038) — written only through the
+          // refund functions; end users read through RLS.
+          reason: string;
+          reference: string | null;
+          refunded_on: string | null;
+          razorpay_refund_id: string | null;
+          initiated_by: string | null;
+          processed_at: string | null;
+          failed_at: string | null;
+          created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["payment_refunds"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["payment_refunds"]["Row"]>;
@@ -532,6 +543,13 @@ export type Database = {
             columns: ["payment_id"];
             isOneToOne: false;
             referencedRelation: "payments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payment_refunds_initiated_by_fkey";
+            columns: ["initiated_by"];
+            isOneToOne: false;
+            referencedRelation: "admins";
             referencedColumns: ["id"];
           },
         ];
@@ -882,6 +900,33 @@ export type Database = {
           p_reason: string | null;
         };
         Returns: string;
+      };
+      // Phase 21B — see 20260101000038_refund_workflow.sql.
+      record_offline_refund: {
+        Args: {
+          p_refund_id: string;
+          p_payment_id: string;
+          p_amount: string;
+          p_reason: string;
+          p_refunded_on: string;
+          p_reference: string | null;
+        };
+        Returns: { refund_id: string; already_recorded: boolean }[];
+      };
+      reserve_razorpay_refund: {
+        Args: {
+          p_refund_id: string;
+          p_payment_id: string;
+          p_amount: string;
+          p_reason: string;
+        };
+        Returns: {
+          refund_id: string;
+          provider_payment_id: string;
+          status: "initiated" | "processed" | "failed";
+          razorpay_refund_id: string | null;
+          already_reserved: boolean;
+        }[];
       };
       // Phase 20A — see 20260101000035_offline_payments_ledger.sql.
       record_offline_payment: {

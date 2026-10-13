@@ -705,3 +705,136 @@ describe("processRazorpayWebhook", () => {
     expect(logged).not.toContain(forged);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 21B: refund events on the same endpoint.
+
+function refundBody(event: string, entity: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    entity: "event",
+    event,
+    payload: {
+      refund: {
+        entity: {
+          id: "rfnd_W1",
+          payment_id: "pay_W1",
+          amount: 200000,
+          currency: "INR",
+          status: event === "refund.failed" ? "failed" : "processed",
+          notes: { roicians_refund_id: "aaaaaaaa-bbbb-4ccc-8ddd-000000000001" },
+          ...entity,
+        },
+      },
+      payment: { entity: { id: "pay_W1", order_id: "order_W1" } },
+    },
+  });
+}
+
+describe("processRazorpayWebhook — refund events", () => {
+  it.each([
+    ["refund.processed", "processed"],
+    ["refund.failed", "failed"],
+  ])("applies a signed %s from the refund entity and logs it", async (event, status) => {
+    const { calls, rpcCalls } = makeAdmin({
+      tables: { razorpay_webhook_events: { processed_at: null } },
+      rpc: {
+        apply_razorpay_refund_status: {
+          data: [{ refund_id: "aaaaaaaa-bbbb-4ccc-8ddd-000000000001", outcome: status }],
+        },
+      },
+    });
+    const body = refundBody(event);
+    expect(
+      await processRazorpayWebhook({
+        rawBody: body,
+        signature: sign(body),
+        eventIdHeader: "evt_r1",
+      }),
+    ).toEqual({ httpStatus: 200, outcome: status });
+    expect(rpcCalls).toEqual([
+      {
+        fn: "apply_razorpay_refund_status",
+        args: {
+          p_refund_id: "aaaaaaaa-bbbb-4ccc-8ddd-000000000001",
+          p_provider_payment_id: "pay_W1",
+          p_provider_refund_id: "rfnd_W1",
+          p_amount_paise: 200000,
+          p_currency: "INR",
+          p_provider_status: status,
+          p_source: "webhook",
+        },
+      },
+    ]);
+    expect(calls.find((c) => c.method === "upsert")?.args[0]).toEqual({
+      event_id: "evt_r1",
+      event_type: event,
+      provider_order_id: "order_W1",
+      provider_payment_id: "pay_W1",
+      provider_refund_id: "rfnd_W1",
+    });
+    // A refund never finalizes a payment or queues a receipt.
+    expect(rpcCalls.some((c) => c.fn === "finalize_razorpay_payment")).toBe(false);
+    expect(queueReceiptIssuance).not.toHaveBeenCalled();
+  });
+
+  it("does not re-apply an already-processed refund event id", async () => {
+    const { rpcCalls } = makeAdmin({
+      tables: { razorpay_webhook_events: { processed_at: "2026-10-12T00:00:00Z" } },
+    });
+    const body = refundBody("refund.processed");
+    expect(
+      await processRazorpayWebhook({
+        rawBody: body,
+        signature: sign(body),
+        eventIdHeader: "evt_r1",
+      }),
+    ).toEqual({ httpStatus: 200, outcome: "duplicate" });
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it("rejects a forged refund event before any database work", async () => {
+    const { calls, rpcCalls } = makeAdmin({});
+    const body = refundBody("refund.processed");
+    expect(
+      await processRazorpayWebhook({
+        rawBody: body,
+        signature: sign(body, "not-the-secret"),
+        eventIdHeader: "evt_r2",
+      }),
+    ).toEqual({ httpStatus: 400, outcome: "invalid_signature" });
+    expect(calls).toEqual([]);
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it("logs other refund events as ignored and an incomplete refund entity as such", async () => {
+    const created = makeAdmin({
+      tables: { razorpay_webhook_events: { processed_at: null } },
+    });
+    const body = refundBody("refund.created");
+    expect(
+      (
+        await processRazorpayWebhook({
+          rawBody: body,
+          signature: sign(body),
+          eventIdHeader: "evt_c",
+        })
+      ).outcome,
+    ).toBe("ignored");
+    expect(created.rpcCalls).toEqual([]);
+
+    const incomplete = makeAdmin({
+      tables: { razorpay_webhook_events: { processed_at: null } },
+    });
+    const body2 = refundBody("refund.processed", { amount: "200000" });
+    expect(
+      (
+        await processRazorpayWebhook({
+          rawBody: body2,
+          signature: sign(body2),
+          eventIdHeader: "evt_i",
+        })
+      ).outcome,
+    ).toBe("ignored_incomplete");
+    expect(incomplete.rpcCalls).toEqual([]);
+  });
+});

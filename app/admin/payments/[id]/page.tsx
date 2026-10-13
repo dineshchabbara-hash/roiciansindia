@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,9 +8,17 @@ import { getCurrentUserContext } from "@/lib/auth/session";
 import { isAdminOrSuperAdmin, roleHomePath } from "@/lib/domain/rbac";
 import { getPaymentDetail } from "@/lib/data/payments";
 import { getReceiptForPayment } from "@/lib/data/receipts";
+import { getEnrollmentOutstandingPaise, getPaymentRefunds } from "@/lib/data/refunds";
+import { PaymentRefundsCard } from "@/components/admin/payments/payment-refunds-card";
+import { paymentDisplayStatus, summarizePaymentRefunds } from "@/lib/domain/refunds";
 import { PaymentReceiptCard } from "@/components/admin/payments/payment-receipt-card";
 import { formatTimestampAsIstDate } from "@/lib/domain/reports";
-import { paymentMethodLabel, paymentTypeLabel } from "@/lib/domain/payments";
+import {
+  istToday,
+  paymentMethodLabel,
+  paymentStatusLabel,
+  paymentTypeLabel,
+} from "@/lib/domain/payments";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +46,17 @@ export default async function PaymentDetailPage({
   if (!result.ok) notFound();
   const payment = result.data;
   const receiptResult = await getReceiptForPayment(payment.id);
+  // Phase 21B: refund history + the enrollment's live Phase 14 outstanding.
+  const [refundsResult, outstandingResult] = await Promise.all([
+    getPaymentRefunds(payment.id),
+    getEnrollmentOutstandingPaise(payment.enrollmentId),
+  ]);
+  const refunds = refundsResult.ok ? refundsResult.data : [];
+  const displayStatus = paymentDisplayStatus(
+    payment.status,
+    paymentStatusLabel(payment.status),
+    summarizePaymentRefunds(payment.amountPaise, refunds),
+  );
   const justRecorded = (await searchParams).recorded === "1";
 
   const facts: Array<[string, React.ReactNode]> = [
@@ -93,7 +113,7 @@ export default async function PaymentDetailPage({
         </Link>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">{payment.paymentCode}</h1>
-          <PaymentStatusBadge status={payment.status} />
+          <PaymentStatusBadge status={payment.status} label={displayStatus} />
         </div>
       </div>
 
@@ -132,10 +152,26 @@ export default async function PaymentDetailPage({
           )}
           <p className="text-muted-foreground text-xs">
             This payment is a permanent transaction record and cannot be edited or
-            deleted.
+            deleted. Refunds are recorded separately below and never change it.
           </p>
         </CardContent>
       </Card>
+
+      {/* Phase 21B: refunds of this payment (FR-97). */}
+      <PaymentRefundsCard
+        payment={{
+          id: payment.id,
+          status: payment.status,
+          method: payment.method,
+          amountPaise: payment.amountPaise,
+          paidAt: payment.paidAt,
+        }}
+        refunds={refunds}
+        outstandingPaise={outstandingResult.ok ? outstandingResult.data : null}
+        refundId={randomUUID()}
+        today={istToday()}
+        loadError={refundsResult.ok ? undefined : refundsResult.error}
+      />
 
       {/* Phase 21A: the payment's receipt (FR-94). */}
       <PaymentReceiptCard

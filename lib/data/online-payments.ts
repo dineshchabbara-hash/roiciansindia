@@ -3,6 +3,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { queueReceiptIssuance } from "@/lib/data/receipts";
+import { applyRefundWebhook, type RefundWebhookEntity } from "@/lib/data/refunds";
 import type { DataResult } from "@/lib/data/dashboard";
 import { getMyEnrollment } from "@/lib/data/student-portal";
 import { getPaymentPlanForEnrollment } from "@/lib/data/payment-plans";
@@ -402,6 +403,15 @@ export async function verifyMyCheckout(input: {
 
 export type WebhookResult = { httpStatus: number; outcome: string };
 
+/**
+ * Phase 21B: the refund events this endpoint acts on, per Razorpay's
+ * Refunds webhook documentation (refund.created / refund.processed /
+ * refund.failed / refund.speed_changed exist). Only the two that decide
+ * financial truth are handled; refund.created adds nothing the API
+ * response or these two events do not already carry.
+ */
+const REFUND_EVENTS = new Set(["refund.processed", "refund.failed"]);
+
 type CapturedEntity = {
   id?: unknown;
   order_id?: unknown;
@@ -432,7 +442,13 @@ export async function processRazorpayWebhook(input: {
     return { httpStatus: 400, outcome: "invalid_signature" };
   }
 
-  let body: { event?: unknown; payload?: { payment?: { entity?: CapturedEntity } } };
+  let body: {
+    event?: unknown;
+    payload?: {
+      payment?: { entity?: CapturedEntity };
+      refund?: { entity?: RefundWebhookEntity };
+    };
+  };
   try {
     body = JSON.parse(input.rawBody);
   } catch {
@@ -440,10 +456,23 @@ export async function processRazorpayWebhook(input: {
   }
   const eventType = typeof body.event === "string" ? body.event : "unknown";
   const entity = body.payload?.payment?.entity ?? {};
-  const paymentId = typeof entity.id === "string" ? entity.id : null;
+  // Phase 21B: refund events carry the refund entity (and its payment id).
+  const refundEntity = REFUND_EVENTS.has(eventType)
+    ? (body.payload?.refund?.entity ?? {})
+    : null;
+  const refundId =
+    refundEntity && typeof refundEntity.id === "string" ? refundEntity.id : null;
+  const paymentId = refundEntity
+    ? typeof refundEntity.payment_id === "string"
+      ? refundEntity.payment_id
+      : null
+    : typeof entity.id === "string"
+      ? entity.id
+      : null;
   const orderId = typeof entity.order_id === "string" ? entity.order_id : null;
   const eventId =
-    input.eventIdHeader?.trim() || `${eventType}:${paymentId ?? "no-payment"}`;
+    input.eventIdHeader?.trim() ||
+    `${eventType}:${refundId ?? paymentId ?? "no-payment"}`;
 
   try {
     const admin = createSupabaseAdminClient();
@@ -453,6 +482,7 @@ export async function processRazorpayWebhook(input: {
         event_type: eventType,
         provider_order_id: orderId,
         provider_payment_id: paymentId,
+        ...(refundId ? { provider_refund_id: refundId } : {}),
       },
       { onConflict: "event_id", ignoreDuplicates: true },
     );
@@ -466,7 +496,9 @@ export async function processRazorpayWebhook(input: {
     if (logged?.processed_at) return { httpStatus: 200, outcome: "duplicate" };
 
     let outcome: string;
-    if (eventType !== "payment.captured") {
+    if (refundEntity) {
+      outcome = await applyRefundWebhook(refundEntity);
+    } else if (eventType !== "payment.captured") {
       outcome = "ignored";
     } else if (
       !paymentId ||

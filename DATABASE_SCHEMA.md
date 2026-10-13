@@ -358,6 +358,41 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
 - `status text not null default 'initiated' check (status in ('initiated','processed','failed'))`
 - `initiated_by uuid references admins(id)`
 - `created_at`, `updated_at`
+- **Phase 21B (migration `20260101000038_refund_workflow.sql`):**
+  - New columns: `refunded_on date` (India business date the money was
+    returned; required once processed), `reference text` (≤100, offline
+    only, optional), `processed_at timestamptz`, `failed_at timestamptz`.
+  - Constraints: `amount > 0`; `reason` required (1–500 chars);
+    `processed ⇒ refunded_on and processed_at set`; unique
+    `razorpay_refund_id` where not null.
+  - Trigger `payment_refunds_enforce_capacity` (`enforce_refund_capacity()`,
+    BEFORE INSERT/UPDATE of payment_id, amount, status): locks the payment
+    row `FOR UPDATE`, requires `payments.status = 'paid'`, and rejects
+    (23514) when `processed + initiated` refunds would exceed the payment's
+    `total_amount`. `failed` rows release capacity. Proven under real
+    concurrency by `scripts/test-refund-concurrency.sh`.
+  - Trigger `payment_refunds_prevent_rewrite` (`prevent_refund_rewrite()`):
+    payment, amount, reason, reference, initiator and created_at are
+    immutable; `razorpay_refund_id` is set once; `processed` and `failed`
+    are final. Allowed transitions: `initiated → processed | failed`.
+  - Policies `payment_refunds_write_admin` / `payment_refunds_update_admin`
+    dropped — end users have SELECT only (`payment_refunds_select_admin`,
+    `payment_refunds_select_own`); every write goes through:
+    - `record_offline_refund(refund_id, payment_id, amount, reason,
+      refunded_on, reference)` — authenticated, Admin/Super Admin checked
+      inside; inserts `processed`; idempotent on `refund_id`.
+    - `reserve_razorpay_refund(refund_id, payment_id, amount, reason)` —
+      authenticated, Admin/Super Admin checked inside; inserts `initiated`
+      (reserves capacity); returns the stored `razorpay_payment_id`.
+    - `apply_razorpay_refund_status(...)` — service_role; applies a
+      Razorpay refund status (API answer, webhook or manual status check)
+      after matching payment id, amount and currency; audits
+      `refund.processed` / `refund.failed` once per transition.
+    - `fail_unsent_razorpay_refund(refund_id)` — service_role; releases an
+      `initiated` row Razorpay never created.
+  - `razorpay_webhook_events.provider_refund_id text` added (logging only).
+  - The payment row, its receipt and the enrollment's fee terms and
+    installments are never written by any refund path.
 
 ### `receipts`
 - `id uuid pk`
@@ -606,7 +641,13 @@ approved_refunds_sum   = sum(payment_refunds.amount)
                           where payment.enrollment_id = :id and payment_refunds.status = 'processed'
 amount_paid            = valid_payments_sum - approved_refunds_sum
 outstanding_balance    = total_payable - amount_paid
+                       = total_payable - valid_payments_sum + approved_refunds_sum
 ```
+
+(Confirmed at the Phase 21B checkpoint — `DECISIONS_NEEDED.md` D8, Option
+A; the code clamps the result at 0. Only `processed` refunds count; an
+`initiated` refund reserves refundable capacity on its payment but does not
+change outstanding; a `failed` refund changes nothing.)
 
 `enrollments.amount_paid_cache` and `enrollments.outstanding_balance_cache` store
 this computation's result for fast dashboard/list reads, but are **recomputed by a

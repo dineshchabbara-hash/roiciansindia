@@ -85,3 +85,6 @@ run_sql "${REPO_ROOT}/supabase/tests/phase20b_razorpay_test.sql"
 
 echo "Running Phase 21A (Receipts) regression assertions..."
 run_sql "${REPO_ROOT}/supabase/tests/phase21a_receipts_test.sql"
+
+echo "Running Phase 21B (Refunds) regression assertions..."
+run_sql "${REPO_ROOT}/supabase/tests/phase21b_refunds_test.sql"

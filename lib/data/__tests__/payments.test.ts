@@ -133,6 +133,7 @@ describe("getPaymentLedgerPage", () => {
             paymentType: "partial",
             status: "paid",
             reference: "UTR-77",
+            refunds: [],
             enrollmentId: ENROLLMENT_ID,
             enrollmentCode: "ENR-000012",
             studentId: "s1",

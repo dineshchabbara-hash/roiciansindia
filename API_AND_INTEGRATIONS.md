@@ -146,14 +146,49 @@ redelivering the same `payment.captured` event (which it does on any non-2xx
 response, and can also do spontaneously) can never create a second payment row or
 apply the balance reduction twice.
 
-### 2.8 Refunds (P2, Schema-Ready)
-- Admin-initiated from the Admin Portal → calls `razorpay.payments.refund(paymentId,
-  { amount })` server-side → inserts a `payment_refunds` row (`status='initiated'`).
-- A corresponding `refund.processed` webhook event updates the row to `processed`
-  and triggers the enrollment balance recompute (adds back to outstanding balance).
-- The original `payments` row is never modified in place — its `status` may move to
-  `refunded`/`partially_refunded` as a derived label, but `amount`/`total_amount`
-  stay as originally recorded (§90 compliance).
+### 2.8 Refunds (Phase 21B, TEST MODE)
+Implemented as follows (supersedes the earlier sketch here):
+- Admin/Super Admin start a refund on `/admin/payments/[id]` →
+  `initiateRazorpayRefundAction` → `reserve_razorpay_refund()` inserts a
+  `payment_refunds` row (`initiated`, capacity reserved under a row lock)
+  **before** any provider call, keyed by a server-minted refund uuid
+  (idempotent: a resubmitted form reuses the row and never calls Razorpay
+  twice).
+- Then `razorpay.payments.refund(<stored razorpay_payment_id>, { amount,
+  speed: "normal", receipt: <refund uuid>, notes: { roicians_refund_id } })`
+  — the payment id is always the one stored server-side, never request
+  input. TEST keys only (`lib/payments/razorpay-config.ts` refuses live keys).
+  - Razorpay answers with a refund → `apply_razorpay_refund_status(…,
+    'api')` attaches `razorpay_refund_id` and applies its status
+    (`processed` → processed; `pending` → stays initiated; `failed` →
+    failed).
+  - Definitive rejection (4xx other than 408/429) → nothing exists at the
+    provider → `fail_unsent_razorpay_refund()` releases the reservation.
+  - Lost answer (timeout/5xx) → the row stays `initiated` (capacity still
+    reserved) and the Admin is told it is awaiting confirmation.
+- **Webhook events (confirmed against Razorpay's Refunds webhook
+  documentation):** Razorpay emits `refund.created`, `refund.processed`,
+  `refund.failed` and `refund.speed_changed`. The endpoint acts on
+  **`refund.processed`** and **`refund.failed`** only (the two that decide
+  financial truth); `refund.created` / `refund.speed_changed` are logged as
+  `ignored`. Same signature verification and `x-razorpay-event-id` dedupe
+  as payment events; `payload.refund.entity` is matched to our row by
+  `razorpay_refund_id`, else by `notes.roicians_refund_id`, and must agree
+  on payment id, amount (paise) and INR currency — otherwise the outcome is
+  `unknown_refund` / `payment_mismatch` / `amount_mismatch` and nothing
+  changes. A refund created outside the LMS (e.g. Razorpay Dashboard) is
+  `unknown_refund` and is not imported.
+- "Check status with Razorpay" (`syncRazorpayRefundAction`) fetches the
+  payment's refunds and applies the matching one the same way; an
+  `initiated` row that Razorpay never created is released only after 10
+  minutes.
+- Only `processed` changes outstanding (`DECISIONS_NEEDED.md` D8: outstanding
+  = payable − paid + processed refunds). The original `payments` row stays
+  `paid` with its amounts unchanged — "Paid — Partially Refunded" / "Paid —
+  Fully Refunded" are display labels only; the receipt is unchanged.
+- Offline payments are not refunded through Razorpay: `record_offline_refund()`
+  records money already returned (cash/bank) directly as `processed`.
+- Live-mode refunds are not activated.
 
 ### 2.9 Payment Metadata Guidance
 Razorpay `notes` on an order includes only: Student ID (`student_code`), Enrollment

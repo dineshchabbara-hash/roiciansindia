@@ -127,6 +127,10 @@ Notes:
   matrix says — only a Student, for their own confirmed enrollment, can
   start a Razorpay payment; Admin/Super Admin see online payments in the
   ledger but cannot initiate or confirm one; Trainers have no access.)
+  (Phase 21B: "Issue refund" — Admin and Super Admin both refund a paid
+  payment from its detail page (manual refund for offline payments,
+  Razorpay TEST refund for online ones); every refund is audited; no
+  approval step. Students only see their own refunds; Trainers none.)
 - Issue/revoke certificates.
 - Manage leads pipeline.
 - View all reports across all programs/batches/trainers.

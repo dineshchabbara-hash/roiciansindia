@@ -83,8 +83,8 @@ insert into payments (id, payment_code, student_id, enrollment_id, payment_type,
   ('19a00000-0000-0000-0000-000000000001', 'PHASE19-PAY-A', '19300000-0000-0000-0000-000000000001', '19700000-0000-0000-0000-000000000001', 'partial', 400.00, 400.00, 'cash', 'paid'),
   ('19a00000-0000-0000-0000-000000000002', 'PHASE19-PAY-B', '19300000-0000-0000-0000-000000000002', '19700000-0000-0000-0000-000000000002', 'partial', 250.50, 250.50, 'cash', 'paid');
 
-insert into payment_refunds (id, payment_id, amount, status) values
-  ('19b00000-0000-0000-0000-000000000001', '19a00000-0000-0000-0000-000000000001', 100.25, 'processed');
+insert into payment_refunds (id, payment_id, amount, status, reason, refunded_on, processed_at) values
+  ('19b00000-0000-0000-0000-000000000001', '19a00000-0000-0000-0000-000000000001', 100.25, 'processed', 'Phase 19 fixture refund', current_date, now());
 
 insert into certificates (id, certificate_number, enrollment_id, student_id, program_id, completion_date, issue_date, status, pdf_path) values
   ('19c00000-0000-0000-0000-000000000001', 'PHASE19-CERT-A', '19700000-0000-0000-0000-000000000001', '19300000-0000-0000-0000-000000000001', '19400000-0000-0000-0000-000000000001', current_date, current_date, 'issued', '19300000-0000-0000-0000-000000000001/PHASE19-CERT-A.pdf'),

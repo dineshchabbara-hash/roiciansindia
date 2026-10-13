@@ -99,6 +99,8 @@ export type PaymentLedgerRow = {
   studentName: string;
   programName: string;
   batchName: string | null;
+  /** Phase 21B: this payment's refunds (amount + status) for the derived label. */
+  refunds: Array<{ amountPaise: number; status: string }>;
 };
 
 export type PaymentLedgerPage = {
@@ -111,7 +113,7 @@ export type PaymentLedgerPage = {
 // No auth ids, no razorpay_* fields, no notes in the list (notes are on the
 // detail page). created_by is an admins.id, never displayed.
 const LEDGER_SELECT =
-  "id, payment_code, paid_at, created_at, total_amount, method, payment_type, status, internal_reference, enrollment_id, student_id, enrollment:enrollments(enrollment_code, program:programs(name), batch:batches(name)), student:students(student_code, first_name, last_name)";
+  "id, payment_code, paid_at, created_at, total_amount, method, payment_type, status, internal_reference, enrollment_id, student_id, enrollment:enrollments(enrollment_code, program:programs(name), batch:batches(name)), student:students(student_code, first_name, last_name), refunds:payment_refunds(amount, status)";
 
 type LedgerRowDb = {
   id: string;
@@ -131,6 +133,7 @@ type LedgerRowDb = {
     batch: { name: string } | null;
   } | null;
   student: { student_code: string; first_name: string; last_name: string } | null;
+  refunds?: Array<{ amount: string | number; status: string }> | null;
 };
 
 function mapLedgerRow(row: LedgerRowDb): PaymentLedgerRow {
@@ -153,6 +156,10 @@ function mapLedgerRow(row: LedgerRowDb): PaymentLedgerRow {
       : "Unknown student",
     programName: row.enrollment?.program?.name ?? "—",
     batchName: row.enrollment?.batch?.name ?? null,
+    refunds: (row.refunds ?? []).map((r) => ({
+      amountPaise: toPaise(r.amount),
+      status: r.status,
+    })),
   };
 }
 

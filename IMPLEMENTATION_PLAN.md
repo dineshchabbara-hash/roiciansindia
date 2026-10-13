@@ -25,7 +25,7 @@ ordering created a dependency contradiction during analysis.
 
 ### Current roadmap (authoritative; supersedes older phase lists)
 
-Phases 1–19, 20A and 20B are complete and merged (numbering unchanged). Remaining order,
+Phases 1–19, 20A, 20B and 21A are complete and merged (numbering unchanged). Remaining order,
 private LMS first — the public website is deferred until the private LMS is
 finished:
 
@@ -34,8 +34,8 @@ finished:
 | 18b | Email & multi-channel delivery | Deferred |
 | 20A | Offline Payments Ledger — Admin offline payment recording + Payments ledger (FR-90/FR-91/BR-6) | Complete (merged `2627ae9`) |
 | 20B | Razorpay Integration, TEST MODE (FR-43 pay online, FR-92, FR-93, SEC-5/6/7) | Complete (merged `b3b4a3a`; live Razorpay not activated) |
-| **21A** | **Receipts & Payment Documents** (FR-94, FR-95) | Active — awaiting migration 37 on dev + browser acceptance |
-| 21B | Refunds (FR-97) | Not started — needs DECISIONS_NEEDED.md D8 |
+| 21A | Receipts & Payment Documents (FR-94, FR-95) | Complete (merged `80008da`) |
+| **21B** | **Refunds** (FR-97; D8 resolved, Option A) | Active — awaiting migration 38 on dev + browser acceptance |
 | 22 | Public Website | Deferred |
 | 23 | Lead Management | Not started |
 | 24 | Testing & Security Review | Not started |
@@ -1570,6 +1570,76 @@ receipt stays attached to its payment, so a refund can later reference the
 same payment); company letterhead uses placeholders until
 `company_settings` is filled in; existing paid payments from before 21A get
 their receipt on first download or via "Generate receipt" (none on dev).
+
+### Phase 21B — Refunds (implemented)
+
+**Checkpoint decisions:** D8 resolved as Option A — outstanding = payable −
+paid + processed refunds (the accepted Phase 14 formula, unchanged; FR-31
+prose corrected). Admin and Super Admin issue refunds, no approval step,
+every action audited. Razorpay refunds in TEST mode only.
+
+**Rules:**
+- The original payment stays `paid` permanently; its amounts never change
+  (Phase 20A immutability intact). Refund truth is `payment_refunds`;
+  "Paid — Partially Refunded" / "Paid — Fully Refunded" are derived labels.
+- Statuses: `processed` (money returned — the only status that changes
+  outstanding/reports), `initiated` (Razorpay in progress — reserves
+  capacity, no effect on outstanding), `failed` (no effect, releases
+  capacity).
+- Partial and multiple refunds; processed + in-progress + new ≤ payment
+  amount, enforced by a trigger that locks the payment row.
+- A refund is money returned, not a fee adjustment: total payable, agreed
+  fee, discount, registration fee, tax, installments and the payment are
+  never touched, so the enrollment's outstanding rises by a processed
+  refund. The UI says so and previews outstanding now / after.
+- The receipt stays immutable; no credit note.
+
+**Migration `20260101000038_refund_workflow.sql`:** see
+`DATABASE_SCHEMA.md` `payment_refunds` (columns, constraints, capacity and
+rewrite triggers, dropped end-user write policies, four functions).
+
+**Manual (offline) refund:** offline payments only; amount > 0 and ≤
+refundable, required reason, refund date (India business date, not in the
+future, not before the payment date), optional reference →
+`record_offline_refund()` → `processed` + audit `refund.recorded_offline`.
+
+**Razorpay refund:** reserve (`initiated`) → Razorpay refund API with the
+stored payment id → apply the answer; definitive rejection releases the
+reservation ("No money was refunded"); a lost answer stays in progress.
+Confirmation by `refund.processed` / `refund.failed` webhooks (exact
+Razorpay event names; `refund.created` / `refund.speed_changed` ignored) or
+"Check status with Razorpay". See `API_AND_INTEGRATIONS.md` §2.8.
+
+**Idempotency:** the refund uuid is minted server-side per form render;
+both RPCs return the existing row for a reused id (no second provider
+call); the webhook is deduped by event id and each status transition is
+applied and audited once.
+
+**UI:** Admin payment detail → "Refunds" card (summary: payment amount,
+refunded, in progress, refundable; history; refund form with the
+not-a-fee-reduction explanation and outstanding before/after). Payments
+ledger shows the derived label. Student "Payments & receipts" card shows
+refunded / in-progress amounts read-only.
+
+**Reconciliation:** Phase 14 summary and Phase 19 reports already use
+processed refunds only — unchanged, verified by E2E Test 1.
+
+**Tests:** SQL `supabase/tests/phase21b_refunds_test.sql`, concurrency
+`scripts/test-refund-concurrency.sh`, unit/component tests, E2E
+`e2e/phase21b-refunds.spec.ts` (Test 1 manual partial refund + reconciliation;
+Test 2 Razorpay TEST: real API decline + signed `refund.processed` webhook,
+skipped without TEST keys).
+
+**Known limitations / future:**
+- A real Razorpay TEST refund needs a real captured TEST payment (only a
+  hosted Checkout run creates one); it is a manual Test Mode check, not an
+  automated test.
+- Refunds created outside the LMS (Razorpay Dashboard) are not imported
+  (webhook outcome `unknown_refund`).
+- Live-mode refunds not activated; no credit notes; no refund emails (18b).
+- **Future gap:** no post-enrollment payable adjustment / cancellation
+  settlement exists (`DECISIONS_NEEDED.md` D8, "Open future gap") —
+  deliberately not built here.
 
 ## Phase 22 — Public Website
 
