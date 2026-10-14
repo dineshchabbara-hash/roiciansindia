@@ -26,8 +26,14 @@ ordering created a dependency contradiction during analysis.
 ### Current roadmap (authoritative; supersedes older phase lists)
 
 Phases 1–19, 20A, 20B, 21A, 21B and 21C are complete and merged (numbering
-unchanged). Remaining order, private LMS first — the public website is
-deferred until the private LMS is finished. Roadmap decision (Phase 21C
+unchanged). The private LMS is complete. Remaining order (re-sequenced after
+the India/Canada architecture decision): **22 → 23 → 18b → 24 → 25.**
+Phase 18b waits because its email provider and credentials are not yet
+available, and nothing in Phases 22–23 needs it: account activation already
+uses Supabase Auth's own recovery flow, website enquiries go to Zoho (not to
+an LMS email/lead system), and production SMTP is a Phase 25 deployment
+requirement. Phase 18b keeps its full scope and must be complete before
+Phase 24 UAT if it stays in V1. Roadmap decision (Phase 21C
 checkpoint): **Zoho CRM is the CRM** — the LMS does not build leads,
 pipelines or sales tracking; Zoho owns pre-enrollment sales activity and the
 LMS owns post-enrollment academic and financial operations (website inquiry
@@ -51,9 +57,9 @@ only explicitly published data crosses into the public site. Full statement:
 | 21A | Receipts & Payment Documents (FR-94, FR-95) | Complete (merged `80008da`) |
 | 21B | Refunds (FR-97; D8 resolved, Option A) | Complete (merged `c527c08`; migration 38 on dev; Windows acceptance 2/2) |
 | 21C | LMS Administration & Identity (FR-140/141 Company Settings, D3 Student portal logins, Admin accounts, Audit Log viewer, FR-41 photo) | Complete (merged `6e5e4e9`; migration 39 on dev; Windows acceptance 3/3) |
-| 18b | Transactional Email & multi-channel delivery | Not started (next) |
-| 22 | Roicians India Public Website (country catalogue; see `ARCHITECTURE.md` §1a) | Not started (after 18b) |
-| 23 | Zoho CRM Integration (re-scoped from Lead Management) | Not started |
+| 22 | Roicians India Public Website (country catalogue; see `ARCHITECTURE.md` §1a) | Not started — **next** |
+| 23 | Zoho CRM Integration (re-scoped from Lead Management) | Not started (after 22) |
+| 18b | Transactional Email & multi-channel delivery | Not started — deferred until after 23 (provider + credentials chosen first); required before 24 if in V1 |
 | 24 | Testing, Security & UAT | Not started |
 | 25 | Production Deployment (Live Razorpay activation, production SMTP) | Not started |
 
@@ -1202,6 +1208,11 @@ on the dev project, and the Phase18E2E cleanup audit is clean.
 
 ## Phase 18b — Email & Multi-Channel Delivery (deferred)
 
+**Sequencing:** runs after Phase 23 and before Phase 24 (roadmap above). Its
+first step is to choose and confirm the email provider and obtain
+credentials; its requirements are not reduced because credentials are not
+available yet.
+
 Deferred from Phase 18 by the approved V1 re-scope; requirements kept as
 written: `EmailSender` abstraction + Resend adapter, React Email templates
 for all events in `REQUIREMENTS.md` FR-110, `email_log` delivery wiring,
@@ -1854,7 +1865,10 @@ resolved or explicitly accepted with reasoning recorded.
 ## Phase 25 — Production Deployment
 
 **Scope:** Production Supabase project provisioning, production Razorpay live
-keys, Vercel production environment variables, webhook URL registration, final
+keys, production SMTP for Supabase Auth emails (account activation and
+password reset, with the recovery template pointing at `/auth/confirm`) and
+the Phase 18b provider's verified sending domain, Vercel production
+environment variables, webhook URL registration, final
 README deployment walkthrough, backup-strategy documentation (Supabase's own
 point-in-time recovery / scheduled backups, per plan tier).
 
