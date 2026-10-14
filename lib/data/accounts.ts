@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DataResult } from "@/lib/data/dashboard";
 import {
   ADMIN_LINK_MESSAGES,
+  LMS_PROVISIONED_MARKER,
   STUDENT_LINK_MESSAGES,
   canAdoptLogin,
   normalizeEmail,
@@ -21,14 +22,17 @@ import {
  * through the caller's own session (RLS); the login itself is created with
  * the Auth admin API and linked by the service-role-only database
  * functions from migration 39, which fix the role (student / admin), lock
- * the profile row and are idempotent. A login is created WITHOUT a
- * password — the person sets their own through the reset-password flow —
- * so no password exists anywhere in this code.
+ * the profile row and are idempotent. A login is created WITHOUT supplying
+ * a password (Supabase Auth stores a random one nobody knows) — the person
+ * sets their own through the reset-password flow — so no password exists
+ * anywhere in this code. It carries the service-role-only app_metadata
+ * marker LMS_PROVISIONED_MARKER.
  *
  * Partial failure: a login created by this request is deleted again if
  * linking does not succeed, so a retry starts clean; a login left behind by
- * a crash in between has no role, no link and no password, and the next
- * attempt adopts it instead of creating a duplicate (canAdoptLogin).
+ * a crash in between is marked, has no role, no link and has never signed
+ * in, and the next attempt adopts it instead of creating a duplicate
+ * (canAdoptLogin).
  */
 
 const DEACTIVATED_BAN = "876000h"; // ~100 years: effectively until reactivated
@@ -40,7 +44,6 @@ function log(message: string, error?: unknown) {
 
 type FindRow = {
   auth_user_id: string;
-  has_password: boolean;
   last_sign_in_at: string | null;
   role: string | null;
   student_id: string | null;
@@ -54,14 +57,29 @@ async function findLogin(email: string): Promise<ExistingLogin | null> {
   if (error) throw error;
   const row = (data as FindRow[] | null)?.[0];
   if (!row) return null;
+  const unused =
+    !row.last_sign_in_at &&
+    row.role === null &&
+    row.student_id === null &&
+    row.trainer_id === null &&
+    row.admin_id === null;
   return {
     authUserId: row.auth_user_id,
-    hasPassword: row.has_password,
+    // Only an unused login can be adopted, so only then is the marker read.
+    provisionedByLms: unused && (await isLmsProvisioned(row.auth_user_id)),
+    hasSignedIn: Boolean(row.last_sign_in_at),
     role: row.role,
     studentId: row.student_id,
     trainerId: row.trainer_id,
     adminId: row.admin_id,
   };
+}
+
+async function isLmsProvisioned(authUserId: string): Promise<boolean> {
+  const { data, error } =
+    await createSupabaseAdminClient().auth.admin.getUserById(authUserId);
+  if (error) throw error;
+  return data.user?.app_metadata?.[LMS_PROVISIONED_MARKER] === true;
 }
 
 type LoginResolution =
@@ -85,6 +103,7 @@ async function resolveLogin(email: string): Promise<LoginResolution> {
   const { data, error } = await admin.auth.admin.createUser({
     email,
     email_confirm: true,
+    app_metadata: { [LMS_PROVISIONED_MARKER]: true },
   });
   if (error || !data.user) {
     // Another request created the same login a moment ago: classify that one.
@@ -117,24 +136,20 @@ async function discardCreatedLogin(authUserId: string, email: string) {
 
 type ActivityRow = {
   auth_user_id: string;
-  has_password: boolean;
   last_sign_in_at: string | null;
 };
 
 async function loginActivity(
   authUserIds: string[],
-): Promise<Map<string, { hasPassword: boolean; lastSignInAt: string | null }>> {
-  const result = new Map<string, { hasPassword: boolean; lastSignInAt: string | null }>();
+): Promise<Map<string, { lastSignInAt: string | null }>> {
+  const result = new Map<string, { lastSignInAt: string | null }>();
   if (authUserIds.length === 0) return result;
   const { data, error } = await createSupabaseAdminClient().rpc("auth_account_activity", {
     p_auth_user_ids: authUserIds,
   });
   if (error) throw error;
   for (const row of (data as ActivityRow[] | null) ?? []) {
-    result.set(row.auth_user_id, {
-      hasPassword: row.has_password,
-      lastSignInAt: row.last_sign_in_at,
-    });
+    result.set(row.auth_user_id, { lastSignInAt: row.last_sign_in_at });
   }
   return result;
 }

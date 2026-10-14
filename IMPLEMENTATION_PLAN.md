@@ -1692,15 +1692,18 @@ keep reading the row server-side as before. Audited:
 
 **Student portal access (D3 option b):** the Admin student page shows a
 "Portal access" card. "Give portal access" (Admin or Super Admin) creates a
-Supabase Auth login for the student's email **with no password**, assigns
-the fixed `student` role and links it — idempotently (a linked student is
-reported, never re-provisioned; a leftover login from an interrupted
-attempt — no role, no link, no password — is adopted, never duplicated; a
+Supabase Auth login for the student's email **without supplying a
+password** (Supabase stores a random hash nobody knows), assigns the fixed
+`student` role and links it — idempotently (a linked student is reported,
+never re-provisioned; a leftover login from an interrupted attempt — marked
+`lms_provisioned`, no role, no link, never signed in — is adopted, never
+duplicated; a
 login already used by staff or another student is refused; a login created
 by a failed attempt is removed only while still unlinked). The student
 activates it themselves via "Forgot password?" → emailed link → choose a
-password → sign in. States: No portal access / Awaiting activation /
-Active. Audited: `student.portal_access_granted`.
+password → sign in. States: No portal access / Awaiting activation (linked,
+never signed in) / Active (has signed in). Audited:
+`student.portal_access_granted`.
 
 **Admin accounts (`/admin/admins`, Super Admin only):** create an Admin
 (names + email only; role fixed to `admin`; same password-less activation),

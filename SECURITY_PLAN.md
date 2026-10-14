@@ -270,10 +270,12 @@ before use (prevents Insecure Direct Object Reference / IDOR).
   change of `students/trainers/admins.auth_user_id`; linking happens only in
   service-role functions under a profile row lock plus a per-login advisory
   lock (proven by `scripts/test-portal-provisioning-concurrency.sh`).
-- **No passwords handled:** provisioned logins are created without a
-  password; the owner sets it through Supabase Auth's recovery flow. A
-  pre-existing login for the email is adopted only if it has no role, no
-  profile link and no password; anything else is refused. Tokens never pass
+- **No passwords handled:** provisioned logins are created without
+  supplying a password (Supabase Auth stores a random hash nobody knows);
+  the owner sets theirs through Supabase Auth's recovery flow. A
+  pre-existing login for the email is adopted only if it carries the
+  service-role-only `app_metadata.lms_provisioned` marker, has no role, no
+  profile link and has never signed in; anything else is refused. Tokens never pass
   through application code except `/auth/confirm`, which verifies a
   `token_hash` server-side (recovery/invite only, fixed destination).
 - **Deactivated Admins:** `admins.status = 'inactive'` makes

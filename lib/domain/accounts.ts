@@ -3,10 +3,15 @@
  *
  * A profile (students / admins row) and a login (Supabase Auth user) are
  * separate things, linked only by the server. Provisioning creates a login
- * with NO password; the person sets their own through the existing
- * "Forgot / set password" flow, so no password is ever chosen by, shown to
- * or stored for an Admin. The role is fixed by the operation (student or
- * admin) — never taken from the request.
+ * without supplying a password; the person sets their own through the
+ * existing "Forgot / set password" flow, so no password is ever chosen by,
+ * shown to or stored for an Admin. The role is fixed by the operation
+ * (student or admin) — never taken from the request.
+ *
+ * Supabase Auth stores a random, never-disclosed password hash for a login
+ * created without one, so "has a password hash" says nothing about whether
+ * the person activated it. What does: a first sign-in, which for such a
+ * login is only possible through the emailed set-password link.
  */
 
 export function normalizeEmail(email: string): string {
@@ -16,7 +21,9 @@ export function normalizeEmail(email: string): string {
 /** What the server knows about an existing login for an email. */
 export type ExistingLogin = {
   authUserId: string;
-  hasPassword: boolean;
+  /** Created by LMS provisioning (service-role-only app_metadata marker). */
+  provisionedByLms: boolean;
+  hasSignedIn: boolean;
   role: string | null;
   studentId: string | null;
   trainerId: string | null;
@@ -25,33 +32,41 @@ export type ExistingLogin = {
 
 /**
  * Whether provisioning may adopt an existing login for this email instead
- * of creating one. Only a login that is a leftover of an earlier,
- * interrupted provisioning qualifies: no role, no profile link and no
- * password (nobody can sign in with it). Anything else belongs to someone.
+ * of creating one. Only a leftover of an earlier, interrupted provisioning
+ * qualifies: created by LMS provisioning, no role, no profile link and
+ * never signed in (nobody has used it). Anything else belongs to someone.
  */
 export function canAdoptLogin(login: ExistingLogin): boolean {
   return (
+    login.provisionedByLms &&
+    !login.hasSignedIn &&
     login.role === null &&
     login.studentId === null &&
     login.trainerId === null &&
-    login.adminId === null &&
-    !login.hasPassword
+    login.adminId === null
   );
 }
+
+/** The service-role-only app_metadata key marking a provisioned login. */
+export const LMS_PROVISIONED_MARKER = "lms_provisioned";
 
 export type PortalAccessState =
   | { status: "none" }
   | { status: "awaiting_activation"; email: string | null }
   | { status: "active"; email: string | null; lastSignInAt: string | null };
 
-/** Display state of a linked login. */
+/**
+ * Display state of a linked login: active once the person has signed in
+ * (activation link or password), awaiting activation until then. The
+ * stored password hash is deliberately not consulted (see file header).
+ */
 export function portalAccessState(
   linked: boolean,
   email: string | null,
-  activity: { hasPassword: boolean; lastSignInAt: string | null } | null,
+  activity: { lastSignInAt: string | null } | null,
 ): PortalAccessState {
   if (!linked) return { status: "none" };
-  if (activity && (activity.hasPassword || activity.lastSignInAt)) {
+  if (activity?.lastSignInAt) {
     return { status: "active", email, lastSignInAt: activity.lastSignInAt };
   }
   return { status: "awaiting_activation", email };

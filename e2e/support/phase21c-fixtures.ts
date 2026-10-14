@@ -315,8 +315,19 @@ export async function cleanupPhase21C(tracked: Phase21CTracked): Promise<string[
     push("restore company_settings", error);
   }
 
+  // Fixture students first. Deleting a login a student row still links
+  // would make Postgres set students.auth_user_id to null, which the
+  // Phase 10 students trigger (prevent_student_self_edit_of_protected_fields)
+  // rightly refuses outside a service-role/admin request — Auth's own
+  // database connection is neither — so deleteUser fails with "Database
+  // error deleting user". Removing the student removes the link instead.
+  for (const id of tracked.studentIds) {
+    const { error } = await safely(() => supabase.from("students").delete().eq("id", id));
+    push(`student ${id}`, error);
+  }
+
   // Logins the app created: admins profile (FK restrict) first, then the
-  // login itself (user_roles cascades; students.auth_user_id set null).
+  // login itself (user_roles cascades).
   for (const email of tracked.appCreatedEmails) {
     const authUserId = await authUserIdForEmail(email);
     if (!authUserId) continue;
@@ -328,11 +339,6 @@ export async function cleanupPhase21C(tracked: Phase21CTracked): Promise<string[
       supabase.auth.admin.deleteUser(authUserId),
     );
     push(`auth user for ${email}`, error);
-  }
-
-  for (const id of tracked.studentIds) {
-    const { error } = await safely(() => supabase.from("students").delete().eq("id", id));
-    push(`student ${id}`, error);
   }
 
   for (const staff of tracked.staff) {

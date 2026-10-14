@@ -50,6 +50,7 @@ function service(options: {
   rpc?: Record<string, Result[]>;
   createUser?: Result;
   tables?: Record<string, Result[]>;
+  appMetadata?: Record<string, unknown>;
 }) {
   const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
   const rpcQueues = Object.fromEntries(
@@ -68,7 +69,10 @@ function service(options: {
       deleteUser: vi.fn(async () => ({ error: null })),
       updateUserById: vi.fn(async () => ({ error: null })),
       getUserById: vi.fn(async () => ({
-        data: { user: { email: "login@example.com" } },
+        data: {
+          user: { email: "login@example.com", app_metadata: options.appMetadata ?? {} },
+        },
+        error: null,
       })),
     },
   };
@@ -98,9 +102,11 @@ function service(options: {
   return { client, auth, rpcCalls };
 }
 
+// Hosted Supabase Auth stores a random password hash for a login created
+// without a password, so has_password is true even for an unused login.
 const BASE_LOGIN = {
   auth_user_id: "login",
-  has_password: false,
+  has_password: true,
   last_sign_in_at: null,
   role: null,
   student_id: null,
@@ -138,6 +144,7 @@ describe("provisionStudentPortalAccess", () => {
     expect(svc.auth.admin.createUser).toHaveBeenCalledWith({
       email: "asha.rao@example.com",
       email_confirm: true,
+      app_metadata: { lms_provisioned: true },
     });
     const created = svc.auth.admin.createUser.mock.calls[0] as unknown as [
       Record<string, unknown>,
@@ -161,22 +168,9 @@ describe("provisionStudentPortalAccess", () => {
   it("adopts a leftover login from an interrupted attempt instead of creating a duplicate", async () => {
     viewer({ students: [{ data: activeStudent }] });
     const svc = service({
+      appMetadata: { lms_provisioned: true },
       rpc: {
-        find_auth_account: [
-          {
-            data: [
-              {
-                auth_user_id: "leftover",
-                has_password: false,
-                last_sign_in_at: null,
-                role: null,
-                student_id: null,
-                trainer_id: null,
-                admin_id: null,
-              },
-            ],
-          },
-        ],
+        find_auth_account: [{ data: [{ ...BASE_LOGIN, auth_user_id: "leftover" }] }],
         link_student_portal_account: [{ data: "linked" }],
       },
     });
@@ -192,10 +186,12 @@ describe("provisionStudentPortalAccess", () => {
       "belongs to another student",
       { role: "student", student_id: "other", has_password: true },
     ],
-    ["has a password but no role", { has_password: true }],
+    ["was not created by LMS provisioning", {}],
+    ["has been signed in to", { last_sign_in_at: "2026-10-01T00:00:00Z" }],
   ])("refuses an email whose login %s and changes nothing", async (_label, login) => {
     viewer({ students: [{ data: activeStudent }] });
     const svc = service({
+      appMetadata: "last_sign_in_at" in login ? { lms_provisioned: true } : {},
       rpc: {
         find_auth_account: [
           {
@@ -216,8 +212,14 @@ describe("provisionStudentPortalAccess", () => {
   it("deletes a login it just created when the database refuses the link", async () => {
     viewer({ students: [{ data: activeStudent }] });
     const svc = service({
+      appMetadata: { lms_provisioned: true },
       rpc: {
-        find_auth_account: [{ data: [] }],
+        // The re-check finds the new login as Auth stored it: password hash
+        // present, marker set, unlinked — still this request's to remove.
+        find_auth_account: [
+          { data: [] },
+          { data: [{ ...BASE_LOGIN, auth_user_id: NEW_LOGIN }] },
+        ],
         link_student_portal_account: [{ data: "student_has_other_account" }],
       },
     });
@@ -273,14 +275,14 @@ describe("provisionStudentPortalAccess", () => {
 });
 
 describe("getStudentPortalAccess", () => {
-  it("shows awaiting activation until a password is set", async () => {
+  it("shows awaiting activation for a provisioned login that has a generated password hash but no sign-in", async () => {
     viewer({ students: [{ data: { ...activeStudent, auth_user_id: "login-1" } }] });
     service({
       rpc: {
         auth_account_activity: [
           {
             data: [
-              { auth_user_id: "login-1", has_password: false, last_sign_in_at: null },
+              { auth_user_id: "login-1", has_password: true, last_sign_in_at: null },
             ],
           },
         ],
@@ -289,6 +291,33 @@ describe("getStudentPortalAccess", () => {
     expect(await getStudentPortalAccess(STUDENT_ID)).toEqual({
       ok: true,
       data: { status: "awaiting_activation", email: "login@example.com" },
+    });
+  });
+
+  it("shows active once the student has signed in", async () => {
+    viewer({ students: [{ data: { ...activeStudent, auth_user_id: "login-1" } }] });
+    service({
+      rpc: {
+        auth_account_activity: [
+          {
+            data: [
+              {
+                auth_user_id: "login-1",
+                has_password: true,
+                last_sign_in_at: "2026-10-14T02:00:00Z",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(await getStudentPortalAccess(STUDENT_ID)).toEqual({
+      ok: true,
+      data: {
+        status: "active",
+        email: "login@example.com",
+        lastSignInAt: "2026-10-14T02:00:00Z",
+      },
     });
   });
 });

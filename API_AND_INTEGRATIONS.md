@@ -219,8 +219,13 @@ include unnecessary personal data.
   with the service-role key.
 - **Phase 21C — account provisioning and activation.** Student portal logins
   (Admin/Super Admin) and Admin logins (Super Admin) are created with
-  `auth.admin.createUser({ email, email_confirm: true })` — no password — and
-  linked by the service-role database functions (fixed role, idempotent).
+  `auth.admin.createUser({ email, email_confirm: true, app_metadata:
+  { lms_provisioned: true } })` — no password supplied — and linked by the
+  service-role database functions (fixed role, idempotent). Hosted Supabase
+  Auth stores a random, never-disclosed password hash for such a login, so
+  the LMS never treats "a password hash exists" as activation: a login is
+  **Active** once it has signed in (`last_sign_in_at`), **Awaiting
+  activation** until then.
   The person activates the login through Supabase Auth's recovery email
   (`/forgot-password` → link → `/reset-password`). `GET /auth/confirm`
   verifies `token_hash` links server-side (`verifyOtp`, types recovery/invite

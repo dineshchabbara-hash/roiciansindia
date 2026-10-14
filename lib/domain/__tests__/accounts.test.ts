@@ -3,7 +3,8 @@ import { canAdoptLogin, normalizeEmail, portalAccessState } from "@/lib/domain/a
 
 const leftover = {
   authUserId: "u1",
-  hasPassword: false,
+  provisionedByLms: true,
+  hasSignedIn: false,
   role: null,
   studentId: null,
   trainerId: null,
@@ -11,11 +12,12 @@ const leftover = {
 };
 
 describe("canAdoptLogin", () => {
-  it("adopts only a leftover login: no role, no link, no password", () => {
+  it("adopts only an unused LMS-provisioned login: marker, no role, no link, never signed in", () => {
     expect(canAdoptLogin(leftover)).toBe(true);
   });
   it.each([
-    ["has a password", { hasPassword: true }],
+    ["was not created by LMS provisioning", { provisionedByLms: false }],
+    ["has been signed in to", { hasSignedIn: true }],
     ["has a role", { role: "student" }],
     ["is linked to a student", { studentId: "s1" }],
     ["is linked to a trainer", { trainerId: "t1" }],
@@ -29,17 +31,19 @@ describe("portalAccessState", () => {
   it("is none when no login is linked", () => {
     expect(portalAccessState(false, "a@b.c", null)).toEqual({ status: "none" });
   });
-  it("awaits activation until a password is set or a sign-in happens", () => {
-    expect(
-      portalAccessState(true, "a@b.c", { hasPassword: false, lastSignInAt: null }),
-    ).toEqual({ status: "awaiting_activation", email: "a@b.c" });
+  it("awaits activation until the first sign-in", () => {
+    expect(portalAccessState(true, "a@b.c", { lastSignInAt: null })).toEqual({
+      status: "awaiting_activation",
+      email: "a@b.c",
+    });
+    expect(portalAccessState(true, "a@b.c", null)).toEqual({
+      status: "awaiting_activation",
+      email: "a@b.c",
+    });
   });
-  it("is active once the person has set a password", () => {
+  it("is active once the person has signed in", () => {
     expect(
-      portalAccessState(true, "a@b.c", {
-        hasPassword: true,
-        lastSignInAt: "2026-10-13T10:00:00Z",
-      }),
+      portalAccessState(true, "a@b.c", { lastSignInAt: "2026-10-13T10:00:00Z" }),
     ).toEqual({ status: "active", email: "a@b.c", lastSignInAt: "2026-10-13T10:00:00Z" });
   });
 });
