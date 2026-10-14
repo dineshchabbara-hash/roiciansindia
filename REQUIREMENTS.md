@@ -62,6 +62,11 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   hidden in navigation.
 - FR-4 (P0): Students cannot self-register as Trainer/Admin. Trainer accounts are
   created/invited by Admin/Super Admin only.
+  (Phase 21C: Student portal logins are provisioned by Admin/Super Admin for
+  an existing student (D3 option b) and Admin accounts by Super Admin only;
+  every login is created without a password and activated by its owner via
+  the set-password flow. Roles are fixed server-side; no end-user role can
+  write `user_roles`.)
 - FR-5 (P1): OTP, Google/Microsoft SSO reserved for future (P2) — auth abstraction
   must not block adding these later.
 
@@ -137,6 +142,10 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   facing Storage grant yet, and a profile-photo bucket + its own RLS is a separate
   unit of work; password self-service is already served by the existing role-
   agnostic /forgot-password → /reset-password flow, so no new UI was built for it.)
+  (Phase 21C: profile photo implemented — the Student uploads/removes their
+  own photo on /student/profile (PNG/JPEG/WebP ≤ 2 MB, type checked by its
+  bytes) into the private `profile-photos` bucket; visible to the student
+  and Admins only through a session-checked route. FR-41 is now fully met.)
 - FR-42 (P0): View program/batch/trainer/schedule/materials/assignments scoped to the
   student's own enrollments only (enforced server-side + RLS).
   (Phase 10 implementation note: delivers the program/batch/status/dates/payment-
@@ -552,6 +561,13 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   (New → Contacted → Follow-up → Qualified → Converted → Not Interested → Closed).
 - FR-132 (P1): Converting a lead to a student preserves the original lead source on
   the student/enrollment record.
+  (Re-scoped at the Phase 21C checkpoint: **Zoho CRM is the CRM.** FR-131's
+  lead list/pipeline and FR-132's lead conversion are owned by Zoho, not
+  built in the LMS. Phase 23 is "Zoho CRM Integration": it decides how a
+  website inquiry reaches Zoho and how a qualified/enrolled customer becomes
+  an LMS Student + Enrollment, and what — if anything — `/admin/leads`
+  becomes. The LMS never duplicates leads, opportunities, pipeline stages,
+  follow-ups, sales notes, campaigns, sales ownership or CRM reporting.)
 
 ### 2.15 Settings / Configuration
 - FR-140 (P0): Centralized Company Settings (name, legal name, logo, address,
@@ -567,6 +583,14 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   `company_settings` row; no component hard-codes either string.
 - FR-141 (P0): Tax configuration is explicit and off by default until GST details are
   supplied (see `DECISIONS_NEEDED.md`).
+  (Phase 21C implementation note for FR-140/FR-141: `/admin/settings` — Super
+  Admin edits brand name, legal name, address, phone, email, website, GSTIN,
+  receipt/certificate number formats (validated: exactly one `{seq:N}`),
+  certificate signatory and social links, and uploads the logo; Admin sees
+  the same values read-only; Student/Trainer/anon have no access. Every
+  change is audited. Tax stays disabled and is shown read-only — V1
+  calculates no tax, so no tax switch is offered (D2 still open); GSTIN is
+  stored and printed on receipts when set. Country is fixed to India.)
 
 ### 2.16 Anti-fake-implementation requirement (REQ-DEMO)
 - FR-150 (P0): No UI control may claim to perform an action it does not actually

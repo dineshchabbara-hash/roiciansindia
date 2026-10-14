@@ -11,6 +11,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { SidebarNav } from "@/components/admin/sidebar-nav";
+import type { Role } from "@/lib/domain/rbac";
 
 /**
  * Hamburger trigger + slide-in drawer for small screens. Radix Dialog (via
@@ -19,7 +20,7 @@ import { SidebarNav } from "@/components/admin/sidebar-nav";
  * close — this is the "accessible keyboard/navigation behavior"
  * requirement for the mobile nav specifically.
  */
-export function MobileNav({ companyName }: { companyName: string }) {
+export function MobileNav({ companyName, role }: { companyName: string; role?: Role }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -38,7 +39,7 @@ export function MobileNav({ companyName }: { companyName: string }) {
         <SheetHeader className="border-b">
           <SheetTitle>{companyName}</SheetTitle>
         </SheetHeader>
-        <SidebarNav onNavigate={() => setOpen(false)} />
+        <SidebarNav onNavigate={() => setOpen(false)} role={role} />
       </SheetContent>
     </Sheet>
   );

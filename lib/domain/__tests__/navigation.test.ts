@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ADMIN_NAV_ITEMS,
+  adminNavItemsFor,
   getActiveNavItem,
   STUDENT_NAV_ITEMS,
   getActiveStudentNavItem,
@@ -9,7 +10,7 @@ import {
 } from "@/lib/domain/navigation";
 
 describe("ADMIN_NAV_ITEMS", () => {
-  it("includes exactly the 15 admin nav sections (Notifications added in Phase 18)", () => {
+  it("includes exactly the 17 admin nav sections (Audit Log and Admin Accounts added in Phase 21C)", () => {
     const labels = ADMIN_NAV_ITEMS.map((i) => i.label);
     expect(labels).toEqual([
       "Dashboard",
@@ -26,6 +27,8 @@ describe("ADMIN_NAV_ITEMS", () => {
       "Notifications",
       "Leads",
       "Reports",
+      "Audit Log",
+      "Admin Accounts",
       "Settings",
     ]);
   });
@@ -35,9 +38,24 @@ describe("ADMIN_NAV_ITEMS", () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it("Dashboard and Students are marked implemented as of Phase 5", () => {
+  it("marks Dashboard, Students and the Phase 21C sections implemented", () => {
     const implemented = ADMIN_NAV_ITEMS.filter((i) => i.implemented).map((i) => i.label);
-    expect(implemented).toEqual(["Dashboard", "Students"]);
+    expect(implemented).toEqual([
+      "Dashboard",
+      "Students",
+      "Audit Log",
+      "Admin Accounts",
+      "Settings",
+    ]);
+  });
+
+  it("shows Admin Accounts to Super Admin only", () => {
+    expect(adminNavItemsFor("super_admin").map((i) => i.label)).toContain(
+      "Admin Accounts",
+    );
+    expect(adminNavItemsFor("admin").map((i) => i.label)).not.toContain("Admin Accounts");
+    expect(adminNavItemsFor("admin").map((i) => i.label)).toContain("Audit Log");
+    expect(adminNavItemsFor(undefined)).toHaveLength(ADMIN_NAV_ITEMS.length - 1);
   });
 });
 

@@ -40,7 +40,14 @@ until you provide a rate — receipts show no tax line until enabled. This needs
 your input before Phase 9 (Enrollments) if you want tax-inclusive figures from day
 one; otherwise it can be turned on any time later without a schema change.
 
-### D3. Student portal account creation timing
+### D3. Student portal account creation timing — RESOLVED (option b, Phase 21C)
+
+**Resolved:** option (b) — an Admin/Super Admin provisions portal access for
+an existing Student record; there is no self-serve signup. Implemented in
+Phase 21C: the login is created without a password, gets the fixed
+`student` role and is linked server-side; the student sets their own
+password via the set-password link. Original text kept below.
+
 The brief allows two options: (a) student creates their portal login during public
 registration, before any Admin review, or (b) Admin creates/approves the student
 record first, then provisions the login. **Recommended default: (b)** — Admin
@@ -60,7 +67,13 @@ phase can add `company_settings.logo_path` as an `<Image>` without changing the
 render data contract). The public `/verify-certificate` page shows the full
 student display name (not masked), matching the stated default.
 
-### D5. Admin access to Company Settings
+### D5. Admin access to Company Settings — RESOLVED (Phase 21C)
+
+**Resolved:** Super Admin edits; Admin has read-only access (the read-only
+correction already in the RLS policies since Phase 3); Student, Trainer and
+anonymous users have none. Implemented by `/admin/settings` in Phase 21C.
+Original text kept below.
+
 Current default (`USER_ROLES_AND_PERMISSIONS.md` §3) restricts tax/numbering/
 branding configuration to Super Admin only, with Admin excluded, to prevent an
 operational-staff mistake from silently changing receipt numbering or tax

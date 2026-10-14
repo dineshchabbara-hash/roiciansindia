@@ -21,7 +21,7 @@ export function AdminShell({
           <p className="font-semibold">{companyName}</p>
           <p className="text-muted-foreground text-xs">Admin Portal</p>
         </div>
-        <SidebarNav />
+        <SidebarNav role={user.role} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

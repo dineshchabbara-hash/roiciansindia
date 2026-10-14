@@ -279,6 +279,15 @@ offline → `record_offline_refund()` (processed); Razorpay →
 `lib/data/refunds.ts`, `lib/actions/refunds.ts`,
 `components/admin/payments/payment-refunds-card.tsx`.
 
+Phase 21C (administration & identity): profiles and logins stay separate and
+are linked only by server code — `lib/data/accounts.ts` creates password-less
+logins with the Auth admin API and links them through service-role database
+functions that fix the role; `lib/data/company-settings.ts` (Settings),
+`lib/data/audit-viewer.ts` (read-only Audit Log through the viewer's RLS) and
+`lib/data/profile-photos.ts` (FR-41) follow the same session-first pattern.
+Zoho CRM (Phase 23) owns pre-enrollment sales; the LMS starts at Student +
+Enrollment.
+
 Steps 1–7 are the online flow, Phase 20B. Phase 20A's offline flow is:
 Admin finds the enrollment → reviews the Phase 14 figures → submits the
 form → `recordOfflinePaymentAction` (role check, zod) →

@@ -131,6 +131,12 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
 - `created_at`, `updated_at`
 - One row per auth user; a user has exactly one role in V1 (simplifies RBAC; a
   future multi-role-per-user need would add a join table without breaking this).
+- **Phase 21C (migration `20260101000039_admin_identity_settings.sql`):** the
+  Admin INSERT/UPDATE/DELETE policies were dropped (an Admin could write any
+  role, including `super_admin`). End users have SELECT only; roles are
+  written by server-side code only — the trainer creation path and the
+  service-role functions `link_student_portal_account()` (role fixed to
+  `student`) and `link_admin_account()` (role fixed to `admin`).
 
 ### `students`
 - `id uuid pk`
@@ -170,6 +176,13 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
   `user_roles.role` for convenience joins; `user_roles` remains authoritative.
 - `status text not null default 'active'`
 - `created_at`, `updated_at`
+- **Phase 21C:** Super Admin write policies dropped; Admin accounts are
+  created by `link_admin_account()` (service role, role_level `admin` only)
+  and (de)activated by `set_admin_account_status()` (plain admins only). An
+  `inactive` row makes `is_admin_or_super()` / `is_super_admin()` false for
+  that login at once; a role without an admins row (the documented Super
+  Admin bootstrap) is unaffected. A trigger blocks any end-user change of
+  `auth_user_id` on `students`, `trainers` and `admins`.
 
 ### `programs`
 - `id uuid pk`
@@ -583,6 +596,13 @@ column allow-list at the application layer instead.)
 - `certificate_signatory_name text`, `certificate_signatory_title text`
 - `social_links jsonb`
 - `updated_at`
+- **Phase 21C:** constraints — `company_name`/`legal_name` non-blank;
+  `receipt_number_format` / `certificate_number_format` pass
+  `is_valid_number_format()` (exactly one `{seq:N}`, N 4–12, at most one
+  `{year}`, letters/digits/`-`/`/`/`_`, 6–40 chars); `gstin` matches the
+  Indian GSTIN pattern; `logo_path` is `logo/<uuid>.(png|jpg|webp)` in the
+  public `branding` bucket; `social_links` is a JSON object. RLS unchanged:
+  Admin/Super Admin SELECT, Super Admin UPDATE, no INSERT/DELETE.
 
 ### `audit_logs`
 - `id uuid pk`
@@ -595,6 +615,13 @@ column allow-list at the application layer instead.)
 - Index: `(entity_type, entity_id)`, `(created_at)`
 - Never stores passwords, tokens, or secrets (enforced by code review + a redaction
   helper used by every audit-write call site).
+- **Phase 21C:** SELECT for Super Admin (all rows) and Admin (all rows except
+  `entity_type = 'admin_account'`); still no INSERT/UPDATE/DELETE policy for
+  any end-user role (append-only). Indexes on `action` and
+  `actor_auth_user_id` for the Audit Log viewer.
+- `students.profile_photo_path` (Phase 21C, FR-41) must be
+  `<student id>/<uuid>.(png|jpg|webp)` inside the private `profile-photos`
+  bucket (check constraint).
 
 ### `student_notes`
 - `id uuid pk`

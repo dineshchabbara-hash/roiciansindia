@@ -73,7 +73,7 @@ begin
     update students
     set phone = '9990009999', alternate_phone = '9990008888',
         address_line1 = 'New Address A', city = 'New City A',
-        profile_photo_path = 'student-photos/fc000000-0000-0000-0000-000000000001.jpg'
+        profile_photo_path = 'fc000000-0000-0000-0000-000000000001/aaaaaaaa-0000-4000-8000-000000000001.jpg'
     where id = 'fc000000-0000-0000-0000-000000000001'
     returning 1
   )

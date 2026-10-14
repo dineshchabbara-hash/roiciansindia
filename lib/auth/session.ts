@@ -64,7 +64,19 @@ export async function getCurrentUserContext(): Promise<UserContext | null> {
     }
 
     const role = userRole.role;
-    const { profileId, displayName } = await resolveProfile(supabase, role, user.id);
+    const { profileId, displayName, inactiveAdmin } = await resolveProfile(
+      supabase,
+      role,
+      user.id,
+    );
+    // Phase 21C: a deactivated Admin is treated as not authenticated (the
+    // database already denies them via is_admin_or_super()). Only an
+    // explicitly inactive admins row counts — a role without a profile row
+    // (the documented Super Admin bootstrap) is unaffected.
+    if (inactiveAdmin) {
+      debugAuth("admin account is deactivated", { authUserId: user.id });
+      return null;
+    }
 
     return {
       authUserId: user.id,
@@ -83,22 +95,37 @@ async function resolveProfile(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   role: Role,
   authUserId: string,
-): Promise<{ profileId: string | null; displayName: string | null }> {
+): Promise<{
+  profileId: string | null;
+  displayName: string | null;
+  inactiveAdmin: boolean;
+}> {
   const table =
     role === "trainer" ? "trainers" : role === "student" ? "students" : "admins";
 
   const { data, error } = await supabase
     .from(table)
-    .select("id, first_name, last_name")
+    .select(
+      table === "admins"
+        ? "id, first_name, last_name, status"
+        : "id, first_name, last_name",
+    )
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
   if (error || !data) {
-    return { profileId: null, displayName: null };
+    return { profileId: null, displayName: null, inactiveAdmin: false };
   }
 
+  const row = data as unknown as {
+    id: string;
+    first_name: string;
+    last_name: string;
+    status?: string;
+  };
   return {
-    profileId: data.id as string,
-    displayName: `${data.first_name} ${data.last_name}`,
+    profileId: row.id,
+    displayName: `${row.first_name} ${row.last_name}`,
+    inactiveAdmin: table === "admins" && row.status === "inactive",
   };
 }

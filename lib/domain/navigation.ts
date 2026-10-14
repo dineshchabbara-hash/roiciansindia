@@ -16,7 +16,10 @@ import {
   Settings,
   User,
   Bell,
+  ScrollText,
+  ShieldCheck,
 } from "lucide-react";
+import type { Role } from "@/lib/domain/rbac";
 
 /**
  * Single source of truth for Admin sidebar/mobile-nav/breadcrumb structure.
@@ -30,6 +33,8 @@ export type AdminNavItem = {
   href: string;
   icon: LucideIcon;
   implemented: boolean;
+  /** Phase 21C: shown to Super Admin only (the page also enforces it). */
+  superAdminOnly?: boolean;
 };
 
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
@@ -67,8 +72,21 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   },
   { label: "Leads", href: "/admin/leads", icon: UserPlus, implemented: false },
   { label: "Reports", href: "/admin/reports", icon: BarChart3, implemented: false },
-  { label: "Settings", href: "/admin/settings", icon: Settings, implemented: false },
+  { label: "Audit Log", href: "/admin/audit-log", icon: ScrollText, implemented: true },
+  {
+    label: "Admin Accounts",
+    href: "/admin/admins",
+    icon: ShieldCheck,
+    implemented: true,
+    superAdminOnly: true,
+  },
+  { label: "Settings", href: "/admin/settings", icon: Settings, implemented: true },
 ];
+
+/** The nav items a role may see (Super Admin sees every item). */
+export function adminNavItemsFor(role: Role | null | undefined): AdminNavItem[] {
+  return ADMIN_NAV_ITEMS.filter((item) => !item.superAdminOnly || role === "super_admin");
+}
 
 /**
  * Which nav item a given pathname belongs to, for sidebar active-state and

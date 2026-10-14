@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ADMIN_NAV_ITEMS, getActiveNavItem } from "@/lib/domain/navigation";
+import { adminNavItemsFor, getActiveNavItem } from "@/lib/domain/navigation";
+import type { Role } from "@/lib/domain/rbac";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,13 +12,19 @@ import { cn } from "@/lib/utils";
  * place. `onNavigate` lets the mobile drawer close itself after a link is
  * clicked — the desktop sidebar simply doesn't pass it.
  */
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({
+  onNavigate,
+  role,
+}: {
+  onNavigate?: () => void;
+  role?: Role;
+}) {
   const pathname = usePathname();
   const activeItem = getActiveNavItem(pathname);
 
   return (
     <nav aria-label="Admin navigation" className="flex flex-col gap-1 p-3">
-      {ADMIN_NAV_ITEMS.map((item) => {
+      {adminNavItemsFor(role).map((item) => {
         const isActive = activeItem?.href === item.href;
         const Icon = item.icon;
         return (

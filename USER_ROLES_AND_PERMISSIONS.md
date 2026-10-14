@@ -127,6 +127,14 @@ Notes:
   matrix says — only a Student, for their own confirmed enrollment, can
   start a Razorpay payment; Admin/Super Admin see online payments in the
   ledger but cannot initiate or confirm one; Trainers have no access.)
+  (Phase 21C: "Manage Admin accounts" is enforced — only a Super Admin
+  creates/deactivates/reactivates plain Admins at /admin/admins; Super Admin
+  accounts are not manageable in the app; nobody changes their own account.
+  "Manage Company Settings" — Super Admin edits, Admin read-only (D5).
+  "View Audit Logs" — Super Admin everything, Admin everything except Admin
+  account management (the non-sensitive subset). Student portal logins are
+  provisioned by Admin/Super Admin (D3 option b). No end-user role can write
+  `user_roles`; roles are fixed by the server.)
   (Phase 21B: "Issue refund" — Admin and Super Admin both refund a paid
   payment from its detail page (manual refund for offline payments,
   Razorpay TEST refund for online ones); every refund is audited; no

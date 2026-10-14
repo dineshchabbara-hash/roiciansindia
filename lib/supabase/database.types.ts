@@ -53,6 +53,8 @@ export type Database = {
           email: string;
           role_level: "admin" | "super_admin";
           status: "active" | "inactive";
+          created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["admins"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["admins"]["Row"]>;
@@ -65,12 +67,24 @@ export type Database = {
           company_name: string;
           legal_name: string;
           logo_path: string | null;
+          address: string | null;
+          phone: string | null;
+          email: string | null;
+          website: string | null;
+          country: string;
+          gstin: string | null;
+          tax_enabled: boolean;
           default_tax_rate_percent: string;
           tax_label: string;
+          student_id_prefix: string;
+          receipt_number_format: string;
           program_code_pattern: string | null;
           certificate_number_format: string;
           certificate_signatory_name: string | null;
           certificate_signatory_title: string | null;
+          social_links: unknown;
+          created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["company_settings"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["company_settings"]["Row"]>;
@@ -849,6 +863,43 @@ export type Database = {
       };
     };
     Functions: {
+      find_auth_account: {
+        Args: { p_email: string };
+        Returns: Array<{
+          auth_user_id: string;
+          has_password: boolean;
+          last_sign_in_at: string | null;
+          role: string | null;
+          student_id: string | null;
+          trainer_id: string | null;
+          admin_id: string | null;
+        }>;
+      };
+      auth_account_activity: {
+        Args: { p_auth_user_ids: string[] };
+        Returns: Array<{
+          auth_user_id: string;
+          has_password: boolean;
+          last_sign_in_at: string | null;
+        }>;
+      };
+      link_student_portal_account: {
+        Args: { p_student_id: string; p_auth_user_id: string };
+        Returns: string;
+      };
+      link_admin_account: {
+        Args: {
+          p_auth_user_id: string;
+          p_first_name: string;
+          p_last_name: string;
+          p_email: string;
+        };
+        Returns: Array<{ admin_id: string | null; outcome: string }>;
+      };
+      set_admin_account_status: {
+        Args: { p_admin_id: string; p_status: string };
+        Returns: Array<{ auth_user_id: string | null; outcome: string }>;
+      };
       assign_batch_trainer: {
         Args: {
           p_batch_id: string;

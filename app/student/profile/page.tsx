@@ -2,6 +2,11 @@ import { getMyStudentProfile } from "@/lib/data/student-portal";
 import { updateMyProfileAction } from "@/lib/actions/student-profile";
 import { StudentProfileForm } from "@/components/student/student-profile-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProfilePhotoCard } from "@/components/student/profile-photo-card";
+import {
+  MAX_PROFILE_PHOTO_LABEL,
+  getProfilePhotoVersion,
+} from "@/lib/data/profile-photos";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +15,7 @@ export const dynamic = "force-dynamic";
 // lib/validation/student-self-profile.ts and the Phase 10 report for why
 // name/DOB/gender/email/status are shown read-only here rather than as
 // editable fields, and why profile photo/password are not yet part of this
-// form.
+// form. (Phase 21C: the profile photo is now a separate card below — FR-41.)
 export default async function StudentProfilePage() {
   const result = await getMyStudentProfile();
 
@@ -23,6 +28,7 @@ export default async function StudentProfilePage() {
   }
 
   const profile = result.data;
+  const photoVersion = await getProfilePhotoVersion(profile.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -58,6 +64,20 @@ export default async function StudentProfilePage() {
         </CardContent>
         <CardContent className="text-muted-foreground pt-0 text-xs">
           Name, email, and status can only be changed by an administrator.
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Profile photo</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ProfilePhotoCard
+            studentId={profile.id}
+            hasPhoto={photoVersion !== null}
+            version={photoVersion ?? "none"}
+            maxLabel={MAX_PROFILE_PHOTO_LABEL}
+          />
         </CardContent>
       </Card>
 

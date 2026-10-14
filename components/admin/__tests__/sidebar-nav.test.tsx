@@ -12,10 +12,25 @@ vi.mock("next/navigation", () => ({
 const { SidebarNav } = await import("@/components/admin/sidebar-nav");
 
 describe("SidebarNav", () => {
-  it("renders all 15 admin nav items (Notifications added in Phase 18)", () => {
+  it("renders the 16 nav items an Admin sees (Phase 21C: Audit Log; Admin Accounts is Super Admin only)", () => {
     mockUsePathname.mockReturnValue("/admin");
     render(<SidebarNav />);
-    expect(screen.getAllByRole("link")).toHaveLength(15);
+    expect(screen.getAllByRole("link")).toHaveLength(16);
+  });
+
+  it("adds Admin Accounts for a Super Admin only", () => {
+    mockUsePathname.mockReturnValue("/admin");
+    const { unmount } = render(<SidebarNav role="super_admin" />);
+    expect(screen.getAllByRole("link")).toHaveLength(17);
+    expect(screen.getByRole("link", { name: /Admin Accounts/ })).toHaveAttribute(
+      "href",
+      "/admin/admins",
+    );
+    unmount();
+    render(<SidebarNav role="admin" />);
+    expect(
+      screen.queryByRole("link", { name: /Admin Accounts/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("marks the Dashboard link as the current page when on /admin", () => {

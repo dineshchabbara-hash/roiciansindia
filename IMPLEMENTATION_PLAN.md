@@ -25,21 +25,26 @@ ordering created a dependency contradiction during analysis.
 
 ### Current roadmap (authoritative; supersedes older phase lists)
 
-Phases 1–19, 20A, 20B and 21A are complete and merged (numbering unchanged). Remaining order,
-private LMS first — the public website is deferred until the private LMS is
-finished:
+Phases 1–19, 20A, 20B, 21A and 21B are complete and merged (numbering
+unchanged). Remaining order, private LMS first — the public website is
+deferred until the private LMS is finished. Roadmap decision (Phase 21C
+checkpoint): **Zoho CRM is the CRM** — the LMS does not build leads,
+pipelines or sales tracking; Zoho owns pre-enrollment sales activity and the
+LMS owns post-enrollment academic and financial operations (website inquiry
+→ Zoho CRM → qualified/enrolled customer → LMS Student + Enrollment).
 
 | Phase | Scope | Status |
 |---|---|---|
-| 18b | Email & multi-channel delivery | Deferred |
 | 20A | Offline Payments Ledger — Admin offline payment recording + Payments ledger (FR-90/FR-91/BR-6) | Complete (merged `2627ae9`) |
 | 20B | Razorpay Integration, TEST MODE (FR-43 pay online, FR-92, FR-93, SEC-5/6/7) | Complete (merged `b3b4a3a`; live Razorpay not activated) |
 | 21A | Receipts & Payment Documents (FR-94, FR-95) | Complete (merged `80008da`) |
-| **21B** | **Refunds** (FR-97; D8 resolved, Option A) | Active — awaiting migration 38 on dev + browser acceptance |
+| 21B | Refunds (FR-97; D8 resolved, Option A) | Complete (merged `c527c08`; migration 38 on dev; Windows acceptance 2/2) |
+| **21C** | **LMS Administration & Identity** (FR-140/141 Company Settings, D3 Student portal logins, Admin accounts, Audit Log viewer, FR-41 photo) | Active — awaiting migration 39 on dev + browser acceptance |
+| 18b | Transactional Email & multi-channel delivery | Not started (next after 21C) |
 | 22 | Public Website | Deferred |
-| 23 | Lead Management | Not started |
-| 24 | Testing & Security Review | Not started |
-| 25 | Production Deployment | Not started |
+| 23 | Zoho CRM Integration (re-scoped from Lead Management) | Not started |
+| 24 | Testing, Security & UAT | Not started |
+| 25 | Production Deployment (Live Razorpay activation, production SMTP) | Not started |
 
 Phase 20A was split out of the documented Phase 20 at the Phase 20 scope
 gate: FR-90's admin-recorded offline payment is P0, was assigned to no
@@ -1641,6 +1646,102 @@ skipped without TEST keys).
   settlement exists (`DECISIONS_NEEDED.md` D8, "Open future gap") —
   deliberately not built here.
 
+## Phase 21C — LMS Administration & Identity (implemented, awaiting acceptance)
+
+**Why:** the last P0 private-LMS gaps with no implementing phase —
+FR-140/FR-141 Company Settings (the page was a placeholder and receipts /
+certificates printed empty company details), Student portal logins
+(DECISIONS_NEEDED D3 option b — nothing in the app could create one),
+Super Admin management of Admin accounts, the role matrix's Audit Log
+viewer, and FR-41's deferred profile photo.
+
+**Migration `20260101000039_admin_identity_settings.sql`:**
+- Role-escalation fix found in review: `user_roles` had Admin
+  INSERT/UPDATE/DELETE policies (any Admin could write a `super_admin` row)
+  and `admins` had Super Admin write policies — all dropped; role and admin
+  profile writes are server-only. A trigger blocks any end-user
+  (authenticated/anon) change of `students/trainers/admins.auth_user_id`.
+- `is_admin_or_super()` / `is_super_admin()` now refuse an explicitly
+  inactive `admins` row (a role row without a profile — the documented
+  Super Admin bootstrap — is unaffected).
+- `company_settings` constraints: names present; receipt/certificate
+  formats via `is_valid_number_format()` (exactly one `{seq:N}`, N 4–12, at
+  most one `{year}`, safe characters); GSTIN pattern; logo path pattern;
+  `social_links` is an object. Existing RLS kept (Admin/Super Admin read,
+  Super Admin update).
+- Buckets: `branding` (public, logo; server-written) and `profile-photos`
+  (private; readable by the owning student and Admins; server-written).
+  `students.profile_photo_path` must sit in the student's own folder.
+- `audit_logs`: Super Admin reads all; Admin all except `admin_account`
+  entries (the matrix's "non-sensitive subset"). Still no end-user write.
+- Service-role-only functions: `find_auth_account`, `auth_account_activity`,
+  `link_student_portal_account` (student row lock + per-login advisory
+  lock, fixed `student` role, idempotent), `link_admin_account` (fixed
+  `admin` role — never `super_admin`, idempotent),
+  `set_admin_account_status` (role_level `admin` only).
+
+**Company Settings (`/admin/settings`):** Super Admin edits brand/legal
+name, address, phone, email, website, GSTIN, receipt/certificate number
+formats (preview shown; applies to new numbers only), certificate
+signatory, social links and the logo (PNG/JPEG/WebP ≤ 1 MB, type checked
+by bytes). Admin sees the same values read-only. Country and tax are
+read-only: V1 calculates no tax (FR-141 / D2). Receipts and certificates
+keep reading the row server-side as before. Audited:
+`company_settings.updated` (changed fields with before/after),
+`company_settings.logo_updated` / `logo_removed`.
+
+**Student portal access (D3 option b):** the Admin student page shows a
+"Portal access" card. "Give portal access" (Admin or Super Admin) creates a
+Supabase Auth login for the student's email **with no password**, assigns
+the fixed `student` role and links it — idempotently (a linked student is
+reported, never re-provisioned; a leftover login from an interrupted
+attempt — no role, no link, no password — is adopted, never duplicated; a
+login already used by staff or another student is refused; a login created
+by a failed attempt is removed only while still unlinked). The student
+activates it themselves via "Forgot password?" → emailed link → choose a
+password → sign in. States: No portal access / Awaiting activation /
+Active. Audited: `student.portal_access_granted`.
+
+**Admin accounts (`/admin/admins`, Super Admin only):** create an Admin
+(names + email only; role fixed to `admin`; same password-less activation),
+list admins with activation state, deactivate/reactivate plain Admins
+(not Super Admins, not yourself). Deactivation sets `admins.status`
+(database denies at once), bans the login (no new sign-in) and the session
+helper treats an inactive admin as signed out. Audited:
+`admin_account.created / deactivated / reactivated` (visible to Super Admin
+only).
+
+**Audit Log (`/admin/audit-log`):** read-only, newest first, filters for
+IST date range, action (exact or prefix like `refund.`), record type, actor
+role (incl. system) and record id; 50 per page. Before/after values are
+shown as short key/value text with credential-like keys masked.
+
+**FR-41 profile photo:** the Student uploads/removes their own photo on
+`/student/profile` (PNG/JPEG/WebP ≤ 2 MB, type checked by bytes); it is
+served by `GET /api/students/[id]/photo` through the viewer's own session
+(owner or Admin; another student's id → 404; Trainer 403; private,
+no-store). Admins see it on the student's "Portal access" card. Audited:
+`student.profile_photo_updated` / `removed`.
+
+**Auth activation boundary:** activation uses Supabase Auth's own
+recovery email (the existing forgot/reset flow). A new `/auth/confirm`
+route verifies `token_hash` links server-side (recovery/invite only, fixed
+destination), so a customised Supabase email template can link there in
+production. This is not Phase 18b: no application emails, templates,
+logging or retries were built. Production SMTP for Auth emails remains a
+Phase 25 readiness item.
+
+**Placeholder Admin pages:** Attendance, Materials, Assignments and
+Certificates work from the batch / session / enrollment pages; their index
+routes still show "Coming soon". Recommendation for a later polish pass:
+point Certificates and Assignments to a simple cross-batch list, and
+Attendance/Materials to the batch list (where they live) — not rebuilt
+here. `/admin/leads` stays a placeholder for Phase 23 (Zoho).
+
+**Tests:** `supabase/tests/phase21c_admin_identity_test.sql`,
+`scripts/test-portal-provisioning-concurrency.sh`, unit/action/component
+tests, E2E `e2e/phase21c-admin-identity.spec.ts` (3 tests).
+
 ## Phase 22 — Public Website
 
 **Scope:** Home, About, Programs (list + detail from real `programs` data),
@@ -1653,22 +1754,25 @@ sourced entirely from `company_settings`.
 **DoD:** Public site reflects real, currently-active programs — no hard-coded
 marketing copy about programs that don't exist in the database.
 
-## Phase 23 — Lead Management
+## Phase 23 — Zoho CRM Integration (re-scoped from Lead Management)
 
-**Scope:** Public inquiry form → `leads` insert, Admin lead pipeline UI, lead-to-
-student conversion flow preserving `lead_id`/source on the resulting student
-record.
+**Roadmap decision (Phase 21C checkpoint):** Zoho CRM is the CRM. The LMS
+does **not** duplicate leads, opportunities, pipeline stages, follow-ups,
+sales notes, campaign tracking, sales ownership or CRM reporting. Zoho owns
+pre-enrollment sales activity; the LMS owns post-enrollment academic and
+financial operations. Business boundary: website inquiry → Zoho CRM →
+qualified/enrolled customer → LMS Student + Enrollment.
 
-**DB changes:** None beyond Phase 2 (`leads`).
+**Scope (to be designed at this phase's checkpoint):** how a public inquiry
+reaches Zoho (Phase 22 form → Zoho), and how a qualified/enrolled customer
+becomes an LMS Student + Enrollment without double entry. The existing
+`/admin/leads` placeholder is decided here — removed, a link to Zoho, or a
+very light integration/status page; it must not become a CRM. The Phase 2
+`leads` table / `students.lead_id` stay unused until this phase decides.
 
-**Security implications:** Public form is rate-limited and validated
-server-side; no authentication required to submit, but reading the lead list is
-Admin-only.
+**DoD:** defined at the Phase 23 checkpoint.
 
-**DoD:** A public inquiry becomes a lead visible in Admin, and converting it to a
-student carries the source through, per BR/Registration Flow (§39–40).
-
-## Phase 24 — Testing & Security Review
+## Phase 24 — Testing, Security & UAT
 
 **Scope:** Fill any test gaps against the priority list in
 `SECURITY_PLAN.md` §18 and the brief's §58; run the `security-review` skill

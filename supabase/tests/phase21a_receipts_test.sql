@@ -305,6 +305,10 @@ begin
   if substring(num from '([0-9]+)$')::bigint <> last_before + 1 then
     raise exception 'FAIL: numbering is not the next value of the global sequence';
   end if;
+  -- Since migration 39 a format without {seq:N} cannot be saved; drop the
+  -- constraint inside this rolled-back transaction to simulate a row from
+  -- before it, so the database's own fallback stays proven.
+  alter table company_settings drop constraint company_settings_receipt_format_valid;
   update company_settings set receipt_number_format = 'NO-SEQ-TOKEN' where singleton;
   set local role service_role;
   num := next_receipt_number();

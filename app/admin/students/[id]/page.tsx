@@ -12,6 +12,9 @@ import { StudentEnrollmentHistoryCard } from "@/components/admin/students/studen
 import { StudentPaymentHistoryCard } from "@/components/admin/students/student-payment-history-card";
 import { StudentAttendanceHistoryCard } from "@/components/admin/students/student-attendance-history-card";
 import { StudentCertificateHistoryCard } from "@/components/admin/students/student-certificate-history-card";
+import { PortalAccessCard } from "@/components/admin/students/portal-access-card";
+import { getStudentPortalAccess } from "@/lib/data/accounts";
+import { hasProfilePhoto } from "@/lib/data/profile-photos";
 import {
   getStudentProfile,
   getStudentEnrollmentHistory,
@@ -87,6 +90,32 @@ async function DocumentsSection({ studentId }: { studentId: string }) {
     <StudentDocumentsSection
       studentId={studentId}
       documents={result.ok ? result.data : []}
+    />
+  );
+}
+
+// Phase 21C — portal login (D3) and the student's own photo (FR-41).
+async function PortalAccessSection({
+  studentId,
+  studentEmail,
+  studentStatus,
+}: {
+  studentId: string;
+  studentEmail: string | null;
+  studentStatus: string;
+}) {
+  const [access, photo] = await Promise.all([
+    getStudentPortalAccess(studentId),
+    hasProfilePhoto(studentId),
+  ]);
+  return (
+    <PortalAccessCard
+      studentId={studentId}
+      studentEmail={studentEmail}
+      studentStatus={studentStatus}
+      access={access.ok ? access.data : null}
+      loadError={access.ok ? undefined : access.error}
+      hasPhoto={photo}
     />
   );
 }
@@ -178,6 +207,14 @@ export default async function StudentProfilePage({
           </div>
         </CardContent>
       </Card>
+
+      <Suspense fallback={<SectionSkeleton />}>
+        <PortalAccessSection
+          studentId={student.id}
+          studentEmail={student.email}
+          studentStatus={student.status}
+        />
+      </Suspense>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Suspense fallback={<SectionSkeleton />}>

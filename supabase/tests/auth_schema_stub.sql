@@ -12,7 +12,11 @@ create schema if not exists auth;
 
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
-  email text
+  email text,
+  -- Phase 21C: the two real auth.users columns read by find_auth_account() /
+  -- auth_account_activity() (whether a password is set; last sign-in).
+  encrypted_password text,
+  last_sign_in_at timestamptz
 );
 
 create or replace function auth.uid()

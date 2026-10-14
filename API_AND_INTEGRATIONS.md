@@ -217,8 +217,23 @@ include unnecessary personal data.
   Middleware. Admin operations (inviting a Trainer/Admin user) use the Supabase
   Admin API (`auth.admin.createUser` / `inviteUserByEmail`) from server-only code
   with the service-role key.
+- **Phase 21C — account provisioning and activation.** Student portal logins
+  (Admin/Super Admin) and Admin logins (Super Admin) are created with
+  `auth.admin.createUser({ email, email_confirm: true })` — no password — and
+  linked by the service-role database functions (fixed role, idempotent).
+  The person activates the login through Supabase Auth's recovery email
+  (`/forgot-password` → link → `/reset-password`). `GET /auth/confirm`
+  verifies `token_hash` links server-side (`verifyOtp`, types recovery/invite
+  only, destination fixed to `/reset-password`), so a production recovery
+  email template can point there; the existing PKCE `/auth/callback` keeps
+  working for self-requested resets. Deactivating an Admin bans the login
+  (`updateUserById({ ban_duration })`). Production SMTP for these Auth emails
+  is a Phase 25 readiness item; application emails remain Phase 18b.
 
 ### 3.3 Storage
+- Phase 21C adds `branding` (public — the company logo, written by the server
+  after a Super Admin check) and `profile-photos` (private — FR-41, streamed
+  by `GET /api/students/[id]/photo` through the viewer's own session).
 - Buckets: `materials`, `submissions`, `documents`, `certificates`, `receipts`
   (see `DATABASE_SCHEMA.md` §7). All private; access via
   `createSignedUrl(path, expiresInSeconds)` minted only after the authorization

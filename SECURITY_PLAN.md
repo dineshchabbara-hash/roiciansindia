@@ -258,6 +258,41 @@ before use (prevents Insecure Direct Object Reference / IDOR).
   (Admin actor), `refund.processed`, `refund.failed` (system actor, once per
   transition).
 
+### 9e. Administration & identity (Phase 21C)
+
+- **Role-escalation fix:** `user_roles` had Admin INSERT/UPDATE/DELETE
+  policies, so any Admin could write a `super_admin` role. Dropped (migration
+  39); end users now have SELECT only on `user_roles` and `admins`. Roles are
+  written only by server code with a fixed role: trainer creation, Student
+  provisioning (`student`) and Admin creation (`admin` — never
+  `super_admin`). The browser never submits a role, a login id or a password.
+- **Login links are server-authoritative:** a trigger refuses any end-user
+  change of `students/trainers/admins.auth_user_id`; linking happens only in
+  service-role functions under a profile row lock plus a per-login advisory
+  lock (proven by `scripts/test-portal-provisioning-concurrency.sh`).
+- **No passwords handled:** provisioned logins are created without a
+  password; the owner sets it through Supabase Auth's recovery flow. A
+  pre-existing login for the email is adopted only if it has no role, no
+  profile link and no password; anything else is refused. Tokens never pass
+  through application code except `/auth/confirm`, which verifies a
+  `token_hash` server-side (recovery/invite only, fixed destination).
+- **Deactivated Admins:** `admins.status = 'inactive'` makes
+  `is_admin_or_super()` false immediately (RLS), the session helper treats
+  the user as signed out, and the login is banned (no new sign-in).
+- **Company Settings:** Super Admin UPDATE only (RLS + action check), Admin
+  read-only, others nothing; values constrained in the database (numbering
+  formats keep `{seq:N}`, GSTIN pattern, logo path). Logo/photo uploads are
+  type-checked by their bytes (PNG/JPEG/WebP only — no SVG) and size-capped;
+  storage writes use the service role only after the caller's check.
+- **Audit Log viewer:** read-only through the viewer's session; Admin sees
+  everything except `admin_account` entries; displayed values are
+  truncated and credential-like keys masked. Account and settings changes
+  are audited (`student.portal_access_granted`, `admin_account.*`,
+  `company_settings.*`, `student.profile_photo_*`).
+- **FR-41 photos:** private bucket; readable by the owning student and Admins
+  only; the path must sit in the student's own folder (check constraint);
+  served through a session-checked route with `private, no-store`.
+
 ## 10. Webhook Security (General)
 
 - Signature verification is mandatory for every inbound webhook (Razorpay today;

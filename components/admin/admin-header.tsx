@@ -13,7 +13,7 @@ export function AdminHeader({
   return (
     <header className="flex items-center justify-between gap-4 border-b px-4 py-3">
       <div className="flex items-center gap-3">
-        <MobileNav companyName={companyName} />
+        <MobileNav companyName={companyName} role={user.role} />
         <AdminBreadcrumb />
       </div>
       <div className="flex items-center gap-3">
