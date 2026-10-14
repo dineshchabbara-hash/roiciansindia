@@ -25,7 +25,7 @@ ordering created a dependency contradiction during analysis.
 
 ### Current roadmap (authoritative; supersedes older phase lists)
 
-Phases 1–19, 20A, 20B, 21A and 21B are complete and merged (numbering
+Phases 1–19, 20A, 20B, 21A, 21B and 21C are complete and merged (numbering
 unchanged). Remaining order, private LMS first — the public website is
 deferred until the private LMS is finished. Roadmap decision (Phase 21C
 checkpoint): **Zoho CRM is the CRM** — the LMS does not build leads,
@@ -33,15 +33,26 @@ pipelines or sales tracking; Zoho owns pre-enrollment sales activity and the
 LMS owns post-enrollment academic and financial operations (website inquiry
 → Zoho CRM → qualified/enrolled customer → LMS Student + Enrollment).
 
+Architecture decision (after the Phase 21C merge): **Roicians India is an
+independent country catalogue.** Roicians Canada and Roicians India keep
+separate domains and may have entirely different programs, prices,
+currencies, batches and trainers; there is no mandatory global operational
+catalogue and the Canada website is not touched. Within India, every public
+Program, price, batch date, timing, delivery mode and registration status
+has one authoritative operational source (this LMS/Admin system) and may be
+shown in many website locations without duplicating the underlying fact;
+only explicitly published data crosses into the public site. Full statement:
+`ARCHITECTURE.md` §1a.
+
 | Phase | Scope | Status |
 |---|---|---|
 | 20A | Offline Payments Ledger — Admin offline payment recording + Payments ledger (FR-90/FR-91/BR-6) | Complete (merged `2627ae9`) |
 | 20B | Razorpay Integration, TEST MODE (FR-43 pay online, FR-92, FR-93, SEC-5/6/7) | Complete (merged `b3b4a3a`; live Razorpay not activated) |
 | 21A | Receipts & Payment Documents (FR-94, FR-95) | Complete (merged `80008da`) |
 | 21B | Refunds (FR-97; D8 resolved, Option A) | Complete (merged `c527c08`; migration 38 on dev; Windows acceptance 2/2) |
-| **21C** | **LMS Administration & Identity** (FR-140/141 Company Settings, D3 Student portal logins, Admin accounts, Audit Log viewer, FR-41 photo) | Active — awaiting migration 39 on dev + browser acceptance |
-| 18b | Transactional Email & multi-channel delivery | Not started (next after 21C) |
-| 22 | Public Website | Deferred |
+| 21C | LMS Administration & Identity (FR-140/141 Company Settings, D3 Student portal logins, Admin accounts, Audit Log viewer, FR-41 photo) | Complete (merged `6e5e4e9`; migration 39 on dev; Windows acceptance 3/3) |
+| 18b | Transactional Email & multi-channel delivery | Not started (next) |
+| 22 | Roicians India Public Website (country catalogue; see `ARCHITECTURE.md` §1a) | Not started (after 18b) |
 | 23 | Zoho CRM Integration (re-scoped from Lead Management) | Not started |
 | 24 | Testing, Security & UAT | Not started |
 | 25 | Production Deployment (Live Razorpay activation, production SMTP) | Not started |
@@ -1646,7 +1657,7 @@ skipped without TEST keys).
   settlement exists (`DECISIONS_NEEDED.md` D8, "Open future gap") —
   deliberately not built here.
 
-## Phase 21C — LMS Administration & Identity (implemented, awaiting acceptance)
+## Phase 21C — LMS Administration & Identity (complete — merged `6e5e4e9`)
 
 **Why:** the last P0 private-LMS gaps with no implementing phase —
 FR-140/FR-141 Company Settings (the page was a placeholder and receipts /
@@ -1745,17 +1756,58 @@ here. `/admin/leads` stays a placeholder for Phase 23 (Zoho).
 `scripts/test-portal-provisioning-concurrency.sh`, unit/action/component
 tests, E2E `e2e/phase21c-admin-identity.spec.ts` (3 tests).
 
-## Phase 22 — Public Website
+## Phase 22 — Roicians India Public Website
 
-**Scope:** Home, About, Programs (list + detail from real `programs` data),
-Corporate Training, Contact, Student/Trainer login entry points, company branding
-sourced entirely from `company_settings`.
+**Governing decision:** `ARCHITECTURE.md` §1a — Roicians India is an
+independent country catalogue on its own domain; the Canada website is not
+modified and does not consume India data; there is no global Program/Batch
+catalogue. Within India, every public operational fact has one source (this
+LMS/Admin system) and is displayed, never re-typed, wherever it appears.
 
-**DB changes:** None (read-only public queries against existing tables, scoped to
-`status = 'active'` programs only).
+**Scope:** FR-130 pages (Home, About, Programs, Program Detail, Corporate
+Training, Contact, Student/Trainer login entry points) for the India
+domain, with Roicians brand look-and-feel, company identity from
+`company_settings`, and India operational facts (program name, duration,
+delivery mode, price in INR, upcoming batches with start date, days, time
+and timezone, registration open/closed) read from published LMS data. An
+enquiry path hands the visitor to Zoho CRM (Phase 23 owns the integration);
+the website stores no leads and `leads` stays unused.
 
-**DoD:** Public site reflects real, currently-active programs — no hard-coded
-marketing copy about programs that don't exist in the database.
+**To design at this phase's checkpoint (not decided yet):**
+1. *Publication control* — an explicit, Admin-managed "show on the India
+   website" decision for Programs and Batches, separate from operational
+   `status` (an `active` record is not automatically public), plus the
+   public-only fields that do not exist today: e.g. public slug, public
+   summary/description, public price display, batch display label,
+   registration open/closed and enquiry destination.
+2. *Safe public data layer* — anonymous visitors never query private LMS
+   tables or receive internal columns (`tax_rate_percent`, capacity, meeting
+   link, location, notes, enrollment/fee data, trainer details unless
+   published). Expected shape: a narrow read-only projection (view or
+   SECURITY DEFINER function) returning only published rows and approved
+   columns, consumed server-side by the site. This supersedes the
+   anticipatory comment in migration 14 about an `anon` policy on
+   `programs`: no `anon` policy is added to the operational tables.
+3. *One value, many places* — each public fact is fetched once per request
+   from the projection and passed to every component that shows it; no
+   operational value is hard-coded in pages or components (FR-150).
+4. *Marketing content ownership* — where website/CMS-owned copy lives
+   (hero, Why Roicians, About, testimonials, FAQs, SEO, corporate-training
+   copy, images, campaign sections) and how it references published
+   programs without duplicating their facts.
+5. *Caching/freshness* — how quickly an Admin change (e.g. 7:00 PM → 8:00 PM)
+   appears on every page, without serving private data from a cache.
+6. *Enquiry handoff* — the Phase 22 side of the Zoho boundary (what the form
+   sends, where), leaving the integration itself to Phase 23.
+
+**DB changes:** expected (publication fields and the public projection);
+designed and numbered at the checkpoint, after confirming the next unused
+migration number. None are created before then.
+
+**DoD:** the India site shows only explicitly published programs and
+batches; changing one published operational fact in the LMS changes it on
+every page that shows it; no private LMS table or column is reachable
+anonymously; no marketing copy describes a program that is not published.
 
 ## Phase 23 — Zoho CRM Integration (re-scoped from Lead Management)
 
@@ -1781,6 +1833,20 @@ very light integration/status page; it must not become a CRM. The Phase 2
 `SECURITY_PLAN.md` §18 and the brief's §58; run the `security-review` skill
 against the full diff history; Playwright E2E covering the golden path
 (registration → enrollment → payment → attendance → certificate) per role.
+
+Recorded for this phase at the Phase 21C merge (non-blocking there):
+- **Dev residue:** three `user_roles` rows (student, admin, super_admin)
+  belonging to `@phase5-e2e.internal.test` logins created 2026-09-21 have
+  no matching profile row. Remove by exact id (login + role), never by
+  pattern; they predate Phase 21C.
+- **Default table grants:** Supabase's default grants give `anon` /
+  `authenticated` TRUNCATE (and other privileges) on public tables. RLS and
+  PostgREST make this unreachable today; review whether to revoke what the
+  app never uses.
+- **E2E build memory (Windows):** `playwright.config.ts` already passes
+  `NODE_OPTIONS=--max-old-space-size=4096` to the webpack E2E build; one
+  manual Windows sitting still hit a V8 out-of-memory and succeeded with an
+  explicit `NODE_OPTIONS`. Document a pre-build step if it recurs.
 
 **DoD:** Priority test list has passing coverage; security review findings are
 resolved or explicitly accepted with reasoning recorded.

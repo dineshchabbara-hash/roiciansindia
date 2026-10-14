@@ -201,6 +201,18 @@ regex check configured in `company_settings` (see REQUIREMENTS.md item 1 in §7)
 - `installments_allowed boolean not null default true`
 - `created_at`, `updated_at`
 
+**Country scope (decision after the Phase 21C merge, `ARCHITECTURE.md` §1a):**
+`programs` and `batches` are the **Roicians India** catalogue — the one
+authoritative source for India operational facts (prices in INR, batch
+dates/days/times in `Asia/Kolkata` unless set otherwise). There is no
+country column and no shared India/Canada catalogue; Canada's catalogue lives
+outside this system. `status` is operational, not a publication decision: an
+`active` program is not automatically shown on the public website. The
+explicit publication fields and the read-only public projection are designed
+in Phase 22; until then no `anon` access to `programs`/`batches` exists (the
+`programs_select_published` policy is `to authenticated` only and is not the
+website's data path).
+
 ### `program_modules`
 - `id uuid pk`
 - `program_id uuid not null references programs(id) on delete cascade`

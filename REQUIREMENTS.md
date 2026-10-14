@@ -557,6 +557,19 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 - FR-130 (P0): Public pages: Home, About, Programs, Program Detail, Corporate
   Training, Contact, Student Login, Trainer Login (Admin login is not publicly
   linked, but reachable at a known path).
+  (Architecture decision recorded after the Phase 21C merge —
+  `ARCHITECTURE.md` §1a: this is the **Roicians India** website on the India
+  domain. Roicians Canada keeps its own domain, website and catalogue and is
+  out of scope; India and Canada are not required to share Programs or
+  Batches and no global operational catalogue exists. Within India, each
+  public operational fact — program name and public status, duration,
+  delivery mode, price and currency, upcoming batch dates, days, time,
+  timezone, registration status and enquiry destination — has one source in
+  the LMS/Admin system and is never duplicated across pages. Only Programs and
+  Batches explicitly approved for public display are exposed, through a safe
+  public data layer — never by reading private LMS tables directly.
+  Marketing copy (hero, About, testimonials, FAQs, SEO, corporate-training
+  copy, images) may stay website/CMS-owned. Enquiries go to Zoho CRM.)
 - FR-131 (P1): Public inquiry/lead form; Admin-facing lead list with status pipeline
   (New → Contacted → Follow-up → Qualified → Converted → Not Interested → Closed).
 - FR-132 (P1): Converting a lead to a student preserves the original lead source on

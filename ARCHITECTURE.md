@@ -44,6 +44,54 @@ One codebase, one Postgres database, role-scoped route groups. This avoids the
 operational overhead of separate frontends/backends while still giving each portal
 its own layout, navigation, and access boundary.
 
+## 1a. Roicians India and Roicians Canada — Country Catalogues (Decision)
+
+**Recorded after the Phase 21C merge, before Phase 22.** Roicians is one brand
+operating in two markets. This system is **Roicians India**.
+
+- **Separate domains.** Roicians Canada and Roicians India keep their own,
+  separate domains. The company is not re-platformed onto one global domain.
+  A Canada ↔ India link or country selector may be added later.
+- **Separate country catalogues.** The two markets may differ in programs,
+  course names, prices, currency, batch schedules, trainers, delivery model,
+  corporate offerings, campaigns, testimonials and legal/tax/contact details.
+  There is **no mandatory global operational catalogue**: an India Program
+  or Batch is never required to equal a Canada one, and no shared
+  Program/Batch database is built.
+- **Shared brand, not a shared operational database.** Logo, identity,
+  visual standards, design language and the broad company story may stay
+  consistent; operational data does not have to. No "global master
+  operational portal" is planned.
+- **Canada is independent.** The Canada website and its technology are not
+  modified by this project and do not consume India data. Canada may later
+  adopt the same "one source within the country" principle as a separate
+  project. Canada is not a tenant of this system (§15 multi-tenancy is a
+  different, unplanned concern).
+- **One source of truth within India.** This LMS/Admin system is the
+  authoritative source for India operational facts — program name, public
+  status, duration, delivery mode, price and currency (INR), upcoming batch,
+  start date, days, timing, timezone, registration open/closed, and the
+  registration/enquiry destination — plus company identity from
+  `company_settings`. A fact shown on several website pages (home, programs
+  list, program detail, upcoming batches, promotional sections) is read from
+  that one source, never copied into page code; changing a batch time is one
+  operational update.
+- **Explicit publication.** Internal LMS record → explicitly approved for
+  public display → safe public data layer → Roicians India website. Nothing
+  becomes public just because it exists or is `active`; the public site never
+  reads private LMS tables directly. The publication fields and the public
+  projection are designed at the Phase 22 checkpoint (see
+  `IMPLEMENTATION_PLAN.md` Phase 22).
+- **Marketing content is separate.** Hero copy, "Why Roicians", About,
+  testimonials, FAQs, success stories, SEO copy, corporate-training marketing,
+  images and campaign landing copy are website/CMS-owned, not forced into the
+  LMS. Operational facts and marketing content are different
+  responsibilities.
+- **CRM boundary.** Zoho CRM owns pre-enrollment sales activity; this LMS owns
+  post-enrollment student operations. India flow: website → enquiry → Zoho
+  CRM → sales follow-up → conversion → LMS Student + Enrollment. Neither the
+  website nor the LMS becomes a lead-management CRM (Phase 23).
+
 ## 2. Why This Stack
 
 - **Next.js (App Router) + TypeScript**: server components for data-heavy admin
@@ -407,6 +455,10 @@ building it now:
   tenant, scope every sequence (Student ID, receipt numbers, etc.) per tenant instead
   of globally, and introduce a tenant-resolution step (subdomain or path prefix) in
   middleware. This is a deliberate, scoped future project — not attempted in V1.
+
+Roicians Canada is **not** a future tenant of this system: it runs its own
+website and catalogue (§1a). Multi-tenancy here would only ever mean hosting
+further independent organizations, and remains unplanned.
 
 ## 16. What We Are Explicitly Not Building in V1
 
