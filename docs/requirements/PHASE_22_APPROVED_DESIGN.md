@@ -42,7 +42,7 @@ they differ on Phase 22, this document wins.
 | P22-05 | Super Admin only: slug change after first publication and other sensitive structural operations | §5.2 |
 | P22-06 | Ten launch Programs in two editable display groups | §6 |
 | P22-07 | "AI Quality Engineering: Testing LLMs, RAG & AI Agents" removed; no curriculum change to AI-Powered Software Testing & QA | §6.3 |
-| P22-08 | Programs are archive/restore only in Phase 22 — no permanent deletion by any role | §7 |
+| P22-08 | Archive-first: Admin and Super Admin archive/restore; only Super Admin permanently deletes a verified safe, unused archived Program (revised; supersedes the earlier absolute ban) | §7 |
 | P22-09 | No course pricing or LMS financial information anywhere on the public website | §8 |
 | P22-10 | Public Batch privacy; registration states Open, Closed, Full | §9 |
 | P22-11 | "Next Cohort: Coming Soon" + "Join Interest List" when a published Program has no published upcoming Batch | §9.3 |
@@ -199,7 +199,9 @@ developer.
 | Ordinary website management (all of §5.1) | Yes | Yes |
 | Change a Program slug after its first publication (audited, with redirect safeguard) | Yes | No |
 | Other sensitive structural operations identified during implementation | Yes | No |
-| Permanently delete a Program (Phase 22) | No | No |
+| Archive or restore a Program | Yes | Yes |
+| Permanently delete a verified safe, unused **archived** Program through the controlled workflow (§7) | Yes | No |
+| Delete an unarchived Program, or delete despite a protected dependency | No | No |
 
 Website Management confers **no** new permission over private LMS finance,
 authentication, role assignment, RLS policies, deployment settings or the
@@ -298,26 +300,150 @@ Testing & QA; no curriculum change is authorized.
 
 ---
 
-## 7. Program deletion (P22-08)
+## 7. Program archive and deletion (P22-08, revised)
 
-**Archive and restore only.** No role — including Super Admin — permanently
-deletes a Program during Phase 22. Related academic and financial history is
-preserved. Archive uses the existing Program `status` (`archived`); restore
-returns it to an operational status. A non-active Program never appears on
-the public website.
+**Policy:** Archive-first. Admin and Super Admin may archive and restore.
+Only Super Admin may permanently delete a verified safe, unused archived
+Program. Programs with training or financial history, or other protected
+dependencies, remain archived.
 
-This decision is Program-specific. It does not rewrite the historical
-deletion rules for other record types in `SECURITY_PLAN.md` §15.
+This is an approved Phase 22 design requirement; implementing it needs
+separate authorization. Nothing below exists yet.
 
-**Technical issue TI-1 (requires verification, see §16):** the current
-database still carries an Admin/Super Admin delete policy on `programs`
-(`programs_delete_admin`, migration 14), and deleting a Program cascades to
-`program_modules` and program-level `materials` (migrations 5 and 8), whose
-Storage objects would be left without a database row. No application screen
-offers Program deletion today. Phase 22A must verify this and propose a
-safe treatment; this documentation task changes no migration or policy.
+### 7.1 Rules
 
----
+1. Admin and Super Admin archive a Program by setting its existing
+   `status` to `archived`, and restore it to an operational status. A
+   non-active Program never appears on the public website.
+2. A Program must already be archived before permanent deletion can be
+   considered. There is no direct deletion of an unarchived Program.
+3. Only Super Admin may initiate a permanent deletion, and only for an
+   archived Program the system has verified as safe and unused (§7.2).
+4. Super Admin authority permits initiating a controlled deletion. It does
+   not permit bypassing dependency or history protections: there is no
+   "Delete anyway" override.
+5. Admin has no permanent-delete permission.
+6. There is no automatic deletion after a period of time and no bulk
+   Program deletion in this approved scope.
+7. This rule is Program-specific. It does not change the deletion rules for
+   other record types (`SECURITY_PLAN.md` §15).
+
+### 7.2 What "safe and unused" means
+
+Archiving alone does not make a Program safe to delete. Eligibility is
+decided from actual relationships and retained history, never from current
+enrollment counts or a UI flag. "No active students" is not the same as
+"unused". If eligibility cannot be established confidently, deletion stays
+blocked and archiving remains the option.
+
+Protected dependencies, from the current schema (migrations 1–39) — any one
+of them blocks deletion:
+
+| Dependency | How it reaches a Program | Current `ON DELETE` behavior |
+|---|---|---|
+| Batches (any lifecycle status) | `batches.program_id` | RESTRICT (blocks) |
+| Under Batches: Trainer assignments, class sessions, attendance, Batch-level materials and assignments | via `batches` | CASCADE from the Batch |
+| Enrollments (including cancelled, withdrawn, completed) | `enrollments.program_id` | RESTRICT (blocks) |
+| Under Enrollments: payment plans and instalments, payments, refunds, receipts, Razorpay payment orders, certificates, attendance, submissions | via `enrollments` | mostly RESTRICT; plans, attendance and submissions CASCADE |
+| Certificates (including revoked or replaced) | `certificates.program_id` | RESTRICT (blocks) |
+| Program modules | `program_modules.program_id` | **CASCADE (silently deleted)** |
+| Program-level learning materials and their Storage files | `materials.program_id` | **CASCADE for the row; the Storage file is not removed** |
+| Assignments (and their submissions) | `assignments.program_id` | **CASCADE (silently deleted)** |
+| Enquiry/lead references | `leads.program_id` (table currently unused) | **SET NULL (silently detached)** |
+| Audit history about the Program | `audit_logs.entity_id` (no foreign key) | Untouched; must survive |
+
+Other operational or historical references that cannot safely survive the
+deletion also block it, including references added by the Phase 22 website
+tables (§7.3). This table is the analysis of the current schema; the
+implementation re-verifies it against the schema at that time rather than
+treating it as final.
+
+Protected dependencies are never deleted, detached or rewritten to make a
+Program pass the check. A Program known to have training or financial
+history does not become "unused" because related records are hidden in an
+operational screen.
+
+### 7.3 Previously published Programs and stored files
+
+A previously published but otherwise unused Program can qualify only after
+additional checks, and deletion stays blocked until each can be handled
+safely:
+
+- its old public slug and URL, and any redirects;
+- website links and content references (pages, sections, menus, featured
+  lists, groups);
+- enquiry references, where applicable;
+- public website assets it owns or shares.
+
+This is not reduced to "never-published Programs only"; the unresolved
+handling is tracked as TI-7 (§16).
+
+Stored files: deleting a database row does not delete its Storage object.
+The approved solution never silently cascade-deletes protected learning
+content. Any cleanup of eligible **public website** assets must establish
+ownership, protect shared assets and use an explicitly designed cleanup
+process; it never touches private learning-material, assignment, receipt,
+certificate or student-document storage.
+
+### 7.4 Required deletion workflow
+
+1. The Program is archived.
+2. Super Admin requests an eligibility check.
+3. The system verifies dependencies and history (§7.2–§7.3).
+4. Super Admin reviews the result.
+5. Super Admin enters a reason and confirms by typing the Program code.
+6. The system rechecks eligibility and performs the controlled deletion.
+7. A durable audit record remains.
+
+When deletion is blocked, the explanation names the reason and the
+alternative, for example: "This Program cannot be permanently deleted
+because it has linked Batches and enrollments. It can remain archived, and
+its historical records will be preserved."
+
+Enforcement requirements:
+
+- Authorization and eligibility are enforced on the server and through
+  database controls; hiding a button is not enough.
+- A privileged server operation independently verifies the caller's Super
+  Admin authority; ordinary Admins keep no broad direct Program DELETE
+  permission.
+- The check and the deletion are concurrency-safe: no request can create a
+  protected dependency between a successful check and the deletion.
+- The audit record survives the deletion and keeps the actor, timestamp,
+  Program identifier and code, reason, and the minimum necessary detail.
+- No sequence is reset, no audit history is deleted, and no unnecessary
+  personal data, secrets or document contents are logged.
+
+### 7.5 Acceptance criteria (for the future implementation)
+
+1. Admin cannot permanently delete a Program.
+2. Super Admin cannot delete an unarchived Program.
+3. A verified safe, unused archived Program can be deleted by Super Admin.
+4. Any protected dependency blocks deletion.
+5. Academic and financial history remains protected and unchanged.
+6. Concurrent changes cannot bypass eligibility.
+7. The audit history, including the deletion record, survives.
+8. Unsafe public references or unresolved file cleanup block deletion.
+
+### 7.6 Existing enforcement gap (not fixed)
+
+The current database does **not** meet this policy. Migration 14 still
+grants a broad `programs_delete_admin` DELETE policy to Admin and Super
+Admin, and a Program delete would cascade into modules, program-level
+materials and assignments, detach `leads`, and leave Storage files behind
+(TI-1, §16). No application screen offers Program deletion today, but this
+documentation change does not make the database behavior safe. A future,
+separately authorized implementation must replace the broad deletion
+behavior with the controlled workflow above, with regression tests.
+Existing migrations are not edited.
+
+### 7.7 Decision history
+
+- 2026-10-17 (initial Phase 22 approval): archive and restore only; no
+  permanent Program deletion by any role, including Super Admin.
+- 2026-10-17 (owner revision, supersedes the above): archive-first;
+  Super Admin may permanently delete only a verified safe, unused archived
+  Program through the controlled workflow in §7.4.
 
 ## 8. Public pricing (P22-09)
 
@@ -545,7 +671,8 @@ LCP < 2.5 s; CLS < 0.1.
 
 | ID | Issue | Resolve in |
 |---|---|---|
-| TI-1 | `programs_delete_admin` policy (migration 14) still allows Admin delete; Program delete cascades to `program_modules` and program-level `materials`, orphaning Storage objects. Conflicts with P22-08. | 22A (verify; propose a safe treatment) |
+| TI-1 | Enforcement gap, **not fixed**: `programs_delete_admin` (migration 14) still allows Admin and Super Admin DELETE; a Program delete cascades to `program_modules`, program-level `materials` and `assignments`, sets `leads.program_id` to null and leaves Storage files behind. Conflicts with P22-08. | Separately authorized implementation (expected 22A database enforcement + 22B Super Admin workflow), with regression tests |
+| TI-7 | Handling of a previously published Program's slug, redirects, website references, enquiry references and owned or shared public assets before deletion (§7.3). Until designed, such deletion stays blocked. | 22A/22B design |
 | TI-2 | Migration 14 comment anticipates an `anon` policy on `programs`; superseded by §14 through documentation only. | Closed by this document |
 | TI-3 | Public "upcoming" rule: in-progress Batches, registration date boundaries, timezone of "today". | Before 22E/22F |
 | TI-4 | Supabase Auth redirect URLs, cookie scoping and activation-link host per subdomain. | 22D (and Phase 25 configuration) |

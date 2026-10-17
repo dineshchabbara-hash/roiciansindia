@@ -1790,7 +1790,10 @@ this section summarizes it and tracks the stages.
   slug after first publication.
 - Ten launch Programs in two editable display groups ("Career & Technology
   Programs", "Specialist & Professional Programs"); never hard-coded; no
-  unapproved content seeded. Programs are archive/restore only in Phase 22.
+  unapproved content seeded. Programs are archive-first: Admin and Super
+  Admin archive/restore; only Super Admin may permanently delete a verified
+  safe, unused archived Program through a controlled workflow (design §7;
+  revised, superseding the earlier absolute ban).
 - No course pricing or LMS financial information anywhere on the public
   website; internal LMS finance unchanged.
 - Batch privacy (no capacity, counts, seats, links, internal names, notes,
@@ -1829,8 +1832,12 @@ superseded: no `anon` policy is added to operational tables (the migration
 is not edited).
 
 **Technical issues to resolve during the stages:** design §16 — notably
-TI-1 (the existing Program delete policy and its cascades, versus
-archive/restore only), TI-3 (the public "upcoming Batch" rule) and TI-4/TI-5
+TI-1 (enforcement gap, not fixed: the existing broad Program delete policy
+and its cascades must be replaced by the controlled Super Admin deletion
+workflow, with regression tests — expected in 22A for database enforcement
+and 22B for the workflow, subject to separate authorization), TI-7
+(previously published Programs' slugs, redirects, references and assets
+before deletion), TI-3 (the public "upcoming Batch" rule) and TI-4/TI-5
 (Auth redirects, cookies and session refresh per host).
 
 **Launch dependencies:** design §17 — logo files, final tokens, approved

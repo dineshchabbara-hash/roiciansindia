@@ -224,13 +224,23 @@ website's data path).
   draft/published revisions, concurrency and audit) as **new, private-by-
   default** tables and columns; the migration number is verified at 22A
   (expected 40). None of these exist yet.
-- Programs are archive/restore only in Phase 22 (P22-08). Technical issue
-  TI-1: the existing `programs_delete_admin` policy (migration 14) still
-  permits Admin/Super Admin DELETE, and a delete would cascade to
-  `program_modules` and program-level `materials` (leaving their Storage
-  objects behind). No screen offers Program deletion today; Phase 22A
-  verifies this and proposes a safe treatment without editing migrations
-  1–39.
+- Program deletion policy (P22-08, revised; design §7): archive-first.
+  Admin and Super Admin archive/restore; only Super Admin may permanently
+  delete a verified safe, unused archived Program through a controlled
+  workflow. Eligibility is decided from real relationships. From the current
+  schema, these block deletion: `batches.program_id`, `enrollments.program_id`
+  and `certificates.program_id` (RESTRICT, with payments, refunds, receipts,
+  payment orders, plans, sessions, attendance and submissions beneath them);
+  and `program_modules`, program-level `materials`, `assignments` (CASCADE)
+  and `leads.program_id` (SET NULL), which today would be silently deleted or
+  detached and must instead block. Audit history (`audit_logs.entity_id`, no
+  foreign key) must survive.
+- **Enforcement gap TI-1 — not fixed:** the existing `programs_delete_admin`
+  policy (migration 14) still permits Admin/Super Admin DELETE, and a delete
+  would cascade as above and leave program-level material files in Storage.
+  No screen offers Program deletion today. A future, separately authorized
+  implementation replaces this broad behavior with the controlled workflow
+  and regression tests, without editing migrations 1–39.
 - The comment in migration 14 anticipating an `anon` policy on `programs`
   is superseded: no `anon` policy will be added (design §14).
 

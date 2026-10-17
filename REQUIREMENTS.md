@@ -93,12 +93,19 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   Cancelled → Archived.
 - FR-24 (P1): Optional course structure: Program → Modules → Lessons, used to scope
   materials/assignments without forcing structure on every program.
-  (Phase 22 approved decision P22-08, applies to FR-20: Programs are archive/
-  restore only during Phase 22 — no role, including Super Admin, permanently
-  deletes a Program; archive uses the existing `archived` status. Program fees
-  and other FR-20 financial fields stay internal and are never shown on the
-  public website (P22-09). See
-  `docs/requirements/PHASE_22_APPROVED_DESIGN.md` §7–§8.)
+  (Phase 22 approved decision P22-08, revised, applies to FR-20: Archive-first.
+  Admin and Super Admin may archive and restore (existing `archived` status).
+  Only Super Admin may permanently delete a verified safe, unused archived
+  Program, through a controlled, server-enforced, concurrency-safe workflow
+  with a reason, Program-code confirmation and a durable audit record.
+  Programs with training or financial history, or other protected
+  dependencies, remain archived; there is no override, no Admin delete, no
+  direct deletion of an unarchived Program, no automatic and no bulk
+  deletion. This supersedes the earlier absolute ban on Program deletion.
+  Approved design, not implemented; the current database still allows a
+  broad delete (enforcement gap TI-1). Program fees and other FR-20 financial
+  fields stay internal and are never shown on the public website (P22-09).
+  See `docs/requirements/PHASE_22_APPROVED_DESIGN.md` §7–§8.)
 
 ### 2.4 Enrollment
 - FR-30 (P0): Enrollment links Student + Program + Batch, carries its own immutable

@@ -52,7 +52,9 @@ Update, Scoped, **–** = No access.
 | Publish/unpublish Programs and Batches on the website; set public registration state (Phase 22, approved — not built) | F | F | – | – |
 | Preview unpublished website content; restore an earlier content version (Phase 22, approved — not built) | F | F | – | – |
 | Change a Program slug after its first publication (Phase 22, approved — not built) | F | – | – | – |
-| Permanently delete a Program (Phase 22 decision P22-08) | – | – | – | – |
+| Archive / restore a Program (existing `status` control) | F | F | – | – |
+| Permanently delete a verified safe, unused **archived** Program — controlled, eligibility-checked, audited workflow (Phase 22 P22-08, approved — not built) | F | – | – | – |
+| Delete an unarchived Program, or delete despite a protected dependency | – | – | – | – |
 | Assign trainers to batches | F | F | – | – |
 | Manage Enrollments | F | F | R (assigned batch, no financials) | RS (self) |
 | Override fee/discount/payment plan | F | F (audited) | – | – |
@@ -111,8 +113,11 @@ Notes:
   LMS finance, authentication, role assignment, RLS policies, deployment
   settings or the Super-Admin-only Company Settings. Legal/consent text is
   edited there only after business/legal approval of the wording. Every
-  meaningful change is audited; Programs are archive/restore only during
-  Phase 22 (no role deletes a Program).
+  meaningful change is audited. Programs are archive-first: Admin and Super
+  Admin archive/restore; only Super Admin may permanently delete a verified
+  safe, unused archived Program through the controlled workflow (design §7)
+  — Super Admin authority never bypasses dependency or history checks. Not
+  yet enforced by the database (enforcement gap TI-1).
 
 ## 4. Role-Specific Detail
 
@@ -129,6 +134,10 @@ Notes:
   - (Phase 22, approved — not built) Change a Program's public slug after its
     first publication, with audit and redirect safeguards; other sensitive
     structural website operations identified during implementation.
+  - (Phase 22, approved — not built) Permanently delete a verified safe,
+    unused archived Program through the controlled workflow (eligibility
+    check, reason, Program-code confirmation, recheck, durable audit);
+    blocked by any protected dependency, with no override.
 
 ### 4.2 Admin
 - Full CRUD on Students, Programs, Batches, Enrollments (per Delete Policy —
@@ -159,8 +168,8 @@ Notes:
 - (Phase 22, approved — not built) Manage the ordinary public website through
   Website Management: content, Program/Batch publishing and registration
   state, groups, featured order, media, SEO, drafts, preview, publishing and
-  version restore. No slug change after first publication; no Program
-  deletion.
+  version restore. Archive and restore Programs. No slug change after first
+  publication; no permanent Program deletion.
 - Leads: no LMS lead pipeline — pre-enrollment leads are handled in Zoho CRM
   (Phase 23).
 - View all reports across all programs/batches/trainers.

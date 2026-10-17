@@ -204,7 +204,12 @@ All Phase 22 business decisions are recorded in
   public website; Super Admin alone changes a published Program slug.
 - Ten launch Programs in two editable groups; the eleventh ("AI Quality
   Engineering") is removed.
-- Programs archive/restore only in Phase 22 — no permanent deletion.
+- Programs archive-first: Admin and Super Admin archive/restore; only Super
+  Admin may permanently delete a verified safe, unused archived Program;
+  Programs with history or protected dependencies remain archived. (Revised
+  2026-10-17 by explicit owner approval; supersedes the earlier "no
+  permanent deletion" decision. Not yet implemented — the database still
+  allows a broad delete, TI-1.)
 - No public pricing or financial information.
 - Batch privacy; registration Open/Closed/Full; "Next Cohort: Coming Soon".
 - Visual direction Concept A with restrained Concept B elements.

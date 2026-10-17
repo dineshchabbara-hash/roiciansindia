@@ -407,13 +407,25 @@ Applied (token-bucket, per-IP and/or per-account as appropriate) to:
   payment/attendance exists) is permitted only for Super Admin, requires a
   confirmation step, and is itself audit-logged (who deleted what, when) even
   though the deleted row itself is gone.
-- **Programs (Phase 22 decision P22-08):** archive/restore only during
-  Phase 22 — no role, including Super Admin, permanently deletes a Program,
-  so the hard-delete exception above does not apply to Programs. Known
-  technical issue TI-1: the existing `programs_delete_admin` policy still
-  allows DELETE and would cascade to modules and program-level materials;
-  Phase 22A verifies and resolves this (design §7, §16). This rule is
-  Program-specific and does not change the rules for other record types.
+- **Programs (Phase 22 decision P22-08, revised; design §7):** archive-first.
+  Admin and Super Admin may archive and restore. Only Super Admin may
+  permanently delete a verified safe, unused **archived** Program, through
+  a controlled workflow: eligibility check, review, reason, Program-code
+  confirmation, recheck, deletion, durable audit record. Any protected
+  dependency (Batches, enrollments, certificates, financial records,
+  sessions, attendance, assignments, modules, materials, enquiry or website
+  references) blocks deletion; there is no override, no Admin delete, no
+  direct deletion of an unarchived Program, no automatic or bulk deletion.
+  Enforcement is server-side and in the database, independently verifies
+  Super Admin authority, and is concurrency-safe; the audit record survives
+  and carries no unnecessary personal data. File cleanup applies only to
+  ownership-established public website assets and never to private
+  learning, receipt, certificate or student-document storage. **Enforcement
+  gap TI-1 — not fixed:** the existing `programs_delete_admin` policy still
+  allows a broad DELETE that would cascade into modules, materials and
+  assignments; a separately authorized implementation must replace it. This
+  rule is Program-specific and does not change the rules for other record
+  types.
 - Leads, which carry no downstream financial/academic dependency, may be
   hard-deleted more liberally (e.g. spam lead cleanup) without the same
   restriction. (The `leads` table is currently unused: leads are managed in
