@@ -1,8 +1,16 @@
 # Phase 22 — Roicians India Public Website: Approved Design
 
-**Status:** Approved design — **not implemented.** Nothing in this document
-exists in code, database, routing or deployment until the stage that builds
-it (22A–22J, §15) is separately authorized, implemented, accepted and merged.
+**Status:** Approved design. The **new Phase 22 capabilities** described here —
+the public website, Website Management, the published-data contract,
+hostname routing, the enquiry interfaces and the controlled Program deletion
+workflow — are **not implemented**; each exists only once the stage that
+builds it (22A–22J, §15) is separately authorized, implemented, accepted and
+merged. **Existing LMS functionality** this document refers to — for example
+Program and Batch records with their status lifecycle (including Program
+archive/restore through `status`), Company Settings, the internal
+`/admin`, `/student` and `/trainer` portals and `/verify-certificate` — was
+delivered in Phases 1–21C, keeps its accepted status and is reused, not
+rebuilt.
 
 **Role of this document:** the single authoritative Phase 22 decision
 register. Other project documents summarize and cross-reference it; where
@@ -307,8 +315,17 @@ Only Super Admin may permanently delete a verified safe, unused archived
 Program. Programs with training or financial history, or other protected
 dependencies, remain archived.
 
-This is an approved Phase 22 design requirement; implementing it needs
-separate authorization. Nothing below exists yet.
+Implementation status:
+
+- **Existing (Phase 7 Program management), reused as is:** archiving and restoring a
+  Program through its `status` (`archived` and back to an operational
+  status), available to Admin and Super Admin with audit. It is not
+  rebuilt.
+- **Approved, not implemented:** the controlled Super Admin deletion
+  workflow, the eligibility checks, the database enforcement that replaces
+  the current broad delete policy, and the blocked-deletion explanations
+  (§7.2–§7.5). Implementing them needs separate authorization; until then
+  the enforcement gap in §7.6 remains open.
 
 ### 7.1 Rules
 
@@ -337,7 +354,8 @@ enrollment counts or a UI flag. "No active students" is not the same as
 blocked and archiving remains the option.
 
 Protected dependencies, from the current schema (migrations 1–39) — any one
-of them blocks deletion:
+of them blocks deletion (audit records are a separate case, see "Audit
+records" below):
 
 | Dependency | How it reaches a Program | Current `ON DELETE` behavior |
 |---|---|---|
@@ -350,7 +368,6 @@ of them blocks deletion:
 | Program-level learning materials and their Storage files | `materials.program_id` | **CASCADE for the row; the Storage file is not removed** |
 | Assignments (and their submissions) | `assignments.program_id` | **CASCADE (silently deleted)** |
 | Enquiry/lead references | `leads.program_id` (table currently unused) | **SET NULL (silently detached)** |
-| Audit history about the Program | `audit_logs.entity_id` (no foreign key) | Untouched; must survive |
 
 Other operational or historical references that cannot safely survive the
 deletion also block it, including references added by the Phase 22 website
@@ -362,6 +379,21 @@ Protected dependencies are never deleted, detached or rewritten to make a
 Program pass the check. A Program known to have training or financial
 history does not become "unused" because related records are hidden in an
 operational screen.
+
+**Audit records — retained, not a blocking dependency on their own.**
+`audit_logs` refers to a Program by `entity_id` with no foreign key, so a
+deletion leaves those rows untouched.
+
+- Routine audit records of the Program's creation, editing, archiving and
+  restoration must survive the deletion.
+- The existence of those routine records alone does **not** make an
+  otherwise safe, unused archived Program ineligible.
+- Audit evidence of training, financial history or another protected
+  relationship is still considered by the eligibility check: such evidence
+  blocks deletion even where the related records are no longer visible in
+  ordinary views. Unresolved eligibility stays blocked.
+- Audit records are never deleted or altered to make a Program eligible.
+- A successful deletion itself leaves a durable audit record (§7.4).
 
 ### 7.3 Previously published Programs and stored files
 
@@ -424,6 +456,12 @@ Enforcement requirements:
 6. Concurrent changes cannot bypass eligibility.
 7. The audit history, including the deletion record, survives.
 8. Unsafe public references or unresolved file cleanup block deletion.
+9. For an otherwise eligible unused, archived Program whose only history is
+   routine create, edit, archive and restore audit records, those records
+   survive the deletion and do not by themselves prevent the controlled
+   deletion.
+10. Actual protected academic or financial history — including history
+    known only from audit evidence — blocks deletion (complements 4 and 5).
 
 ### 7.6 Existing enforcement gap (not fixed)
 
