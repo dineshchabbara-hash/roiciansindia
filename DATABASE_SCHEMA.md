@@ -55,7 +55,7 @@ executable source of truth once Phase 2 begins.
 | `assignments` | Assignment definition |
 | `assignment_submissions` | Student submission against an assignment |
 | `certificates` | Issued certificate records |
-| `leads` | Public inquiry/lead pipeline |
+| `leads` | Public inquiry/lead pipeline (provisioned in Phase 2; unused — Zoho CRM owns leads, Phase 23) |
 | `notifications` | In-app (and future multi-channel) notification feed |
 | `email_log` | Record of transactional emails sent |
 | `company_settings` | Single-row centralized branding/tax/numbering configuration |
@@ -212,6 +212,27 @@ explicit publication fields and the read-only public projection are designed
 in Phase 22; until then no `anon` access to `programs`/`batches` exists (the
 `programs_select_published` policy is `to authenticated` only and is not the
 website's data path).
+
+**Phase 22 approved design (not implemented;
+`docs/requirements/PHASE_22_APPROVED_DESIGN.md`):**
+- The fee columns (`regular_fee`, `registration_fee`, `tax_rate_percent`)
+  and every other financial value stay internal and are never part of the
+  public website contract (P22-09); they are not removed or changed.
+- Phase 22A adds the Website Management data foundation (Program website
+  content, Batch publication metadata, Admin-managed display groups, pages
+  and sections, navigation/footer, FAQs, SEO, public media metadata,
+  draft/published revisions, concurrency and audit) as **new, private-by-
+  default** tables and columns; the migration number is verified at 22A
+  (expected 40). None of these exist yet.
+- Programs are archive/restore only in Phase 22 (P22-08). Technical issue
+  TI-1: the existing `programs_delete_admin` policy (migration 14) still
+  permits Admin/Super Admin DELETE, and a delete would cascade to
+  `program_modules` and program-level `materials` (leaving their Storage
+  objects behind). No screen offers Program deletion today; Phase 22A
+  verifies this and proposes a safe treatment without editing migrations
+  1–39.
+- The comment in migration 14 anticipating an `anon` policy on `programs`
+  is superseded: no `anon` policy will be added (design §14).
 
 ### `program_modules`
 - `id uuid pk`
@@ -559,6 +580,10 @@ column allow-list at the application layer instead.)
 - `status text not null default 'new' check (status in ('new','contacted','follow_up','qualified','converted','not_interested','closed'))`
 - `converted_student_id uuid references students(id)`
 - `created_at`, `updated_at`
+
+Status: provisioned by the Phase 2 schema and **unused**. Zoho CRM owns
+pre-enrollment leads (Phase 23); the table and its migration stay as they
+are, and Phase 22 enquiry forms do not write to it.
 
 ### `notifications`
 - `id uuid pk`

@@ -93,6 +93,12 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   Cancelled → Archived.
 - FR-24 (P1): Optional course structure: Program → Modules → Lessons, used to scope
   materials/assignments without forcing structure on every program.
+  (Phase 22 approved decision P22-08, applies to FR-20: Programs are archive/
+  restore only during Phase 22 — no role, including Super Admin, permanently
+  deletes a Program; archive uses the existing `archived` status. Program fees
+  and other FR-20 financial fields stay internal and are never shown on the
+  public website (P22-09). See
+  `docs/requirements/PHASE_22_APPROVED_DESIGN.md` §7–§8.)
 
 ### 2.4 Enrollment
 - FR-30 (P0): Enrollment links Student + Program + Batch, carries its own immutable
@@ -563,13 +569,20 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   out of scope; India and Canada are not required to share Programs or
   Batches and no global operational catalogue exists. Within India, each
   public operational fact — program name and public status, duration,
-  delivery mode, price and currency, upcoming batch dates, days, time,
+  delivery mode, upcoming batch dates, days, time,
   timezone, registration status and enquiry destination — has one source in
   the LMS/Admin system and is never duplicated across pages. Only Programs and
   Batches explicitly approved for public display are exposed, through a safe
   public data layer — never by reading private LMS tables directly.
-  Marketing copy (hero, About, testimonials, FAQs, SEO, corporate-training
-  copy, images) may stay website/CMS-owned. Enquiries go to Zoho CRM.)
+  Enquiries go to Zoho CRM.)
+  (Phase 22 approved design, 2026-10-17 — authoritative register
+  `docs/requirements/PHASE_22_APPROVED_DESIGN.md`: the page list is extended
+  to Home, Programs, dynamic Program Detail, Upcoming Batches, Corporate
+  Training, For Institutions, About, Contact, approved FAQ and legal content,
+  public certificate verification, and Student/Trainer login entry points; no
+  course price or other financial value is published; website content is
+  managed in the Admin portal's Website Management area (FR-133). Approved,
+  not implemented.)
 - FR-131 (P1): Public inquiry/lead form; Admin-facing lead list with status pipeline
   (New → Contacted → Follow-up → Qualified → Converted → Not Interested → Closed).
 - FR-132 (P1): Converting a lead to a student preserves the original lead source on
@@ -581,6 +594,59 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   an LMS Student + Enrollment, and what — if anything — `/admin/leads`
   becomes. The LMS never duplicates leads, opportunities, pipeline stages,
   follow-ups, sales notes, campaigns, sales ownership or CRM reporting.)
+
+**Phase 22 approved requirements (FR-133 – FR-139).** Approved design, not
+implemented; full detail and the decision IDs (P22-xx) are in
+`docs/requirements/PHASE_22_APPROVED_DESIGN.md`.
+
+- FR-133 (P0): Website Management — a structured area in the Admin portal
+  where Admin and Super Admin manage the complete ordinary public website:
+  homepage sections, About, Corporate Training, Institutions and Contact
+  pages, Program listing and detail content, Batch public content, FAQs,
+  banners and approved images, CTAs, navigation and footer, display groups,
+  featured Programs and ordering, approved public media, page titles, SEO
+  and social metadata, and section visibility/order. Structured forms and
+  templates only; no unrestricted HTML/code editor. Drafts, authenticated
+  preview, explicit publish/unpublish, publication timestamps, editor and
+  publisher identity, revision history, safe restoration, lost-update
+  prevention and auditing (P22-04). Super Admin alone changes a Program
+  slug after first publication, with audit and redirect safeguards
+  (P22-05). Website Management grants no finance, authentication, role,
+  RLS, deployment or Company Settings permissions.
+- FR-134 (P0): Program publication and display groups — ten launch Programs
+  in two initial display groups, "Career & Technology Programs" and
+  "Specialist & Professional Programs"; groups are Admin-editable data
+  (create, rename, reorder, hide/archive, move Programs), never an enum;
+  Programs are never hard-coded into website components and no unapproved
+  content is seeded (P22-06). "AI Quality Engineering: Testing LLMs, RAG &
+  AI Agents" is not in the portfolio and no curriculum change to
+  AI-Powered Software Testing & QA is authorized (P22-07).
+- FR-135 (P0): Batch publication — explicit website publication separate
+  from the operational Batch status; public registration state Open, Closed
+  or Full (Admin-set); capacity, cohort size, enrollment counts, seats
+  remaining, meeting links, internal names, notes, private locations and
+  private Trainer details are never public (P22-10). A published Program
+  with no published upcoming Batch shows "Next Cohort: Coming Soon" and
+  "Join Interest List" (P22-11).
+- FR-136 (P0): No public pricing — no course fee, registration fee, tax,
+  discount, instalment/EMI, enrollment financial value, balance, price label
+  or price-based `Offer` structured data on the public website (P22-09).
+  Internal LMS financial data and functions are unchanged.
+- FR-137 (P0): Public enquiry interfaces — Talk to an Advisor, Program
+  enquiry, Batch enquiry, Join Interest List, Corporate Training enquiry and
+  Institutional enquiry, with validation, spam protection and consent;
+  never a false success message; no LMS lead pipeline or temporary CRM
+  storage. Zoho delivery is Phase 23 (P22-16).
+- FR-138 (P0): Hostnames — `roicians.in` (public website), `student.`,
+  `trainer.` and `admin.roicians.in` served from the same repository through
+  an allowlisted hostname layer mapped onto the existing internal routes;
+  no portal session reaches the public website (P22-01). Canada stays at
+  `https://www.roicians.com` and is not modified (P22-02).
+- FR-139 (P0): Safe published-data contract — the website reads only
+  expressly published, permitted fields through a server-only contract; no
+  anonymous access to private LMS tables; nothing confidential leaks through
+  HTML, APIs, caches, previews, metadata, structured data, sitemaps or URLs
+  (P22-17).
 
 ### 2.15 Settings / Configuration
 - FR-140 (P0): Centralized Company Settings (name, legal name, logo, address,
@@ -657,7 +723,8 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 - SEC-6: Payment amount is always recomputed server-side from the enrollment/
   installment record; client-submitted amounts are never trusted.
 - SEC-7: Rate limiting on auth endpoints, payment-initiation endpoints, and the
-  public lead form / certificate verification endpoint.
+  public enquiry forms (Phase 22, FR-137) / certificate verification
+  endpoint.
 - SEC-8: No secrets in source control; all credentials via environment variables;
   `.env.example` documents required variables with placeholders only.
 - SEC-9: Error responses never leak stack traces, SQL, or credential material to the
@@ -678,7 +745,9 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
 - INT-5 (P2): WhatsApp Business API, Zoom/Google Meet, Google Calendar, CRM, Meta
   Leads, accounting software, mobile app, AI assistant, placement/job-board module —
   none built now; notification, meeting-link, and identity models are kept
-  provider-agnostic to avoid blocking these later.
+  provider-agnostic to avoid blocking these later. (Later roadmap decision:
+  Zoho CRM is the CRM and its integration is Phase 23; the other items stay
+  P2.)
 
 ## 6. Future Requirements (P2 — Not Built Now)
 
@@ -737,6 +806,11 @@ contradictions" instruction:
 7. **"Do not add unnecessary personal information"** — Date of birth, gender, and
    emergency contact are modeled as **nullable/optional** fields, collected only if
    the enrollment/program requires them, not mandatory on every student.
+8. **Public website (Phase 22 approved design)** — the brief's public site is
+   now the Roicians India website on `roicians.in` with the ROICIANS TECH
+   brand; it publishes no course pricing; its content is managed by Admin and
+   Super Admin in a structured Website Management area; leads belong to Zoho
+   CRM (Phase 23). See `docs/requirements/PHASE_22_APPROVED_DESIGN.md`.
 
 ---
 

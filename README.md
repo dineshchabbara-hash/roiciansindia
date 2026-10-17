@@ -16,6 +16,9 @@ source of truth for scope and design decisions:
 - `IMPLEMENTATION_PLAN.md` — phase-by-phase build plan (current phase status
   lives here)
 - `DECISIONS_NEEDED.md` — open business decisions
+- `docs/requirements/PHASE_22_APPROVED_DESIGN.md` — the authoritative Phase 22
+  (Roicians India public website) decision register; approved design, not yet
+  implemented
 
 ## Prerequisites
 

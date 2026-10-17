@@ -75,7 +75,7 @@ before use (prevents Insecure Direct Object Reference / IDOR).
 
 - React's default JSX escaping handles the vast majority of output safety; no use
   of `dangerouslySetInnerHTML` on any user-supplied content (notes, messages, lead
-  submissions, assignment text). Where rich text is genuinely required later, it
+  or enquiry submissions, assignment text, Phase 22 website content). Where rich text is genuinely required later, it
   goes through a sanitizer (e.g. `sanitize-html`) with an allow-list, not a
   deny-list.
 - Email templates that interpolate user-supplied text (student name, lead message)
@@ -295,6 +295,44 @@ before use (prevents Insecure Direct Object Reference / IDOR).
   only; the path must sit in the student's own folder (check constraint);
   served through a session-checked route with `private, no-store`.
 
+### 9f. Public website & Website Management (Phase 22 — approved design, not implemented)
+
+Requirements recorded in
+[`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_APPROVED_DESIGN.md)
+(§3, §5, §8, §9, §13, §14, §16); none of this exists yet.
+
+- **Published-data contract:** the website reads only expressly published,
+  permitted fields through a server-only contract (Phase 22C). No `anon`
+  policy on any private LMS table; the migration 14 comment anticipating
+  one is superseded. The service-role key never reaches browser code.
+- **No leakage channel:** confidential LMS values must not leak through
+  HTML, API responses, caches, preview pages, metadata, structured data,
+  sitemaps or URLs. Never public: any course fee or financial value;
+  Batch capacity, cohort size, enrollment counts, seats remaining, meeting
+  links, internal names, notes, private locations; private Trainer or
+  Student data.
+- **Website Management authorization:** Admin and Super Admin only; Super
+  Admin alone changes a published Program slug (audited, with redirect).
+  Website editing grants no finance, authentication, role, RLS, deployment
+  or Company Settings permission. New website tables are private by
+  default.
+- **Content safety:** structured forms and templates only — no unrestricted
+  HTML/code editor; rich text, if any, passes an allow-list sanitizer
+  (§5). Drafts and previews are authenticated, never cached publicly,
+  never indexed.
+- **Revisions and concurrency:** editor and publisher identity, timestamps,
+  revision history, safe restoration and lost-update prevention; audit
+  records carry no passwords, tokens, secrets or unnecessary private data.
+- **Hostnames (Phase 22D):** allowlist of recognized hosts; unknown hosts
+  refused; a portal host serves only its own area; portal session cookies
+  host-only and never sent to the public website host; role checks and RLS
+  remain the authority.
+- **Enquiries (Phase 22H):** validation, spam protection, rate limiting and
+  consent; no false success before Zoho delivery (Phase 23); no temporary
+  CRM storage.
+- **Public media:** approved public assets kept apart from every existing
+  private LMS bucket, which stays protected.
+
 ## 10. Webhook Security (General)
 
 - Signature verification is mandatory for every inbound webhook (Razorpay today;
@@ -311,7 +349,8 @@ before use (prevents Insecure Direct Object Reference / IDOR).
 Applied (token-bucket, per-IP and/or per-account as appropriate) to:
 - `/login`, `/forgot-password`, `/reset-password`
 - Payment initiation endpoints (`create-order`)
-- Public lead/inquiry form
+- Public enquiry forms (Phase 22H: Talk to an Advisor, Program, Batch,
+  Interest List, Corporate and Institutional enquiries)
 - Public certificate verification (`/verify-certificate`) — prevents brute-forcing
   certificate numbers to enumerate student names
 - Implementation: Upstash Redis (serverless-friendly, works well with Vercel) or a
@@ -368,9 +407,17 @@ Applied (token-bucket, per-IP and/or per-account as appropriate) to:
   payment/attendance exists) is permitted only for Super Admin, requires a
   confirmation step, and is itself audit-logged (who deleted what, when) even
   though the deleted row itself is gone.
+- **Programs (Phase 22 decision P22-08):** archive/restore only during
+  Phase 22 — no role, including Super Admin, permanently deletes a Program,
+  so the hard-delete exception above does not apply to Programs. Known
+  technical issue TI-1: the existing `programs_delete_admin` policy still
+  allows DELETE and would cascade to modules and program-level materials;
+  Phase 22A verifies and resolves this (design §7, §16). This rule is
+  Program-specific and does not change the rules for other record types.
 - Leads, which carry no downstream financial/academic dependency, may be
   hard-deleted more liberally (e.g. spam lead cleanup) without the same
-  restriction. Notifications are no longer hard-deletable by any application
+  restriction. (The `leads` table is currently unused: leads are managed in
+  Zoho CRM from Phase 23.) Notifications are no longer hard-deletable by any application
   role (Phase 18 V1, approved decision C4): sent content is immutable — only
   the recipient's read state changes — and there is no delete policy. A
   recipient's notifications are removed only when their auth account is

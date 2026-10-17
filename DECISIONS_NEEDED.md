@@ -32,6 +32,11 @@ address, phone, email, GSTIN, and primary/secondary brand colors — placeholder
 remain in `company_settings` for these until supplied, editable at any time from
 Settings, needed no later than Phase 4 (Admin shell branding) / Phase 22 (Public
 Website).
+(Phase 22 update, D11: the public brand is **ROICIANS TECH** with the line
+"Practical technology training for the AI era"; the visual direction and
+suggested starting palette are approved. Still outstanding for the website:
+the authorized logo files, final colour tokens after logo review, and the
+approved public contact details.)
 
 ### D2. GST / tax applicability
 Is GST currently charged on your training fees? If yes, at what rate, and is your
@@ -184,6 +189,32 @@ checkpoint.
   the first not fully covered is next; amount = its uncovered remainder,
   capped at the outstanding balance. Computed at order time only — no
   allocation is stored (D9 still holds).
+
+### D11. Phase 22 public website design — RESOLVED (approved 2026-10-17)
+
+All Phase 22 business decisions are recorded in
+[`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_APPROVED_DESIGN.md)
+(decision register P22-01 – P22-18). In short:
+
+- Same repository; `roicians.in`, `student.roicians.in`,
+  `trainer.roicians.in`, `admin.roicians.in`; Canada stays at
+  `https://www.roicians.com`.
+- Public brand ROICIANS TECH; legal name Roicians Tech Pvt. Ltd.
+- Website Management: Admin and Super Admin manage the complete ordinary
+  public website; Super Admin alone changes a published Program slug.
+- Ten launch Programs in two editable groups; the eleventh ("AI Quality
+  Engineering") is removed.
+- Programs archive/restore only in Phase 22 — no permanent deletion.
+- No public pricing or financial information.
+- Batch privacy; registration Open/Closed/Full; "Next Cohort: Coming Soon".
+- Visual direction Concept A with restrained Concept B elements.
+- Online-first; enquiry interfaces in Phase 22, Zoho delivery in Phase 23.
+
+This resolves the earlier Phase 22 open points (publication control,
+content ownership, pricing display, course groups, deletion policy, launch
+grouping, domains). Still open — and **not** resolved by D11: launch
+content and legal/consent wording (design §17), D2 (GST/tax) and D6
+(Program code format).
 
 ---
 

@@ -44,11 +44,13 @@ independent country catalogue.** Roicians Canada and Roicians India keep
 separate domains and may have entirely different programs, prices,
 currencies, batches and trainers; there is no mandatory global operational
 catalogue and the Canada website is not touched. Within India, every public
-Program, price, batch date, timing, delivery mode and registration status
-has one authoritative operational source (this LMS/Admin system) and may be
-shown in many website locations without duplicating the underlying fact;
-only explicitly published data crosses into the public site. Full statement:
-`ARCHITECTURE.md` §1a.
+Program, batch date, timing, delivery mode and registration status has one
+authoritative operational source (this LMS/Admin system) and may be shown in
+many website locations without duplicating the underlying fact; only
+explicitly published data crosses into the public site, and no course price
+or other financial value is ever published. Full statement:
+`ARCHITECTURE.md` §1a. The approved Phase 22 design (2026-10-17) is recorded
+in [`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_APPROVED_DESIGN.md).
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -57,7 +59,7 @@ only explicitly published data crosses into the public site. Full statement:
 | 21A | Receipts & Payment Documents (FR-94, FR-95) | Complete (merged `80008da`) |
 | 21B | Refunds (FR-97; D8 resolved, Option A) | Complete (merged `c527c08`; migration 38 on dev; Windows acceptance 2/2) |
 | 21C | LMS Administration & Identity (FR-140/141 Company Settings, D3 Student portal logins, Admin accounts, Audit Log viewer, FR-41 photo) | Complete (merged `6e5e4e9`; migration 39 on dev; Windows acceptance 3/3) |
-| 22 | Roicians India Public Website (country catalogue; see `ARCHITECTURE.md` §1a) | Not started — **next** |
+| 22 | Roicians India Public Website (approved design: `docs/requirements/PHASE_22_APPROVED_DESIGN.md`; stages 22A–22J) | Design approved; implementation not started — **next** |
 | 23 | Zoho CRM Integration (re-scoped from Lead Management) | Not started (after 22) |
 | 18b | Transactional Email & multi-channel delivery | Not started — deferred until after 23 (provider + credentials chosen first); required before 24 if in V1 |
 | 24 | Testing, Security & UAT | Not started |
@@ -1769,56 +1771,76 @@ tests, E2E `e2e/phase21c-admin-identity.spec.ts` (3 tests).
 
 ## Phase 22 — Roicians India Public Website
 
-**Governing decision:** `ARCHITECTURE.md` §1a — Roicians India is an
-independent country catalogue on its own domain; the Canada website is not
-modified and does not consume India data; there is no global Program/Batch
-catalogue. Within India, every public operational fact has one source (this
-LMS/Admin system) and is displayed, never re-typed, wherever it appears.
+**Status:** design approved (2026-10-17); **not implemented.** The single
+authoritative decision register is
+[`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_APPROVED_DESIGN.md);
+this section summarizes it and tracks the stages.
 
-**Scope:** FR-130 pages (Home, About, Programs, Program Detail, Corporate
-Training, Contact, Student/Trainer login entry points) for the India
-domain, with Roicians brand look-and-feel, company identity from
-`company_settings`, and India operational facts (program name, duration,
-delivery mode, price in INR, upcoming batches with start date, days, time
-and timezone, registration open/closed) read from published LMS data. An
-enquiry path hands the visitor to Zoho CRM (Phase 23 owns the integration);
-the website stores no leads and `leads` stays unused.
+**Governing decisions (summary):**
+- Same repository; `roicians.in` (public website), `student.roicians.in`,
+  `trainer.roicians.in`, `admin.roicians.in` mapped onto the existing
+  internal routes by an allowlisted hostname layer (Phase 22D). Canada stays
+  at `https://www.roicians.com`, untouched (`ARCHITECTURE.md` §1a, §1b).
+- Public brand ROICIANS TECH, "Practical technology training for the AI
+  era"; legal name Roicians Tech Pvt. Ltd.
+- Website Management in the Admin portal: Admin and Super Admin manage the
+  complete ordinary public website through structured forms, with drafts,
+  authenticated preview, explicit publishing, revision history, restoration,
+  lost-update prevention and auditing. Super Admin alone changes a Program
+  slug after first publication.
+- Ten launch Programs in two editable display groups ("Career & Technology
+  Programs", "Specialist & Professional Programs"); never hard-coded; no
+  unapproved content seeded. Programs are archive/restore only in Phase 22.
+- No course pricing or LMS financial information anywhere on the public
+  website; internal LMS finance unchanged.
+- Batch privacy (no capacity, counts, seats, links, internal names, notes,
+  private locations or Trainer data); registration state Open/Closed/Full;
+  "Next Cohort: Coming Soon" + "Join Interest List" when a published Program
+  has no published upcoming Batch.
+- Visual direction: Concept A — Refined Enterprise Tech, with restrained
+  Concept B elements. Primary CTA "Talk to an Advisor"; secondary "Explore
+  Programs".
+- Online-first delivery. Enquiry interfaces built in Phase 22; Zoho delivery
+  is Phase 23. Safe server-only published-data contract; no anonymous access
+  to LMS tables.
 
-**To design at this phase's checkpoint (not decided yet):**
-1. *Publication control* — an explicit, Admin-managed "show on the India
-   website" decision for Programs and Batches, separate from operational
-   `status` (an `active` record is not automatically public), plus the
-   public-only fields that do not exist today: e.g. public slug, public
-   summary/description, public price display, batch display label,
-   registration open/closed and enquiry destination.
-2. *Safe public data layer* — anonymous visitors never query private LMS
-   tables or receive internal columns (`tax_rate_percent`, capacity, meeting
-   link, location, notes, enrollment/fee data, trainer details unless
-   published). Expected shape: a narrow read-only projection (view or
-   SECURITY DEFINER function) returning only published rows and approved
-   columns, consumed server-side by the site. This supersedes the
-   anticipatory comment in migration 14 about an `anon` policy on
-   `programs`: no `anon` policy is added to the operational tables.
-3. *One value, many places* — each public fact is fetched once per request
-   from the projection and passed to every component that shows it; no
-   operational value is hard-coded in pages or components (FR-150).
-4. *Marketing content ownership* — where website/CMS-owned copy lives
-   (hero, Why Roicians, About, testimonials, FAQs, SEO, corporate-training
-   copy, images, campaign sections) and how it references published
-   programs without duplicating their facts.
-5. *Caching/freshness* — how quickly an Admin change (e.g. 7:00 PM → 8:00 PM)
-   appears on every page, without serving private data from a cache.
-6. *Enquiry handoff* — the Phase 22 side of the Zoho boundary (what the form
-   sends, where), leaving the integration itself to Phase 23.
+**Stages** (each separately authorized, tested, accepted and merged; none
+starts automatically):
 
-**DB changes:** expected (publication fields and the public projection);
-designed and numbered at the checkpoint, after confirming the next unused
-migration number. None are created before then.
+| Stage | Scope | Status |
+|---|---|---|
+| 22A | Publication and structured Website Management data model | Not started |
+| 22B | Admin Website Management, drafts, preview and publishing | Not started |
+| 22C | Safe server-only published-data contract | Not started |
+| 22D | Website foundation and multi-subdomain routing | Not started |
+| 22E | Programs listing and Program detail pages | Not started |
+| 22F | Homepage and Upcoming Batches | Not started |
+| 22G | Corporate, Institutions, About and Contact | Not started |
+| 22H | Enquiry interfaces prepared for Zoho | Not started |
+| 22I | SEO, accessibility and performance | Not started |
+| 22J | Browser acceptance and security audit | Not started |
 
-**DoD:** the India site shows only explicitly published programs and
-batches; changing one published operational fact in the LMS changes it on
-every page that shows it; no private LMS table or column is reachable
-anonymously; no marketing copy describes a program that is not published.
+**DB changes:** expected from 22A (the complete Website Management data
+foundation — not only Program/Batch publication flags; design §5.4).
+Migration 40 is only the expected next number after the migration-39
+checkpoint; the next unused number is verified when 22A is authorized. The
+anticipatory comment in migration 14 about an `anon` policy on `programs` is
+superseded: no `anon` policy is added to operational tables (the migration
+is not edited).
+
+**Technical issues to resolve during the stages:** design §16 — notably
+TI-1 (the existing Program delete policy and its cascades, versus
+archive/restore only), TI-3 (the public "upcoming Batch" rule) and TI-4/TI-5
+(Auth redirects, cookies and session refresh per host).
+
+**Launch dependencies:** design §17 — logo files, final tokens, approved
+Program and page content, legal/consent wording, contact details.
+
+**DoD (whole phase):** the India site shows only explicitly published
+Programs and Batches; one published operational fact changed in the LMS
+changes everywhere it appears; no private LMS table, column or financial
+value is reachable or visible publicly; Admin and Super Admin can manage
+ordinary website content without a developer; Phases 1–21C remain intact.
 
 ## Phase 23 — Zoho CRM Integration (re-scoped from Lead Management)
 
@@ -1831,7 +1853,11 @@ qualified/enrolled customer → LMS Student + Enrollment.
 
 **Scope (to be designed at this phase's checkpoint):** how a public inquiry
 reaches Zoho (Phase 22 form → Zoho), and how a qualified/enrolled customer
-becomes an LMS Student + Enrollment without double entry. The existing
+becomes an LMS Student + Enrollment without double entry. The Phase 22H
+enquiry types handed over are Talk to an Advisor, Program enquiry, Batch
+enquiry, Join Interest List, Corporate Training enquiry and Institutional
+enquiry; until this phase delivers them, the website must not show a
+successful submission (Phase 22 design §13). The existing
 `/admin/leads` placeholder is decided here — removed, a link to Zoho, or a
 very light integration/status page; it must not become a CRM. The Phase 2
 `leads` table / `students.lead_id` stay unused until this phase decides.
@@ -1867,8 +1893,11 @@ resolved or explicitly accepted with reasoning recorded.
 **Scope:** Production Supabase project provisioning, production Razorpay live
 keys, production SMTP for Supabase Auth emails (account activation and
 password reset, with the recovery template pointing at `/auth/confirm`) and
-the Phase 18b provider's verified sending domain, Vercel production
-environment variables, webhook URL registration, final
+the Phase 18b provider's verified sending domain, DNS and domain attachment
+for `roicians.in`, `student.roicians.in`, `trainer.roicians.in` and
+`admin.roicians.in` (and verification of the `www.roicians.in` →
+`roicians.in` redirect), per-host Supabase Auth redirect URLs, Vercel
+production environment variables, webhook URL registration, final
 README deployment walkthrough, backup-strategy documentation (Supabase's own
 point-in-time recovery / scheduled backups, per plan tier).
 

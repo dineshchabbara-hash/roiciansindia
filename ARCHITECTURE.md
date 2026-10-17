@@ -69,10 +69,11 @@ operating in two markets. This system is **Roicians India**.
   different, unplanned concern).
 - **One source of truth within India.** This LMS/Admin system is the
   authoritative source for India operational facts — program name, public
-  status, duration, delivery mode, price and currency (INR), upcoming batch,
-  start date, days, timing, timezone, registration open/closed, and the
-  registration/enquiry destination — plus company identity from
-  `company_settings`. A fact shown on several website pages (home, programs
+  status, duration, delivery mode, upcoming batch, start date, days, timing,
+  timezone, registration state, and the registration/enquiry destination —
+  plus company identity from `company_settings`. Course fees and all other
+  financial data stay internal to the LMS and are never published on the
+  website (Phase 22 decision P22-09). A fact shown on several website pages (home, programs
   list, program detail, upcoming batches, promotional sections) is read from
   that one source, never copied into page code; changing a batch time is one
   operational update.
@@ -82,15 +83,47 @@ operating in two markets. This system is **Roicians India**.
   reads private LMS tables directly. The publication fields and the public
   projection are designed at the Phase 22 checkpoint (see
   `IMPLEMENTATION_PLAN.md` Phase 22).
-- **Marketing content is separate.** Hero copy, "Why Roicians", About,
-  testimonials, FAQs, success stories, SEO copy, corporate-training marketing,
-  images and campaign landing copy are website/CMS-owned, not forced into the
-  LMS. Operational facts and marketing content are different
-  responsibilities.
+- **Marketing content is separate from operational facts.** Hero copy, "Why
+  Roicians", About, FAQs, SEO copy, corporate-training copy, images and
+  similar website content are managed by Admin and Super Admin in a
+  structured **Website Management** area of the Admin portal (Phase 22
+  decision P22-04), stored separately from the operational Program/Batch
+  records they reference. There is no separate external CMS and no
+  unrestricted HTML editor.
 - **CRM boundary.** Zoho CRM owns pre-enrollment sales activity; this LMS owns
   post-enrollment student operations. India flow: website → enquiry → Zoho
   CRM → sales follow-up → conversion → LMS Student + Enrollment. Neither the
   website nor the LMS becomes a lead-management CRM (Phase 23).
+
+The approved Phase 22 design (brand, Website Management, portfolio,
+no public pricing, Batch privacy, visual direction, stages) is recorded in
+[`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_APPROVED_DESIGN.md).
+
+## 1b. Hostnames — Approved Target (Phase 22D, not implemented)
+
+The same repository and Next.js application will serve four India hosts
+(decision P22-01). Today the application is reached by path only; the
+hostname layer is built in Phase 22D and configured for production in
+Phase 25.
+
+| Host | Maps to the existing internal area |
+|---|---|
+| `roicians.in` (primary public host; `www.roicians.in` redirects, subject to deployment verification) | Public website route group (to be built) and `/verify-certificate` |
+| `student.roicians.in` | `/student/*`, `/login/student` |
+| `trainer.roicians.in` | `/trainer/*`, `/login/trainer` |
+| `admin.roicians.in` | `/admin/*`, `/login/admin` |
+
+- The internal paths `/admin`, `/student`, `/trainer` remain the
+  implementation; they are not renamed, deleted or migrated.
+- Incoming hosts are checked against an allowlist; unknown hosts are
+  refused; a portal host serves only its own area, and role checks plus RLS
+  stay the authority.
+- Portal session cookies stay host-only and never reach the public website
+  host; public routes require no authentication.
+- Local development and the automated tests keep a path-based workflow.
+- Canada stays at `https://www.roicians.com`, outside this system.
+
+Details and open technical points: Phase 22 design §3 and §16.
 
 ## 2. Why This Stack
 
@@ -188,6 +221,14 @@ lib/
                                     client forms and server actions
   supabase/                      -- server client, browser client, admin client
 ```
+
+This tree is the original planning layout. The implemented routes differ in
+places (for example `/admin/audit-log`, `/admin/admins`, and a `(public)`
+group that currently holds only login, password and certificate-verification
+pages); the Phase 22 public website pages (Home, Programs, Program detail,
+Upcoming Batches, Corporate Training, For Institutions, About, Contact) are
+not built yet. How these internal paths map to the approved hostnames is in
+§1b.
 
 Key rules:
 
@@ -414,6 +455,10 @@ not maintained by either flow yet.)
   `.env.example` documents names/placeholders only.
 - **Webhooks:** Razorpay webhook URL points at the deployed route handler
   (`/api/razorpay/webhook`); the webhook secret is validated per request.
+- **Hostnames (approved target):** `roicians.in`, `student.roicians.in`,
+  `trainer.roicians.in`, `admin.roicians.in` on the same deployment (§1b);
+  DNS, domain attachment and per-host Supabase Auth redirect URLs are
+  Phase 25 configuration.
 
 ## 13. Security Architecture (Summary — full detail in SECURITY_PLAN.md)
 
@@ -426,7 +471,8 @@ not maintained by either flow yet.)
   involved) but require signature verification instead.
 - Rate limiting via a lightweight token-bucket (e.g. Upstash Redis or a Postgres-
   backed limiter) on `/login`, `/forgot-password`, `/api/razorpay/*`, the public
-  lead form, and `/verify-certificate`.
+  enquiry forms (Phase 22H; delivered to Zoho in Phase 23), and
+  `/verify-certificate`.
 
 ## 14. Scalability & Performance Notes
 
@@ -466,3 +512,5 @@ Per the brief's own prioritization (§79, §75–78): WhatsApp integration, Zoom
 Calendar sync, CRM/Meta Leads integration, accounting software integration, mobile
 app, AI assistant, placement/job module, multi-branch enforcement, multi-tenant SaaS.
 The architecture above avoids decisions that would make any of these harder later.
+(Later roadmap decision: Zoho CRM integration is now planned as Phase 23; Meta
+Leads and other CRM integrations remain out of V1.)

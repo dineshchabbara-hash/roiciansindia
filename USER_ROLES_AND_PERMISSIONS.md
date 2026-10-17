@@ -11,7 +11,7 @@
 | Role | Description |
 |---|---|
 | **Super Admin** | Full platform control, including system settings, admin/trainer account management, and numbering/tax configuration. Typically 1–3 accounts. |
-| **Admin** | Day-to-day operational staff: students, programs, batches, enrollments, payments, attendance, certificates, reports, leads. Cannot change system-level settings reserved for Super Admin (see matrix). |
+| **Admin** | Day-to-day operational staff: students, programs, batches, enrollments, payments, attendance, certificates, reports, and (Phase 22, approved) ordinary public-website management. Cannot change system-level settings reserved for Super Admin (see matrix). |
 | **Trainer** | Delivers training. Scoped strictly to batches they are assigned to. No visibility into payments/fees, no access to Admin settings. |
 | **Student** | Self-service portal for their own data only. |
 
@@ -48,6 +48,11 @@ Update, Scoped, **–** = No access.
 | Manage Students | F | F | R (own batch students, basic info only) | RS (self only) |
 | Manage Programs | F | F | R | R (public catalog) |
 | Manage Batches | F | F | R (assigned only) | R (enrolled only) |
+| Website Management — ordinary public content: pages, sections, menus, footer, FAQs, banners, CTAs, approved media, SEO/social metadata, Program and Batch website content, display groups, featured Programs, ordering (Phase 22, approved — not built) | F | F | – | – |
+| Publish/unpublish Programs and Batches on the website; set public registration state (Phase 22, approved — not built) | F | F | – | – |
+| Preview unpublished website content; restore an earlier content version (Phase 22, approved — not built) | F | F | – | – |
+| Change a Program slug after its first publication (Phase 22, approved — not built) | F | – | – | – |
+| Permanently delete a Program (Phase 22 decision P22-08) | – | – | – | – |
 | Assign trainers to batches | F | F | – | – |
 | Manage Enrollments | F | F | R (assigned batch, no financials) | RS (self) |
 | Override fee/discount/payment plan | F | F (audited) | – | – |
@@ -68,7 +73,7 @@ or delete an issued receipt. Student: own receipts only. Trainer: none.)
 | Issue/Revoke Certificates | F | F (audited) | – | R (own) |
 | View Reports | F | F | R (own batches/students only) | – |
 | Admin Reports area & CSV export (Phase 19) | F | F | – | – |
-| Manage Leads | F | F | – | – |
+| Manage Leads (superseded — leads are managed in Zoho CRM, Phase 23; no LMS lead pipeline) | – | – | – | – |
 | Manage Company Settings (branding, tax, numbering formats) | F | R | – | – |
 | Manage Notification Templates (deferred, Phase 18b) | F | R | – | – |
 | Send in-app notification to one Student/Trainer (Phase 18 V1) | F | F | – | – |
@@ -100,6 +105,14 @@ Notes:
 - Student "RS" everywhere means the row must reference the student's own
   `student_id`/`enrollment_id` — enforced both by the query (`where student_id =
   current_student_id`) and by RLS.
+- **Website Management (Phase 22 approved design, not built —
+  `docs/requirements/PHASE_22_APPROVED_DESIGN.md` §5):** "staff" means Admin
+  and Super Admin only. Website editing grants no permission over private
+  LMS finance, authentication, role assignment, RLS policies, deployment
+  settings or the Super-Admin-only Company Settings. Legal/consent text is
+  edited there only after business/legal approval of the wording. Every
+  meaningful change is audited; Programs are archive/restore only during
+  Phase 22 (no role deletes a Program).
 
 ## 4. Role-Specific Detail
 
@@ -113,6 +126,9 @@ Notes:
     sequence mechanism is not, to preserve concurrency safety).
   - Full audit log visibility, including sensitive financial edits.
   - Manage role assignment for any user.
+  - (Phase 22, approved — not built) Change a Program's public slug after its
+    first publication, with audit and redirect safeguards; other sensitive
+    structural website operations identified during implementation.
 
 ### 4.2 Admin
 - Full CRUD on Students, Programs, Batches, Enrollments (per Delete Policy —
@@ -140,7 +156,13 @@ Notes:
   Razorpay TEST refund for online ones); every refund is audited; no
   approval step. Students only see their own refunds; Trainers none.)
 - Issue/revoke certificates.
-- Manage leads pipeline.
+- (Phase 22, approved — not built) Manage the ordinary public website through
+  Website Management: content, Program/Batch publishing and registration
+  state, groups, featured order, media, SEO, drafts, preview, publishing and
+  version restore. No slug change after first publication; no Program
+  deletion.
+- Leads: no LMS lead pipeline — pre-enrollment leads are handled in Zoho CRM
+  (Phase 23).
 - View all reports across all programs/batches/trainers.
 - Cannot: modify Company Settings, create Super Admin accounts, permanently delete
   a student/payment/enrollment with existing history.
@@ -203,6 +225,7 @@ Full policy SQL ships in the Phase 3 migration; summarized intent:
 | `assignments` / `assignment_submissions` | `select` own; `insert`/`update` own submission only | `select`/`insert`/`update` scoped to assigned batches | full |
 | `certificates` | `select` own rows only | no access | full |
 | `company_settings`, `audit_logs`, `leads` | no access | no access | full (audit_logs: Admin read-only subset) |
+| Website Management tables (Phase 22A, planned — not created) | no access | no access | Admin/Super Admin per the matrix above; anonymous visitors none — public reads only through the server-only published-data contract (Phase 22C) |
 
 RLS is **defense in depth**: privileged writes (payment confirmation, receipt
 numbering, Student ID assignment) run through server-only code using the Supabase

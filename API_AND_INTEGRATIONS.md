@@ -24,6 +24,13 @@ All other reads (dashboards, tables, detail pages) are handled by Server Compone
 fetching directly via the data-access layer — no internal REST layer is built purely
 for the sake of having one.
 
+Phase 22 (approved design, not implemented): the public website reads a
+**server-only published-data contract** (Phase 22C) and the enquiry forms
+(Phase 22H) hand off to Zoho in Phase 23. Neither exists yet; no public
+Program or Batch read API exists today. See
+[`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_APPROVED_DESIGN.md)
+§13–§14.
+
 ## 2. Razorpay Integration
 
 (Phase 20B — implemented in TEST MODE. Differences from the original design
@@ -357,8 +364,8 @@ include unnecessary personal data.
 | WhatsApp Business API | `notifications.channel` already models multi-channel; `NotificationDispatcher` is adapter-based | A `WhatsAppSender` adapter, opt-in consent field on `students`, template approval with Meta |
 | Zoom / Google Meet | `batches.meeting_link` / `class_sessions.meeting_link` are plain URLs today | An adapter that calls the provider's API to auto-create a meeting and populate that same field — no schema change needed |
 | Google Calendar | Class sessions already have date/time/timezone fields | A sync service publishing `.ics` or calling the Calendar API per session |
-| CRM / Meta Leads | Decided: **Zoho CRM** owns pre-enrollment leads and sales (website enquiry → Zoho → conversion → LMS Student + Enrollment); the `leads` table stays unused | Phase 23 Zoho CRM Integration — how an enquiry reaches Zoho and how a converted customer becomes a Student + Enrollment without double entry; no lead pipeline in the LMS |
-| Roicians India public website | `programs`/`batches`/`company_settings` already hold the India operational facts (`ARCHITECTURE.md` §1a) | Phase 22 — explicit publication fields and a read-only public projection (published rows, approved columns only); no `anon` access to LMS tables. Roicians Canada stays a separate website and catalogue |
+| CRM / Meta Leads | Decided: **Zoho CRM** owns pre-enrollment leads and sales (website enquiry → Zoho → conversion → LMS Student + Enrollment); the `leads` table stays unused | Phase 23 Zoho CRM Integration — how the Phase 22H enquiries (Talk to an Advisor, Program, Batch, Join Interest List, Corporate Training, Institutional) reach Zoho and how a converted customer becomes a Student + Enrollment without double entry; no lead pipeline in the LMS; until then the website never reports a successful submission |
+| Roicians India public website | `programs`/`batches`/`company_settings` already hold the India operational facts (`ARCHITECTURE.md` §1a) | Phase 22 (approved design, `docs/requirements/PHASE_22_APPROVED_DESIGN.md`) — Website Management data model and Admin editor (22A–22B), a server-only published-data contract with permitted fields only and no course pricing or financial values (22C), hostnames `roicians.in` / `student.` / `trainer.` / `admin.roicians.in` (22D); no `anon` access to LMS tables. Roicians Canada (`https://www.roicians.com`) stays a separate website and catalogue |
 | Accounting software (e.g. Tally/Zoho Books) | `payments`/`receipts` are already immutable, sequential, and exportable | An export/sync adapter mapping our payment records to the target system's ledger format |
 | Mobile app | All business logic already lives server-side behind server actions/route handlers, not embedded in page components | Exposing a subset of routes as a versioned JSON API (most server actions would need Route Handler equivalents for non-browser clients) |
 | AI assistant | N/A architecturally | Would consume the same data-access layer read APIs — no blocker |
