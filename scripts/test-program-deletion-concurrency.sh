@@ -23,6 +23,10 @@
 #   5. website document creation in flight, then deletion -> refused (dependency:website_documents)
 #   6. two editors save from the same base revision -> second refused (P2203), one new revision
 #   7. new draft saved while an older revision is being published -> publish refused (P2203)
+#   8. (migration 42) privileged enrollment deletion uncommitted while the
+#      Program is deleted -> refused while uncommitted (dependency) and after
+#      commit (audit_history from the delete-evidence trigger); never a window
+#   9. (migration 42) Admin Batch deletion (existing policy), same check
 set -euo pipefail
 
 DB_NAME="program_deletion_concurrency_test_$$"
@@ -63,7 +67,15 @@ insert into programs (id, program_code, name, regular_fee, status) values
   ('22ac4000-0000-0000-0000-000000000003', 'CONC-DEL-3', 'Concurrency Delete 3', 1000, 'archived'),
   ('22ac4000-0000-0000-0000-000000000004', 'CONC-DEL-4', 'Concurrency Delete 4', 1000, 'archived'),
   ('22ac4000-0000-0000-0000-000000000005', 'CONC-DEL-5', 'Concurrency Delete 5', 1000, 'archived'),
-  ('22ac4000-0000-0000-0000-000000000006', 'CONC-WEB-6', 'Concurrency Website 6', 1000, 'active');
+  ('22ac4000-0000-0000-0000-000000000006', 'CONC-WEB-6', 'Concurrency Website 6', 1000, 'active'),
+  ('22ac4000-0000-0000-0000-000000000008', 'CONC-DEL-8', 'Concurrency Delete 8', 1000, 'archived'),
+  ('22ac4000-0000-0000-0000-000000000009', 'CONC-DEL-9', 'Concurrency Delete 9', 1000, 'archived');
+insert into students (id, student_code, first_name, last_name, phone) values
+  ('22ac3000-0000-0000-0000-000000000008', 'CONC-STU-8', 'Concurrency', 'Student', '9990022808');
+insert into enrollments (id, enrollment_code, student_id, program_id, regular_fee, agreed_fee, total_payable, status) values
+  ('22ac6000-0000-0000-0000-000000000008', 'CONC-ENR-8', '22ac3000-0000-0000-0000-000000000008', '22ac4000-0000-0000-0000-000000000008', 1000, 1000, 1000, 'cancelled');
+insert into batches (id, program_id, name, start_date, status) values
+  ('22ac5000-0000-0000-0000-000000000009', '22ac4000-0000-0000-0000-000000000009', 'Concurrency Batch 9', current_date, 'cancelled');
 SQL
 
 # Website document with one published revision, created through the API as Admin.
@@ -209,5 +221,45 @@ expect_s2 7 'P2203'
 [[ "$(q "select coalesce(published_revision_id::text, 'none') from website_documents where id = '${DOC_ID}';")" == "none" ]] || { echo "FAIL (7): an outdated revision was published"; exit 1; }
 echo "PASS 7: publishing a revision that stopped being the latest was refused"
 
+# 8 / 9 ----------------------------------------------------------------------
+# Deleting a referencing row does not lock the Program, so session 2 does not
+# wait here: it runs while session 1's deletion is still uncommitted, then
+# again after the commit. Both attempts must be refused.
+history_race() {
+  local name="$1" u1="$2" stmt1="$3" prog="$4" code="$5" expect_uncommitted="$6" expect_committed="$7"
+  open_sessions
+  if [[ "${u1}" != "postgres" ]]; then as_user 5 "${u1}"; fi
+  as_user 6 "${SUPER_SUB}"
+  printf '%s\n' "begin;" "${stmt1}" '\echo S1_STEP_DONE' >&5
+  wait_until "session 1 deletion (${name})" has_marker s1 'S1_STEP_DONE'
+  if grep -q 'ERROR' "${WORKDIR}/s1.log"; then echo "FAIL (${name}): session 1 failed"; cat "${WORKDIR}/s1.log"; exit 1; fi
+  printf '%s\n' "select delete_archived_program('${prog}', '${code}', 'Concurrent test');" '\echo S2_FIRST_DONE' >&6
+  wait_until "session 2 first attempt (${name})" has_marker s2 'S2_FIRST_DONE'
+  printf '%s\n' "commit;" '\echo S1_COMMITTED' >&5
+  wait_until "session 1 commit (${name})" has_marker s1 'S1_COMMITTED'
+  printf '%s\n' "select delete_archived_program('${prog}', '${code}', 'Concurrent test');" '\echo S2_SECOND_DONE' >&6
+  wait_until "session 2 second attempt (${name})" has_marker s2 'S2_SECOND_DONE'
+  close_sessions
+  echo "--- ${name} ---"
+  sed 's/^/  s1| /' "${WORKDIR}/s1.log" | grep -v '^  s1| SET$' || true
+  sed 's/^/  s2| /' "${WORKDIR}/s2.log" | grep -v '^  s2| SET$' || true
+  local first second
+  first="$(sed -n '/S2_FIRST_DONE/q;p' "${WORKDIR}/s2.log")"
+  second="$(sed -n '/S2_FIRST_DONE/,/S2_SECOND_DONE/p' "${WORKDIR}/s2.log")"
+  grep -q 'P2201' <<<"${first}" && grep -q "${expect_uncommitted}" <<<"${first}" || { echo "FAIL (${name}): first attempt not refused by ${expect_uncommitted}"; exit 1; }
+  grep -q 'P2201' <<<"${second}" && grep -q "${expect_committed}" <<<"${second}" || { echo "FAIL (${name}): second attempt not refused by ${expect_committed}"; exit 1; }
+  [[ "$(q "select count(*) from programs where id = '${prog}';")" == "1" ]] || { echo "FAIL (${name}): Program deleted"; exit 1; }
+}
+
+history_race "8 privileged enrollment deletion vs Program deletion" \
+  "postgres" "delete from enrollments where id = '22ac6000-0000-0000-0000-000000000008';" \
+  "22ac4000-0000-0000-0000-000000000008" "CONC-DEL-8" "dependency:enrollments" "audit_history"
+echo "PASS 8: while the enrollment deletion was uncommitted the Program was blocked by the enrollment; after it committed, by the deletion evidence"
+
+history_race "9 Admin Batch deletion vs Program deletion" \
+  "${ADMIN_SUB}" "delete from batches where id = '22ac5000-0000-0000-0000-000000000009';" \
+  "22ac4000-0000-0000-0000-000000000009" "CONC-DEL-9" "dependency:batches" "audit_history"
+echo "PASS 9: while the Batch deletion was uncommitted the Program was blocked by the Batch; after it committed, by the deletion evidence"
+
 echo
-echo "PASS: Program deletion and website publication are concurrency-safe in all 7 forced interleavings."
+echo "PASS: Program deletion and website publication are concurrency-safe in all 9 interleavings."

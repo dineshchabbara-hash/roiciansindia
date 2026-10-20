@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -17,18 +17,32 @@ import {
   websiteErrorKind,
 } from "@/lib/domain/website";
 
-const MIGRATION_40 = readFileSync(
-  join(
-    process.cwd(),
-    "supabase/migrations/20260101000040_website_content_foundation.sql",
-  ),
-  "utf8",
+// The newest migration that (re)defines a rule is the one in force.
+const MIGRATIONS_DIR = join(process.cwd(), "supabase/migrations");
+function latestMigrationContaining(marker: string): string {
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .reverse();
+  for (const f of files) {
+    const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+    if (sql.includes(marker)) return sql;
+  }
+  throw new Error(`no migration contains ${marker}`);
+}
+const SECTION_TYPES_SQL = latestMigrationContaining(
+  "create or replace function website_allowed_section_types",
+);
+const KIND_CHECK_SQL = latestMigrationContaining(
+  "constraint website_documents_kind check",
 );
 
 describe("section types stay in step with the database", () => {
   it("matches website_allowed_section_types() for every kind", () => {
-    const body = MIGRATION_40.slice(
-      MIGRATION_40.indexOf("create or replace function website_allowed_section_types"),
+    const body = SECTION_TYPES_SQL.slice(
+      SECTION_TYPES_SQL.indexOf(
+        "create or replace function website_allowed_section_types",
+      ),
     );
     for (const kind of WEBSITE_DOCUMENT_KINDS) {
       const match = new RegExp(`when '${kind}' then array\\[([^\\]]*)\\]`).exec(body);
@@ -39,9 +53,15 @@ describe("section types stay in step with the database", () => {
   });
 
   it("matches the website_documents kind check", () => {
-    for (const kind of WEBSITE_DOCUMENT_KINDS) {
-      expect(MIGRATION_40).toContain(`'${kind}'`);
-    }
+    const check = KIND_CHECK_SQL.slice(
+      KIND_CHECK_SQL.indexOf("constraint website_documents_kind check"),
+    );
+    const kinds = check
+      .slice(check.indexOf("(kind in (") + 10, check.indexOf("))"))
+      .split(",")
+      .map((k) => k.trim().replace(/'/g, ""))
+      .filter((k) => k.length > 0);
+    expect([...kinds].sort()).toEqual([...WEBSITE_DOCUMENT_KINDS].sort());
   });
 });
 
@@ -181,6 +201,7 @@ describe("Program deletion explanations (§7.4)", () => {
       "website_published_history",
       "website_link_reference",
       "audit_history",
+      "unattributable_history",
       "dependency:website_documents",
       "dependency:some_future_table",
     ]) {
@@ -189,5 +210,24 @@ describe("Program deletion explanations (§7.4)", () => {
     expect(describeProgramDeletionBlocker("dependency:some_future_table")).toBe(
       "linked some future table",
     );
+  });
+});
+
+describe("Phase 22A corrections", () => {
+  it("includes the Programs-listing and Upcoming-Batches page kinds as single pages", async () => {
+    const { SINGLETON_DOCUMENT_KINDS } = await import("@/lib/domain/website");
+    for (const kind of ["programs_listing", "upcoming_batches"] as const) {
+      expect(WEBSITE_DOCUMENT_KINDS).toContain(kind);
+      expect(SINGLETON_DOCUMENT_KINDS).toContain(kind);
+      expect(SECTION_TYPES_BY_KIND[kind]).not.toContain("program_showcase");
+      expect(SECTION_TYPES_BY_KIND[kind]).toContain("faq");
+    }
+  });
+
+  it("explains unattributable history without offering an override", () => {
+    const message = programDeletionBlockedMessage(["unattributable_history"]);
+    expect(message).toContain("can no longer be linked to any Program");
+    expect(message).toContain("can remain archived");
+    expect(message.toLowerCase()).not.toContain("anyway");
   });
 });

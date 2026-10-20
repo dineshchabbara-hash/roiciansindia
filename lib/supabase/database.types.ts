@@ -41,7 +41,10 @@ export type WebsiteDocumentKind =
   | "legal"
   | "navigation"
   | "footer"
-  | "program";
+  | "program"
+  // 20260101000042: editable copy of the Programs and Upcoming Batches pages
+  | "programs_listing"
+  | "upcoming_batches";
 
 /** Phase 22A public Batch registration state (P22-10). */
 export type WebsiteRegistrationState = "open" | "closed" | "full";

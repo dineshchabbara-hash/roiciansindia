@@ -23,6 +23,8 @@ export const WEBSITE_DOCUMENT_KINDS: readonly WebsiteDocumentKind[] = [
   "navigation",
   "footer",
   "program",
+  "programs_listing",
+  "upcoming_batches",
 ];
 
 /** Kinds with at most one document (one Home, one footer, ...). */
@@ -34,6 +36,8 @@ export const SINGLETON_DOCUMENT_KINDS: readonly WebsiteDocumentKind[] = [
   "contact",
   "navigation",
   "footer",
+  "programs_listing",
+  "upcoming_batches",
 ];
 
 export type WebsiteSectionType =
@@ -63,6 +67,10 @@ export const SECTION_TYPES_BY_KIND: Record<
   legal: ["text", "consent_text"],
   navigation: ["menu"],
   footer: ["footer_column", "text"],
+  // Intro, FAQs and supporting sections only; the Programs and Batches shown
+  // on these pages come from their own published records (22C), never text.
+  programs_listing: ["hero", "text", "list", "faq", "cta", "banner"],
+  upcoming_batches: ["hero", "text", "list", "faq", "cta", "banner"],
 };
 
 export const REGISTRATION_STATES: readonly WebsiteRegistrationState[] = [
@@ -245,6 +253,8 @@ export function describeProgramDeletionBlocker(code: string): string {
       return "website pages that link to it";
     case "audit_history":
       return "recorded training, financial or other protected history";
+    case "unattributable_history":
+      return "training or financial history from while it existed that can no longer be linked to any Program";
     default:
       return "a protected record";
   }

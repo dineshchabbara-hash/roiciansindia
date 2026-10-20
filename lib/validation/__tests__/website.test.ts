@@ -143,3 +143,33 @@ describe("Program deletion request", () => {
     expect(deletionConfirmationMatches(" P22A-SAFE", "P22A-SAFE")).toBe(false);
   });
 });
+
+describe("Programs-listing and Upcoming-Batches page content", () => {
+  const intro = [
+    { key: "intro", type: "hero", heading: "Explore Programs" },
+    {
+      key: "faq",
+      type: "faq",
+      items: [{ question: "How do I choose?", answer: "Talk to an advisor." }],
+    },
+  ];
+  it.each(["programs_listing", "upcoming_batches"] as const)(
+    "accepts intro and FAQ sections on %s",
+    (kind) => {
+      expect(websiteSectionsSchema(kind).safeParse(intro).success).toBe(true);
+    },
+  );
+  it.each(["programs_listing", "upcoming_batches"] as const)(
+    "rejects showcase, menu and fee-like fields on %s",
+    (kind) => {
+      const schema = websiteSectionsSchema(kind);
+      expect(schema.safeParse([{ key: "s", type: "program_showcase" }]).success).toBe(
+        false,
+      );
+      expect(schema.safeParse([{ key: "m", type: "menu" }]).success).toBe(false);
+      expect(schema.safeParse([{ key: "t", type: "text", fee: "1" }]).success).toBe(
+        false,
+      );
+    },
+  );
+});

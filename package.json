@@ -18,6 +18,8 @@
     "test:rls:concurrency": "bash scripts/test-batch-primary-concurrency.sh",
     "test:rls:concurrency:enrollment": "bash scripts/test-enrollment-batch-uniqueness-concurrency.sh",
     "test:rls:concurrency:program-deletion": "bash scripts/test-program-deletion-concurrency.sh",
+    "test:rls:phase22a-mutations": "bash scripts/test-phase22a-correction-mutations.sh",
+    "recovery:phase22a:rehearse": "bash scripts/recovery/rehearse-phase22a-dev-recovery.sh",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff",
