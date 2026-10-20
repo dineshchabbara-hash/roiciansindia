@@ -424,8 +424,13 @@ Applied (token-bucket, per-IP and/or per-account as appropriate) to:
   migration 41 (Phase 22A branch, not merged; not yet applied to DEV)
   replaces the broad `programs_delete_admin` DELETE with a guard trigger and
   the Super-Admin-only `delete_archived_program()` (see
-  `docs/requirements/PHASE_22A_IMPLEMENTATION.md` §4); until it is applied
-  and merged, the broad delete remains in deployed databases. This
+  `docs/requirements/PHASE_22A_IMPLEMENTATION.md` §4). Migration 42
+  corrects two weaknesses found in review: a self-set marker no longer
+  authorizes deletion outside the owner execution context, and deletion of
+  enrollments, Batches or certificates leaves Program-naming evidence, with
+  unattributable history failing closed. Unrestricted database-owner access
+  is outside what this workflow can protect against. Until 41 and 42 are
+  applied and merged, the broad delete remains in deployed databases. This
   rule is Program-specific and does not change the rules for other record
   types.
 - Leads, which carry no downstream financial/academic dependency, may be

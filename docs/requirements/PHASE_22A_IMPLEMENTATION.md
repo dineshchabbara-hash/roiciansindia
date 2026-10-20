@@ -1,15 +1,32 @@
 # Phase 22A — Website Data Foundation and Program-Deletion Safeguards: Implementation Record
 
-**Status:** implemented on branch `claude/phase22a-website-foundation`.
-**Not** accepted and **not** merged to `main`. Phase 22 is not complete;
-stages 22B–22J have not started.
+**Status: Implemented on branch; not accepted; DEV migration incomplete.**
+Branch `claude/phase22a-website-foundation`; **not** merged to `main`.
+Phase 22 is not complete; stages 22B–22J have not started.
+
+> **Corrections (2026-10-20, migration 42).** The original migration 41 had two
+> acknowledged weaknesses: a Program-history gap, and a deletion marker that a
+> `service_role` SQL session could forge. Migration 40 also had no storage for
+> Programs-listing / Upcoming-Batches page copy, and `service_role` kept
+> EXECUTE on internal helpers. All four are corrected **forward** by
+> `20260101000042_phase22a_corrections.sql`. Migrations 40 and 41 are
+> unchanged. The corrections are **locally verified, not DEV-verified**.
+> Details, tests and the DEV recovery proposal:
+> [`docs/recovery/PHASE_22A_RECOVERY_REVIEW.md`](../recovery/PHASE_22A_RECOVERY_REVIEW.md).
+> Where this record describes migration 41 below, migration 42 now adds:
+> - delete-evidence triggers on enrollments, Batches and certificates;
+> - the `unattributable_history` blocker;
+> - an owner-context check in `guard_program_delete()`;
+> - an immutable `programs.created_at`;
+> - the `programs_listing` and `upcoming_batches` page kinds;
+> - `service_role` revoked from the 17 internal helpers.
 
 | Item | Value |
 |---|---|
 | Authority | [`PHASE_22_APPROVED_DESIGN.md`](PHASE_22_APPROVED_DESIGN.md) §5, §7, §8, §9, §14–§16 |
 | Starting point | `main` = `9184c82`; migrations 1–39 |
-| New migrations | `20260101000040_website_content_foundation.sql`, `20260101000041_program_deletion_safeguards.sql` |
-| Database enforcement for Program deletion | Implemented in migration 41 and tested locally. **Not yet applied to DEV**, so DEV still has the old broad delete (see "DEV status") |
+| New migrations | `20260101000040_website_content_foundation.sql`, `20260101000041_program_deletion_safeguards.sql`, `20260101000042_phase22a_corrections.sql` (forward corrections) |
+| Database enforcement for Program deletion | Implemented in migrations 41 + 42 and tested locally (PostgreSQL 16 and 17.6). **Not applied to DEV**, so DEV still has the old broad delete (see "DEV status") |
 | Super Admin deletion screens (review, reason/confirmation, blocked explanations) | **Not implemented**; Phase 22B |
 | Public reads of website content | **Not implemented**; Phase 22C. No public read path exists |
 
@@ -127,7 +144,7 @@ own. Audit rows are never deleted or changed, and no sequence is reset.
 
 ## 5. TI-1 and TI-7
 
-- **TI-1 (broad Program DELETE):** fixed **in the repository** by migration 41 and proven locally (§6). It is **not fixed on DEV** (migration 41 not applied) or in production, and not merged. It is resolved only once migration 41 is applied to DEV and the branch is accepted and merged.
+- **TI-1 (broad Program DELETE):** fixed **in the repository** by migrations 41 + 42 and proven locally (§6 and the recovery review). The original 41 guard alone was forgeable by `service_role` SQL sessions; migration 42 corrects that. TI-1 is **open on DEV** (neither 41 nor 42 applied) and in production, and nothing is merged. It is resolved only once the approved recovery commits on DEV and the branch is accepted and merged.
 - **TI-7 (previously published Programs):** a temporary implementation restriction, not a change to the business rule. Any Program whose website content was ever published stays blocked (`website_published_history`; ever-published documents cannot be removed). Safe handling of old slugs, redirects, website references and owned or shared public assets is still to be designed and verified (22B and later). The rule itself remains "verified safe, unused archived Program" (design §7.3); it is not narrowed to "never published only".
 - **Also temporary:** a Program that has a never-published website draft is blocked until that draft is discarded (`website_discard_unpublished_document`).
 
@@ -161,6 +178,12 @@ npm run typecheck && npm run lint && npx vitest run
 
 ## 7. DEV status (project `nqeaehqzhjhhgsilrgeo`)
 
+*Current proposal (supersedes the last bullet below):*
+- `docs/recovery/phase22a_dev_recovery.sql` (SHA-256 `018f460fabad4d5d273035b295185a53827f5e6089161892f164470d6b21a562`) completes migration 40, then applies migrations 41 and 42 in one guarded transaction.
+- It is rehearsed on PostgreSQL 17.6 and **awaits explicit approval**.
+- The earlier script (SHA-256 `5bd38ec1…`) is superseded and must not be executed.
+
+
 - **Migration 40:** applied except one function, `website_discard_unpublished_document`. The single `apply_migration` call timed out and was verified as not applied; the migration was then applied in transactional parts, each verified. The objects that landed match the repository exactly (fingerprints). **No history row is recorded yet.**
 - **Migration 41:** **not applied.** `programs_delete_admin` is still live on DEV.
 - **Why it stopped:** the remaining statements contain `DELETE`/`DROP` and need an explicit confirmation in the Supabase connector. That request was declined, so nothing further was applied.
@@ -180,7 +203,7 @@ npm run typecheck && npm run lint && npx vitest run
 
 1. **22B:** Super Admin eligibility review, reason and Program-code confirmation screen, blocked explanations (`lib/domain/website.ts` already maps blocker codes to the §7.4 wording), the Website Management editor, preview (TI-6) and media upload.
 2. **TI-7:** design safe handling of old slugs, redirects, references and public assets before a previously published Program can qualify.
-3. **Batch deletion is unchanged:** `batches_delete_admin` (migration 14) still lets an Admin delete a Batch directly. Batch audit rows do not name their Program, so the history of a directly deleted Batch that had no enrollments cannot be attributed to its Program. Enrollments survive a Batch deletion and still block. Narrowing Batch deletion was outside 22A's authorization; recommended for 22B or Phase 24.
+3. **Batch deletion is unchanged:** `batches_delete_admin` (migration 14) still lets an Admin delete a Batch directly. Since migration 42, every Batch, enrollment or certificate deletion (any route) records `<entity>.row_deleted` naming the Program, so that Program stays blocked. History removed before migration 42 that cannot be attributed blocks every Program that existed at the time (`unattributable_history`). Narrowing Batch deletion itself remains outside 22A's authorization.
 4. **TRUNCATE:** `TRUNCATE` bypasses row triggers. API roles hold default TRUNCATE grants (already noted for Phase 24), but `programs` cannot be truncated while referenced.
 5. **TI-3:** the public "upcoming" rule is still open. Publishing allows `upcoming` and `active` Batches; 22C must also filter by status, and must hide Programs that are no longer active.
 6. **Placement:** group and featured arrangement changes are live settings rather than drafts (design Proposal; reviewable in 22B).

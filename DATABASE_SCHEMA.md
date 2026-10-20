@@ -248,6 +248,19 @@ website's data path).
   row-locked, audited, no cascade). Until it is applied and merged, the
   broad delete of migration 14 remains in DEV and production. Migrations
   1–39 are not edited.
+- **Migration 42 (forward corrections, on branch; not applied to DEV):**
+  - BEFORE DELETE evidence triggers on `enrollments`, `batches` and
+    `certificates` (`<entity>.row_deleted` audit rows naming the Program);
+  - the `unattributable_history` blocker;
+  - `guard_program_delete()` additionally requires the owner execution
+    context;
+  - `programs.created_at` is immutable and never in the future
+    (`programs_guard_created_at`);
+  - `website_documents.kind` adds `programs_listing` and `upcoming_batches`
+    (single instance);
+  - 17 internal helpers are not executable by `service_role`.
+
+  See `docs/recovery/PHASE_22A_RECOVERY_REVIEW.md`.
 - The comment in migration 14 anticipating an `anon` policy on `programs`
   is superseded: no `anon` policy will be added (design §14).
 
