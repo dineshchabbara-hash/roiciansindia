@@ -102,8 +102,10 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   dependencies, remain archived; there is no override, no Admin delete, no
   direct deletion of an unarchived Program, no automatic and no bulk
   deletion. This supersedes the earlier absolute ban on Program deletion.
-  Approved design, not implemented; the current database still allows a
-  broad delete (enforcement gap TI-1). Program fees and other FR-20 financial
+  Database enforcement is implemented on the Phase 22A branch (migration
+  41; not merged, not yet applied to DEV); the Super Admin screens are Phase
+  22B. Until migration 41 is applied and merged, deployed databases still
+  allow a broad delete (TI-1). Program fees and other FR-20 financial
   fields stay internal and are never shown on the public website (P22-09).
   See `docs/requirements/PHASE_22_APPROVED_DESIGN.md` §7–§8.)
 

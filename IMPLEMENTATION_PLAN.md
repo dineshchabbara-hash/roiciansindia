@@ -59,7 +59,7 @@ in [`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_
 | 21A | Receipts & Payment Documents (FR-94, FR-95) | Complete (merged `80008da`) |
 | 21B | Refunds (FR-97; D8 resolved, Option A) | Complete (merged `c527c08`; migration 38 on dev; Windows acceptance 2/2) |
 | 21C | LMS Administration & Identity (FR-140/141 Company Settings, D3 Student portal logins, Admin accounts, Audit Log viewer, FR-41 photo) | Complete (merged `6e5e4e9`; migration 39 on dev; Windows acceptance 3/3) |
-| 22 | Roicians India Public Website (approved design: `docs/requirements/PHASE_22_APPROVED_DESIGN.md`; stages 22A–22J) | Design approved; implementation not started — **next** |
+| 22 | Roicians India Public Website (approved design: `docs/requirements/PHASE_22_APPROVED_DESIGN.md`; stages 22A–22J) | In progress — 22A implemented on branch, awaiting review (not merged); 22B–22J not started |
 | 23 | Zoho CRM Integration (re-scoped from Lead Management) | Not started (after 22) |
 | 18b | Transactional Email & multi-channel delivery | Not started — deferred until after 23 (provider + credentials chosen first); required before 24 if in V1 |
 | 24 | Testing, Security & UAT | Not started |
@@ -1812,7 +1812,7 @@ starts automatically):
 
 | Stage | Scope | Status |
 |---|---|---|
-| 22A | Publication and structured Website Management data model | Not started |
+| 22A | Publication and structured Website Management data model, plus Program-deletion database enforcement | Implemented on branch `claude/phase22a-website-foundation` (not accepted or merged; DEV partially applied — see `docs/requirements/PHASE_22A_IMPLEMENTATION.md`) |
 | 22B | Admin Website Management, drafts, preview and publishing | Not started |
 | 22C | Safe server-only published-data contract | Not started |
 | 22D | Website foundation and multi-subdomain routing | Not started |
@@ -1823,19 +1823,20 @@ starts automatically):
 | 22I | SEO, accessibility and performance | Not started |
 | 22J | Browser acceptance and security audit | Not started |
 
-**DB changes:** expected from 22A (the complete Website Management data
-foundation — not only Program/Batch publication flags; design §5.4).
-Migration 40 is only the expected next number after the migration-39
-checkpoint; the next unused number is verified when 22A is authorized. The
+**DB changes:** 22A adds migrations `20260101000040_website_content_foundation.sql`
+(the complete Website Management data foundation, design §5.4) and
+`20260101000041_program_deletion_safeguards.sql` (replaces the broad Program
+DELETE with the controlled Super Admin function), on branch only — see
+`docs/requirements/PHASE_22A_IMPLEMENTATION.md` for tables, functions, tests
+and the DEV application status. The
 anticipatory comment in migration 14 about an `anon` policy on `programs` is
 superseded: no `anon` policy is added to operational tables (the migration
 is not edited).
 
 **Technical issues to resolve during the stages:** design §16 — notably
-TI-1 (enforcement gap, not fixed: the existing broad Program delete policy
-and its cascades must be replaced by the controlled Super Admin deletion
-workflow, with regression tests — expected in 22A for database enforcement
-and 22B for the workflow, subject to separate authorization), TI-7
+TI-1 (broad Program delete: database enforcement implemented in migration 41
+on the 22A branch and tested locally; not yet applied to DEV and not merged;
+the Super Admin screens remain 22B), TI-7
 (previously published Programs' slugs, redirects, references and assets
 before deletion), TI-3 (the public "upcoming Batch" rule) and TI-4/TI-5
 (Auth redirects, cookies and session refresh per host).

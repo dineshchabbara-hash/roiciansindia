@@ -208,8 +208,9 @@ All Phase 22 business decisions are recorded in
   Admin may permanently delete a verified safe, unused archived Program;
   Programs with history or protected dependencies remain archived. (Revised
   2026-10-17 by explicit owner approval; supersedes the earlier "no
-  permanent deletion" decision. Not yet implemented — the database still
-  allows a broad delete, TI-1.)
+  permanent deletion" decision. Database enforcement implemented on the
+  Phase 22A branch, not merged and not yet applied to DEV; screens are 22B —
+  TI-1.)
 - No public pricing or financial information.
 - Batch privacy; registration Open/Closed/Full; "Next Cohort: Coming Soon".
 - Visual direction Concept A with restrained Concept B elements.

@@ -213,17 +213,22 @@ in Phase 22; until then no `anon` access to `programs`/`batches` exists (the
 `programs_select_published` policy is `to authenticated` only and is not the
 website's data path).
 
-**Phase 22 approved design (not implemented;
-`docs/requirements/PHASE_22_APPROVED_DESIGN.md`):**
+**Phase 22 approved design (`docs/requirements/PHASE_22_APPROVED_DESIGN.md`;
+22A implemented on branch only — `docs/requirements/PHASE_22A_IMPLEMENTATION.md`):**
 - The fee columns (`regular_fee`, `registration_fee`, `tax_rate_percent`)
   and every other financial value stay internal and are never part of the
   public website contract (P22-09); they are not removed or changed.
-- Phase 22A adds the Website Management data foundation (Program website
-  content, Batch publication metadata, Admin-managed display groups, pages
-  and sections, navigation/footer, FAQs, SEO, public media metadata,
-  draft/published revisions, concurrency and audit) as **new, private-by-
-  default** tables and columns; the migration number is verified at 22A
-  (expected 40). None of these exist yet.
+- Phase 22A (migration 40, on branch, not merged) adds the Website
+  Management data foundation as **new, private-by-default** tables — no
+  column is added to `programs` or `batches`: `website_display_groups`,
+  `website_documents` (pages + one per Program: slug, group/featured/order),
+  `website_document_revisions` (immutable content snapshots),
+  `website_revision_media`, `website_program_slug_history`,
+  `website_media_assets` (private `website-media` bucket) and
+  `batch_website_publications` (draft/published label, open/closed/full,
+  separate from `batches.status`). Admin/Super Admin SELECT only; all writes
+  through `website_*` SECURITY DEFINER functions with stale-edit rejection
+  and in-transaction audit. Full detail: `PHASE_22A_IMPLEMENTATION.md` §1–§3.
 - Program deletion policy (P22-08, revised; design §7): archive-first.
   Admin and Super Admin archive/restore; only Super Admin may permanently
   delete a verified safe, unused archived Program through a controlled
@@ -235,12 +240,14 @@ website's data path).
   and `leads.program_id` (SET NULL), which today would be silently deleted or
   detached and must instead block. Audit history (`audit_logs.entity_id`, no
   foreign key) must survive.
-- **Enforcement gap TI-1 — not fixed:** the existing `programs_delete_admin`
-  policy (migration 14) still permits Admin/Super Admin DELETE, and a delete
-  would cascade as above and leave program-level material files in Storage.
-  No screen offers Program deletion today. A future, separately authorized
-  implementation replaces this broad behavior with the controlled workflow
-  and regression tests, without editing migrations 1–39.
+- **TI-1:** migration 41 (on the 22A branch, not merged; **not yet applied
+  to DEV**) drops `programs_delete_admin`, revokes DELETE on `programs`,
+  adds the `programs_guard_delete` trigger and `program_deletion_blockers()` /
+  `delete_archived_program()` (Super Admin only, archived only, every FK
+  dependency, stored files, website history/links and audit evidence block;
+  row-locked, audited, no cascade). Until it is applied and merged, the
+  broad delete of migration 14 remains in DEV and production. Migrations
+  1–39 are not edited.
 - The comment in migration 14 anticipating an `anon` policy on `programs`
   is superseded: no `anon` policy will be added (design §14).
 

@@ -420,10 +420,12 @@ Applied (token-bucket, per-IP and/or per-account as appropriate) to:
   Super Admin authority, and is concurrency-safe; the audit record survives
   and carries no unnecessary personal data. File cleanup applies only to
   ownership-established public website assets and never to private
-  learning, receipt, certificate or student-document storage. **Enforcement
-  gap TI-1 — not fixed:** the existing `programs_delete_admin` policy still
-  allows a broad DELETE that would cascade into modules, materials and
-  assignments; a separately authorized implementation must replace it. This
+  learning, receipt, certificate or student-document storage. **TI-1:**
+  migration 41 (Phase 22A branch, not merged; not yet applied to DEV)
+  replaces the broad `programs_delete_admin` DELETE with a guard trigger and
+  the Super-Admin-only `delete_archived_program()` (see
+  `docs/requirements/PHASE_22A_IMPLEMENTATION.md` §4); until it is applied
+  and merged, the broad delete remains in deployed databases. This
   rule is Program-specific and does not change the rules for other record
   types.
 - Leads, which carry no downstream financial/academic dependency, may be

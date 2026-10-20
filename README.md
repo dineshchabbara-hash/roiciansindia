@@ -17,8 +17,10 @@ source of truth for scope and design decisions:
   lives here)
 - `DECISIONS_NEEDED.md` — open business decisions
 - `docs/requirements/PHASE_22_APPROVED_DESIGN.md` — the authoritative Phase 22
-  (Roicians India public website) decision register; approved design, not yet
-  implemented
+  (Roicians India public website) decision register; approved design
+- `docs/requirements/PHASE_22A_IMPLEMENTATION.md` — Phase 22A (website data
+  foundation and Program-deletion database enforcement): implemented on its
+  branch, awaiting review; not merged
 
 ## Prerequisites
 

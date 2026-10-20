@@ -116,8 +116,11 @@ Notes:
   meaningful change is audited. Programs are archive-first: Admin and Super
   Admin archive/restore; only Super Admin may permanently delete a verified
   safe, unused archived Program through the controlled workflow (design §7)
-  — Super Admin authority never bypasses dependency or history checks. Not
-  yet enforced by the database (enforcement gap TI-1).
+  — Super Admin authority never bypasses dependency or history checks.
+  Database enforcement is implemented on the 22A branch (migration 41: no
+  direct Program DELETE for any API role; `delete_archived_program()` for an
+  active Super Admin only) but is not merged and not yet applied to DEV; the
+  Super Admin screens are Phase 22B.
 
 ## 4. Role-Specific Detail
 
@@ -234,7 +237,7 @@ Full policy SQL ships in the Phase 3 migration; summarized intent:
 | `assignments` / `assignment_submissions` | `select` own; `insert`/`update` own submission only | `select`/`insert`/`update` scoped to assigned batches | full |
 | `certificates` | `select` own rows only | no access | full |
 | `company_settings`, `audit_logs`, `leads` | no access | no access | full (audit_logs: Admin read-only subset) |
-| Website Management tables (Phase 22A, planned — not created) | no access | no access | Admin/Super Admin per the matrix above; anonymous visitors none — public reads only through the server-only published-data contract (Phase 22C) |
+| Website Management tables (Phase 22A, on branch — `website_*`, `batch_website_publications`) | no access | no access | Admin/Super Admin SELECT; writes only through the `website_*` functions; anonymous visitors none — public reads only through the server-only published-data contract (Phase 22C) |
 
 RLS is **defense in depth**: privileged writes (payment confirmation, receipt
 numbering, Student ID assignment) run through server-only code using the Supabase

@@ -17,6 +17,7 @@
     "test:rls": "bash scripts/test-rls.sh",
     "test:rls:concurrency": "bash scripts/test-batch-primary-concurrency.sh",
     "test:rls:concurrency:enrollment": "bash scripts/test-enrollment-batch-uniqueness-concurrency.sh",
+    "test:rls:concurrency:program-deletion": "bash scripts/test-program-deletion-concurrency.sh",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff",

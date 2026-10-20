@@ -321,11 +321,16 @@ Implementation status:
   Program through its `status` (`archived` and back to an operational
   status), available to Admin and Super Admin with audit. It is not
   rebuilt.
-- **Approved, not implemented:** the controlled Super Admin deletion
-  workflow, the eligibility checks, the database enforcement that replaces
-  the current broad delete policy, and the blocked-deletion explanations
-  (§7.2–§7.5). Implementing them needs separate authorization; until then
-  the enforcement gap in §7.6 remains open.
+- **Phase 22A — implemented on branch, not accepted or merged:** the
+  database enforcement and eligibility checks (migration
+  `20260101000041_program_deletion_safeguards.sql`: no direct Program DELETE,
+  guard trigger, `program_deletion_blockers()`, `delete_archived_program()`),
+  tested locally; not yet applied to DEV. See
+  [`PHASE_22A_IMPLEMENTATION.md`](PHASE_22A_IMPLEMENTATION.md) §4–§7.
+- **Not implemented (Phase 22B):** the Super Admin eligibility review,
+  reason/confirmation screen and blocked-deletion explanations (§7.4). Until
+  migration 41 is applied and merged, the enforcement gap in §7.6 remains
+  open in deployed databases.
 
 ### 7.1 Rules
 
@@ -463,7 +468,7 @@ Enforcement requirements:
 10. Actual protected academic or financial history — including history
     known only from audit evidence — blocks deletion (complements 4 and 5).
 
-### 7.6 Existing enforcement gap (not fixed)
+### 7.6 Existing enforcement gap (fix implemented on the 22A branch; not yet deployed)
 
 The current database does **not** meet this policy. Migration 14 still
 grants a broad `programs_delete_admin` DELETE policy to Admin and Super
@@ -474,6 +479,12 @@ documentation change does not make the database behavior safe. A future,
 separately authorized implementation must replace the broad deletion
 behavior with the controlled workflow above, with regression tests.
 Existing migrations are not edited.
+
+*Update (Phase 22A branch, not merged):* migration 41 implements that
+replacement and its regression and concurrency tests pass locally; it is not
+yet applied to DEV, so DEV and production still have the broad delete until
+it is applied and the branch is accepted and merged
+([`PHASE_22A_IMPLEMENTATION.md`](PHASE_22A_IMPLEMENTATION.md)).
 
 ### 7.7 Decision history
 
@@ -709,8 +720,8 @@ LCP < 2.5 s; CLS < 0.1.
 
 | ID | Issue | Resolve in |
 |---|---|---|
-| TI-1 | Enforcement gap, **not fixed**: `programs_delete_admin` (migration 14) still allows Admin and Super Admin DELETE; a Program delete cascades to `program_modules`, program-level `materials` and `assignments`, sets `leads.program_id` to null and leaves Storage files behind. Conflicts with P22-08. | Separately authorized implementation (expected 22A database enforcement + 22B Super Admin workflow), with regression tests |
-| TI-7 | Handling of a previously published Program's slug, redirects, website references, enquiry references and owned or shared public assets before deletion (§7.3). Until designed, such deletion stays blocked. | 22A/22B design |
+| TI-1 | Broad `programs_delete_admin` DELETE (migration 14), cascading to `program_modules`, program-level `materials` and `assignments`, nulling `leads.program_id` and leaving Storage files. **Fix implemented on the 22A branch** (migration 41, locally tested); **not yet applied to DEV; not merged** — the gap remains open in deployed databases until then. | Database: 22A (branch). Super Admin workflow screens: 22B |
+| TI-7 | Handling of a previously published Program's slug, redirects, website references, enquiry references and owned or shared public assets before deletion (§7.3). Until designed, such deletion stays blocked — implemented in 22A as the `website_published_history` blocker (a temporary implementation restriction; the §7 rule is unchanged). | 22B or later design |
 | TI-2 | Migration 14 comment anticipates an `anon` policy on `programs`; superseded by §14 through documentation only. | Closed by this document |
 | TI-3 | Public "upcoming" rule: in-progress Batches, registration date boundaries, timezone of "today". | Before 22E/22F |
 | TI-4 | Supabase Auth redirect URLs, cookie scoping and activation-link host per subdomain. | 22D (and Phase 25 configuration) |

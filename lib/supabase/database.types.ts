@@ -31,6 +31,21 @@ type GenericRelationship = {
 };
 type Relationships = GenericRelationship[];
 
+/** Phase 22A website document kinds (code templates own rendering). */
+export type WebsiteDocumentKind =
+  | "home"
+  | "about"
+  | "corporate_training"
+  | "institutions"
+  | "contact"
+  | "legal"
+  | "navigation"
+  | "footer"
+  | "program";
+
+/** Phase 22A public Batch registration state (P22-10). */
+export type WebsiteRegistrationState = "open" | "closed" | "full";
+
 export type Database = {
   public: {
     Tables: {
@@ -825,6 +840,159 @@ export type Database = {
           },
         ];
       };
+      // Phase 22A — see 20260101000040_website_content_foundation.sql. Private
+      // (Admin/Super Admin SELECT only); all writes go through the website_*
+      // functions below. No fee, price or private Batch field exists here.
+      website_display_groups: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          display_order: number;
+          is_visible: boolean;
+          archived_at: string | null;
+          archived_by: string | null;
+          version: number;
+          created_at: string;
+          created_by: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["website_display_groups"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["website_display_groups"]["Row"]>;
+        Relationships: Relationships;
+      };
+      website_media_assets: {
+        Row: {
+          id: string;
+          storage_bucket: "website-media";
+          storage_path: string;
+          mime_type: "image/jpeg" | "image/png" | "image/webp";
+          byte_size: number;
+          width: number | null;
+          height: number | null;
+          alt_text: string | null;
+          status: "draft" | "approved" | "retired";
+          approved_at: string | null;
+          approved_by: string | null;
+          version: number;
+          created_at: string;
+          created_by: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["website_media_assets"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["website_media_assets"]["Row"]>;
+        Relationships: Relationships;
+      };
+      website_documents: {
+        Row: {
+          id: string;
+          kind: WebsiteDocumentKind;
+          page_key: string;
+          program_id: string | null;
+          slug: string | null;
+          display_group_id: string | null;
+          is_featured: boolean;
+          featured_order: number | null;
+          display_order: number | null;
+          latest_revision_id: string | null;
+          latest_revision_number: number;
+          published_revision_id: string | null;
+          published_at: string | null;
+          published_by: string | null;
+          first_published_at: string | null;
+          unpublished_at: string | null;
+          unpublished_by: string | null;
+          version: number;
+          created_at: string;
+          created_by: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["website_documents"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["website_documents"]["Row"]>;
+        Relationships: Relationships;
+      };
+      website_document_revisions: {
+        Row: {
+          id: string;
+          document_id: string;
+          revision_number: number;
+          title: string;
+          summary: string | null;
+          seo_title: string | null;
+          seo_description: string | null;
+          social_title: string | null;
+          social_description: string | null;
+          hero_image_asset_id: string | null;
+          social_image_asset_id: string | null;
+          sections: unknown;
+          restored_from_revision_id: string | null;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: Partial<
+          Database["public"]["Tables"]["website_document_revisions"]["Row"]
+        >;
+        Update: Partial<
+          Database["public"]["Tables"]["website_document_revisions"]["Row"]
+        >;
+        Relationships: Relationships;
+      };
+      website_revision_media: {
+        Row: {
+          revision_id: string;
+          asset_id: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["website_revision_media"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["website_revision_media"]["Row"]>;
+        Relationships: Relationships;
+      };
+      website_program_slug_history: {
+        Row: {
+          id: string;
+          document_id: string;
+          old_slug: string;
+          new_slug: string;
+          changed_at: string;
+          changed_by: string | null;
+        };
+        Insert: Partial<
+          Database["public"]["Tables"]["website_program_slug_history"]["Row"]
+        >;
+        Update: Partial<
+          Database["public"]["Tables"]["website_program_slug_history"]["Row"]
+        >;
+        Relationships: Relationships;
+      };
+      batch_website_publications: {
+        Row: {
+          batch_id: string;
+          draft_public_label: string | null;
+          draft_registration_state: WebsiteRegistrationState;
+          is_published: boolean;
+          published_label: string | null;
+          published_registration_state: WebsiteRegistrationState | null;
+          published_at: string | null;
+          published_by: string | null;
+          first_published_at: string | null;
+          unpublished_at: string | null;
+          unpublished_by: string | null;
+          version: number;
+          created_at: string;
+          created_by: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: Partial<
+          Database["public"]["Tables"]["batch_website_publications"]["Row"]
+        >;
+        Update: Partial<
+          Database["public"]["Tables"]["batch_website_publications"]["Row"]
+        >;
+        Relationships: Relationships;
+      };
     };
     Views: {
       enrollment_summary: {
@@ -996,6 +1164,139 @@ export type Database = {
           recorded_payment_code: string;
           already_recorded: boolean;
         }[];
+      };
+      // Phase 22A — website management (each self-checks an active Admin /
+      // Super Admin session; SQLSTATE 42501 not allowed, P2203 stale,
+      // P2204 not found, P2205 slug taken/reserved, P2206 invalid state,
+      // 22023 validation).
+      website_create_display_group: {
+        Args: { p_name: string; p_description: string | null };
+        Returns: string;
+      };
+      website_update_display_group: {
+        Args: {
+          p_group_id: string;
+          p_expected_version: number;
+          p_name: string;
+          p_description: string | null;
+          p_is_visible: boolean;
+        };
+        Returns: number;
+      };
+      website_reorder_display_groups: {
+        Args: { p_ordered_ids: string[] };
+        Returns: undefined;
+      };
+      website_set_display_group_archived: {
+        Args: { p_group_id: string; p_expected_version: number; p_archived: boolean };
+        Returns: number;
+      };
+      website_create_page: {
+        Args: { p_kind: Exclude<WebsiteDocumentKind, "program">; p_page_key: string };
+        Returns: string;
+      };
+      website_create_program_document: {
+        Args: { p_program_id: string; p_slug: string };
+        Returns: string;
+      };
+      website_change_program_slug: {
+        Args: { p_document_id: string; p_expected_version: number; p_new_slug: string };
+        Returns: number;
+      };
+      website_update_program_placement: {
+        Args: {
+          p_document_id: string;
+          p_expected_version: number;
+          p_display_group_id: string | null;
+          p_is_featured: boolean;
+          p_display_order: number | null;
+          p_featured_order: number | null;
+        };
+        Returns: number;
+      };
+      website_save_draft: {
+        Args: {
+          p_document_id: string;
+          p_base_revision_number: number;
+          p_title: string;
+          p_summary: string | null;
+          p_seo_title: string | null;
+          p_seo_description: string | null;
+          p_social_title: string | null;
+          p_social_description: string | null;
+          p_hero_image_asset_id: string | null;
+          p_social_image_asset_id: string | null;
+          p_sections: unknown;
+        };
+        Returns: { revision_id: string; revision_number: number }[];
+      };
+      website_restore_revision: {
+        Args: {
+          p_document_id: string;
+          p_source_revision_id: string;
+          p_base_revision_number: number;
+        };
+        Returns: { revision_id: string; revision_number: number }[];
+      };
+      website_publish_document: {
+        Args: { p_document_id: string; p_revision_id: string };
+        Returns: undefined;
+      };
+      website_unpublish_document: {
+        Args: { p_document_id: string; p_expected_version: number };
+        Returns: number;
+      };
+      website_discard_unpublished_document: {
+        Args: { p_document_id: string; p_expected_version: number };
+        Returns: undefined;
+      };
+      website_register_media_asset: {
+        Args: {
+          p_storage_path: string;
+          p_mime_type: string;
+          p_byte_size: number;
+          p_width: number | null;
+          p_height: number | null;
+          p_alt_text: string | null;
+        };
+        Returns: string;
+      };
+      website_update_media_asset: {
+        Args: {
+          p_asset_id: string;
+          p_expected_version: number;
+          p_alt_text: string | null;
+          p_status: string;
+        };
+        Returns: number;
+      };
+      website_save_batch_publication: {
+        Args: {
+          p_batch_id: string;
+          p_expected_version: number;
+          p_public_label: string | null;
+          p_registration_state: WebsiteRegistrationState;
+        };
+        Returns: number;
+      };
+      website_publish_batch: {
+        Args: { p_batch_id: string; p_expected_version: number };
+        Returns: number;
+      };
+      website_unpublish_batch: {
+        Args: { p_batch_id: string; p_expected_version: number };
+        Returns: number;
+      };
+      // Phase 22A — 20260101000041_program_deletion_safeguards.sql. Active
+      // Super Admin session only. delete_archived_program raises P2201
+      // (detail = comma-separated blocker codes) when ineligible.
+      program_deletion_blockers: {
+        Args: { p_program_id: string };
+        Returns: { code: string; detail: string }[];
+      };
+      delete_archived_program: {
+        Args: { p_program_id: string; p_confirmation_code: string; p_reason: string };
+        Returns: string;
       };
     };
   };

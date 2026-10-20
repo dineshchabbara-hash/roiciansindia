@@ -91,3 +91,6 @@ run_sql "${REPO_ROOT}/supabase/tests/phase21b_refunds_test.sql"
 
 echo "Running Phase 21C (LMS Administration & Identity) regression assertions..."
 run_sql "${REPO_ROOT}/supabase/tests/phase21c_admin_identity_test.sql"
+
+echo "Running Phase 22A (Website foundation & Program deletion safeguards) regression assertions..."
+run_sql "${REPO_ROOT}/supabase/tests/phase22a_website_foundation_test.sql"
