@@ -321,20 +321,24 @@ Implementation status:
   Program through its `status` (`archived` and back to an operational
   status), available to Admin and Super Admin with audit. It is not
   rebuilt.
-- **Phase 22A — Implemented on branch; not accepted; DEV migration
-  incomplete:**
+- **Phase 22A — Implemented on branch; DEV recovered and structurally
+  verified; real-DEV functional verification pending; not accepted; not
+  merged:**
   - The database enforcement and eligibility checks: migration
     `20260101000041_program_deletion_safeguards.sql`, corrected forward by
     `20260101000042_phase22a_corrections.sql`.
   - What they add: delete-evidence triggers, the `unattributable_history`
     blocker, and an owner-context guard.
-  - Tested locally only; not applied to DEV.
+  - Tested locally. Applied to DEV by the reviewed recovery and
+    structurally verified there (recorded 2026-10-21, see
+    [`../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`](../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md)).
+    Not yet functionally verified on DEV; not applied to production.
   - See [`PHASE_22A_IMPLEMENTATION.md`](PHASE_22A_IMPLEMENTATION.md) and
     [`../recovery/PHASE_22A_RECOVERY_REVIEW.md`](../recovery/PHASE_22A_RECOVERY_REVIEW.md).
 - **Not implemented (Phase 22B):** the Super Admin eligibility review,
-  reason/confirmation screen and blocked-deletion explanations (§7.4). Until
-  migration 41 is applied and merged, the enforcement gap in §7.6 remains
-  open in deployed databases.
+  reason/confirmation screen and blocked-deletion explanations (§7.4). The
+  enforcement gap in §7.6 is closed on DEV; it remains open in production
+  until the branch is merged and the migrations are deployed there.
 
 ### 7.1 Rules
 
@@ -472,7 +476,7 @@ Enforcement requirements:
 10. Actual protected academic or financial history — including history
     known only from audit evidence — blocks deletion (complements 4 and 5).
 
-### 7.6 Existing enforcement gap (fix implemented on the 22A branch; not yet deployed)
+### 7.6 Existing enforcement gap (fixed on DEV by the 22A recovery; open in production)
 
 The current database does **not** meet this policy. Migration 14 still
 grants a broad `programs_delete_admin` DELETE policy to Admin and Super
@@ -484,11 +488,15 @@ separately authorized implementation must replace the broad deletion
 behavior with the controlled workflow above, with regression tests.
 Existing migrations are not edited.
 
-*Update (Phase 22A branch, not merged):* migration 41 implements that
-replacement and its regression and concurrency tests pass locally; it is not
-yet applied to DEV, so DEV and production still have the broad delete until
-it is applied and the branch is accepted and merged
-([`PHASE_22A_IMPLEMENTATION.md`](PHASE_22A_IMPLEMENTATION.md)).
+*Update (Phase 22A branch, not merged):*
+- **What implements it:** migration 41, corrected forward by migration 42.
+  Its regression and concurrency tests pass locally.
+- **DEV:** both are applied by the reviewed recovery and structurally
+  verified, recorded 2026-10-21. `programs_delete_admin` is gone there.
+- **Production:** still has the broad delete until the branch is accepted,
+  merged and deployed.
+- See [`PHASE_22A_IMPLEMENTATION.md`](PHASE_22A_IMPLEMENTATION.md) and
+  [`../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`](../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md).
 
 ### 7.7 Decision history
 
@@ -724,7 +732,7 @@ LCP < 2.5 s; CLS < 0.1.
 
 | ID | Issue | Resolve in |
 |---|---|---|
-| TI-1 | Broad `programs_delete_admin` DELETE (migration 14), cascading to `program_modules`, program-level `materials` and `assignments`, nulling `leads.program_id` and leaving Storage files. **Fix implemented on the 22A branch** (migration 41, corrected forward by migration 42 after review found a forgeable deletion marker and a Program-history gap), locally tested on PostgreSQL 16 and 17.6; **not applied to DEV; not merged** — the gap remains open in deployed databases until then. | Database: 22A (branch). Super Admin workflow screens: 22B |
+| TI-1 | Broad `programs_delete_admin` DELETE (migration 14), cascading to `program_modules`, program-level `materials` and `assignments`, nulling `leads.program_id` and leaving Storage files. **Fix implemented on the 22A branch** (migration 41, corrected forward by migration 42 after review found a forgeable deletion marker and a Program-history gap), locally tested on PostgreSQL 16 and 17.6; **applied to DEV and structurally verified (2026-10-21; functional DEV verification pending); not merged; still open in production**. | Database: 22A (branch). Super Admin workflow screens: 22B |
 | TI-7 | Handling of a previously published Program's slug, redirects, website references, enquiry references and owned or shared public assets before deletion (§7.3). Until designed, such deletion stays blocked — implemented in 22A as the `website_published_history` blocker (a temporary implementation restriction; the §7 rule is unchanged). | 22B or later design |
 | TI-2 | Migration 14 comment anticipates an `anon` policy on `programs`; superseded by §14 through documentation only. | Closed by this document |
 | TI-3 | Public "upcoming" rule: in-progress Batches, registration date boundaries, timezone of "today". | Before 22E/22F |

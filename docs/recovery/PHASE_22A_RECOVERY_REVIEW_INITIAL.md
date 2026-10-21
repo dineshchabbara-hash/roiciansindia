@@ -6,6 +6,8 @@
 > The current proposal is [`PHASE_22A_RECOVERY_REVIEW.md`](PHASE_22A_RECOVERY_REVIEW.md);
 > the corrections it recommended are implemented in migration
 > `20260101000042_phase22a_corrections.sql`.
+> The status lines below describe DEV as it was on 2026-10-20. The current
+> DEV state is in [`PHASE_22A_DEV_RECOVERY_RECORD.md`](PHASE_22A_DEV_RECOVERY_RECORD.md).
 
 # Phase 22A — DEV Reconciliation, Safeguard Review and Recovery Proposal
 

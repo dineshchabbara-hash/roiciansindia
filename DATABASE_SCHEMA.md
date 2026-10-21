@@ -240,15 +240,15 @@ website's data path).
   and `leads.program_id` (SET NULL), which today would be silently deleted or
   detached and must instead block. Audit history (`audit_logs.entity_id`, no
   foreign key) must survive.
-- **TI-1:** migration 41 (on the 22A branch, not merged; **not yet applied
-  to DEV**) drops `programs_delete_admin`, revokes DELETE on `programs`,
+- **TI-1:** migration 41 (on the 22A branch, not merged; **applied to DEV**
+  by the reviewed recovery, recorded 2026-10-21) drops `programs_delete_admin`, revokes DELETE on `programs`,
   adds the `programs_guard_delete` trigger and `program_deletion_blockers()` /
   `delete_archived_program()` (Super Admin only, archived only, every FK
   dependency, stored files, website history/links and audit evidence block;
-  row-locked, audited, no cascade). Until it is applied and merged, the
-  broad delete of migration 14 remains in DEV and production. Migrations
-  1–39 are not edited.
-- **Migration 42 (forward corrections, on branch; not applied to DEV):**
+  row-locked, audited, no cascade). The broad delete of migration 14 is gone
+  on DEV. It remains in production until the branch is merged and deployed.
+  Migrations 1–39 are not edited.
+- **Migration 42 (forward corrections, on branch; applied to DEV; structurally verified 2026-10-21; see `docs/recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`):**
   - BEFORE DELETE evidence triggers on `enrollments`, `batches` and
     `certificates` (`<entity>.row_deleted` audit rows naming the Program);
   - the `unattributable_history` blocker;

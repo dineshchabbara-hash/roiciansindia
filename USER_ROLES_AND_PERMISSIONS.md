@@ -119,7 +119,8 @@ Notes:
   — Super Admin authority never bypasses dependency or history checks.
   Database enforcement is implemented on the 22A branch (migration 41: no
   direct Program DELETE for any API role; `delete_archived_program()` for an
-  active Super Admin only) but is not merged and not yet applied to DEV; the
+  active Super Admin only). It is applied to DEV (confirmed 2026-10-21; functional
+  DEV verification pending) but not merged, and not in production; the
   Super Admin screens are Phase 22B.
 
 ## 4. Role-Specific Detail

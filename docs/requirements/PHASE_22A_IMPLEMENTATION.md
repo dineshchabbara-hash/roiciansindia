@@ -1,6 +1,14 @@
 # Phase 22A — Website Data Foundation and Program-Deletion Safeguards: Implementation Record
 
-**Status: Implemented on branch; not accepted; DEV migration incomplete.**
+**Status: Implemented on branch; DEV recovered and structurally verified; real-DEV functional verification pending; not accepted; not merged.**
+
+> **DEV recovery completed (recorded 2026-10-21).** The owner ran the reviewed
+> recovery script (SHA-256 `018f460f…a562`) once from Windows PowerShell with
+> psql over verified TLS. Checks B 7/7, C 30/30, D committed (exit 0), E 36/36.
+> An independent read-only check confirmed that DEV's Phase 22A schema matches a
+> clean install of migrations 1–42, and that existing data and audit history
+> are unchanged. Evidence:
+> [`docs/recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`](../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md).
 Branch `claude/phase22a-website-foundation`; **not** merged to `main`.
 Phase 22 is not complete; stages 22B–22J have not started.
 
@@ -10,7 +18,8 @@ Phase 22 is not complete; stages 22B–22J have not started.
 > Programs-listing / Upcoming-Batches page copy, and `service_role` kept
 > EXECUTE on internal helpers. All four are corrected **forward** by
 > `20260101000042_phase22a_corrections.sql`. Migrations 40 and 41 are
-> unchanged. The corrections are **locally verified, not DEV-verified**.
+> unchanged. The corrections are locally verified and, since the DEV
+> recovery, **structurally verified on DEV**. Functional verification on DEV is pending.
 > Details, tests and the DEV recovery proposal:
 > [`docs/recovery/PHASE_22A_RECOVERY_REVIEW.md`](../recovery/PHASE_22A_RECOVERY_REVIEW.md).
 > Where this record describes migration 41 below, migration 42 now adds:
@@ -26,7 +35,7 @@ Phase 22 is not complete; stages 22B–22J have not started.
 | Authority | [`PHASE_22_APPROVED_DESIGN.md`](PHASE_22_APPROVED_DESIGN.md) §5, §7, §8, §9, §14–§16 |
 | Starting point | `main` = `9184c82`; migrations 1–39 |
 | New migrations | `20260101000040_website_content_foundation.sql`, `20260101000041_program_deletion_safeguards.sql`, `20260101000042_phase22a_corrections.sql` (forward corrections) |
-| Database enforcement for Program deletion | Implemented in migrations 41 + 42 and tested locally (PostgreSQL 16 and 17.6). **Not applied to DEV**, so DEV still has the old broad delete (see "DEV status") |
+| Database enforcement for Program deletion | Implemented in migrations 41 + 42 and tested locally (PostgreSQL 16 and 17.6). **Applied to DEV** by the recovery (see "DEV status"). Production still has the old broad delete |
 | Super Admin deletion screens (review, reason/confirmation, blocked explanations) | **Not implemented**; Phase 22B |
 | Public reads of website content | **Not implemented**; Phase 22C. No public read path exists |
 
@@ -144,7 +153,7 @@ own. Audit rows are never deleted or changed, and no sequence is reset.
 
 ## 5. TI-1 and TI-7
 
-- **TI-1 (broad Program DELETE):** fixed **in the repository** by migrations 41 + 42 and proven locally (§6 and the recovery review). The original 41 guard alone was forgeable by `service_role` SQL sessions; migration 42 corrects that. TI-1 is **open on DEV** (neither 41 nor 42 applied) and in production, and nothing is merged. It is resolved only once the approved recovery commits on DEV and the branch is accepted and merged.
+- **TI-1 (broad Program DELETE):** fixed **in the repository** by migrations 41 + 42 and proven locally (§6 and the recovery review). The original 41 guard alone was forgeable by `service_role` SQL sessions; migration 42 corrects that. TI-1 is **closed on DEV**: the recovery applied 41 and 42, and `programs_delete_admin` is gone. It is still **open in production**, where 40–42 are not applied. It is fully resolved only once the branch is accepted and merged and the migrations reach production through a separately authorized deployment.
 - **TI-7 (previously published Programs):** a temporary implementation restriction, not a change to the business rule. Any Program whose website content was ever published stays blocked (`website_published_history`; ever-published documents cannot be removed). Safe handling of old slugs, redirects, website references and owned or shared public assets is still to be designed and verified (22B and later). The rule itself remains "verified safe, unused archived Program" (design §7.3); it is not narrowed to "never published only".
 - **Also temporary:** a Program that has a never-published website draft is blocked until that draft is discarded (`website_discard_unpublished_document`).
 
@@ -156,8 +165,8 @@ own. Audit rows are never deleted or changed, and no sequence is reset.
 | Full local SQL/RLS suite | `scripts/test-rls.sh`: 21 files, 443 PASS notices | Pass, exit 0 |
 | Local concurrency (real separate connections, forced interleavings; waits poll a lock-wait or output marker, never a fixed sleep) | `scripts/test-program-deletion-concurrency.sh`: 7 scenarios (module insert vs deletion both ways, restore vs deletion both ways, website document vs deletion, two editors from the same base, publish vs newer draft) | Pass. The five existing concurrency scripts also pass |
 | Mutation checks (temporary, not committed) | Removing the row lock, the slug Super Admin check, or the audit-evidence check, or keeping `programs_delete_admin`, each makes a test fail | All four detected |
-| Unit (Vitest) | `lib/domain/__tests__/website.test.ts`, `lib/validation/__tests__/website.test.ts`: 50 tests, including a check that the TypeScript section-type table matches the SQL | Pass. Full suite: 139 files / 1,660 tests |
-| DEV (real Supabase) | Object fingerprints only: functions, constraints, indexes, policies, triggers, columns, grants, RLS and bucket of the applied part of migration 40 match the local build exactly. **No functional tests were run against DEV**, and no DEV fixtures were created | Partial (see DEV status) |
+| Unit (Vitest) | `lib/domain/__tests__/website.test.ts`, `lib/validation/__tests__/website.test.ts`: 50 tests, including a check that the TypeScript section-type table matches the SQL | Pass. Full suite: 139 files / 1,660 tests at the time. On re-run (2026-10-21, 1,666 tests), one unrelated test (`components/admin/students/__tests__/student-form-duplicate-override-flow.test.tsx`) failed intermittently under parallel load; it passes alone. See the DEV recovery record §6 |
+| DEV (real Supabase) | **Structural, after the recovery (confirmed 2026-10-21):** owner-run checks B 7/7, C 30/30, E 36/36. Independent read-only confirmation: schema fingerprint equals a clean install of 1–42, and existing data is unchanged. **Functional verification on DEV: pending owner approval** (`phase22a_dev_post_recovery_verification.sql`) | Structural pass; functional pending |
 | Browser (Playwright) | Not run; no UI in this stage | Not applicable |
 
 No existing test asserted the old broad DELETE, so no existing test was changed.
@@ -178,17 +187,26 @@ npm run typecheck && npm run lint && npx vitest run
 
 ## 7. DEV status (project `nqeaehqzhjhhgsilrgeo`)
 
-*Current proposal (supersedes the last bullet below):*
-- `docs/recovery/phase22a_dev_recovery.sql` (SHA-256 `018f460fabad4d5d273035b295185a53827f5e6089161892f164470d6b21a562`) completes migration 40, then applies migrations 41 and 42 in one guarded transaction.
-- It is rehearsed on PostgreSQL 17.6 and **awaits explicit approval**.
-- The earlier script (SHA-256 `5bd38ec1…`) is superseded and must not be executed.
+**Current state (recorded 2026-10-21): migrations 40, 41 and 42 are applied, and their history is recorded.**
 
+- **How:** the owner ran the reviewed recovery script `docs/recovery/phase22a_dev_recovery.sql` (SHA-256 `018f460fabad4d5d273035b295185a53827f5e6089161892f164470d6b21a562`) once. It ran from Windows PowerShell with psql, over TLS with certificate and hostname verification, following [`docs/recovery/manual_psql/`](../recovery/manual_psql/). The Supabase connector was not used for it.
+- **Results:** identity check B 7/7; preflight C 30/30; recovery D committed, exit code 0; post-recovery check E 36/36.
+- **Independent read-only confirmation (2026-10-21):**
+  - History has 42 rows, ending with 40/41/42 under their migration names.
+  - The 15-aspect Phase 22A fingerprint equals a clean install of migrations 1–42.
+  - `programs_delete_admin` is gone, and anon/authenticated have no Program DELETE.
+  - All 5 guard and evidence triggers are enabled.
+  - The website tables are empty with RLS on; the bucket is private and empty.
+  - Programs, modules, Batches, enrollments, students, payments, certificates and audit history are row-hash identical to the pre-recovery baseline.
+- **Pending:** the real-DEV functional verification (`docs/recovery/phase22a_dev_post_recovery_verification.sql`, SHA-256 `bb3b3215…`). It needs the owner's separate approval.
+- **Full record:** [`docs/recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`](../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md).
 
-- **Migration 40:** applied except one function, `website_discard_unpublished_document`. The single `apply_migration` call timed out and was verified as not applied; the migration was then applied in transactional parts, each verified. The objects that landed match the repository exactly (fingerprints). **No history row is recorded yet.**
-- **Migration 41:** **not applied.** `programs_delete_admin` is still live on DEV.
-- **Why it stopped:** the remaining statements contain `DELETE`/`DROP` and need an explicit confirmation in the Supabase connector. That request was declined, so nothing further was applied.
-- **Existing data:** unchanged (2 Programs, 185 audit rows, 0 website rows).
-- **Completing it:** a generated, guarded script completes migration 40, applies 41 verbatim and records both history rows in one transaction. It refuses to run twice and was rehearsed locally, after which the full 22A suite passed. Running it, or approving the connector prompt, is the owner's decision.
+*History (superseded):*
+- The first attempt applied migration 40 in verified parts, but missed one function (`website_discard_unpublished_document`) and wrote no history row.
+- The connector request for the remainder did not complete.
+- A later full-script connector request timed out after 60 s without a visible approval prompt. Nothing was committed.
+- The cause of those connector timeouts is not established; a read-only query has also timed out since.
+- The earlier remainder script (SHA-256 `5bd38ec1…`) was superseded and never executed.
 
 ## 8. Not in this stage
 
