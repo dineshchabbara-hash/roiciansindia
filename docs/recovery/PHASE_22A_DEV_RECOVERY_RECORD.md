@@ -152,6 +152,7 @@ creates on the second submit once confirmed with a reason".
 | Full suite, default parallel run #1 | 138 / 139 files, 1,665 / 1,666 tests. This test failed: `Unable to find an element with the text: /possible duplicate/i` |
 | The file alone, 3 runs | 2 / 2 tests pass each time |
 | Full suite, default parallel run #2 | **139 / 139 files, 1,666 / 1,666 tests: clean**, exit 0 |
+| Full suite, `npx vitest run --no-file-parallelism` | **139 / 139 files, 1,666 / 1,666 tests: clean**, exit 0 (234.5 s) |
 
 The Phase 22A branch changes no Student code, component or action.
 
