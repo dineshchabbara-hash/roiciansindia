@@ -66,3 +66,12 @@ The field joins the existing Company Settings architecture (Phase 21C), so it ge
 2. **Audit timing.** As for every Company Settings field today, the audit entry is written by the server straight after a successful save.
    - If that write fails, the error is logged and the save stands. This is the existing Phase 21C behaviour.
    - A database trigger could make the record unconditional, at the cost of one extra trigger. It is not included, to keep this change small.
+
+
+## Phase 22B-1 handoff and outstanding security review (2026-10-22)
+
+See [PHASE_22B1_IMPLEMENTATION_HANDOFF.md](../requirements/PHASE_22B1_IMPLEMENTATION_HANDOFF.md) and [PHASE_22B1_SECURITY_AND_TESTING_GATES.md](../requirements/PHASE_22B1_SECURITY_AND_TESTING_GATES.md).
+
+The public-brand migration remains a **proposal outside** supabase/migrations. Before approval, examine the SECURITY DEFINER execution context, search_path, role grants and leak resistance, local SQL/RLS tests, migration numbering and whether public brand changes require transactionally guaranteed auditing rather than today's best-effort Company Settings audit. The new field must remain independent of company_name (LMS and checkout) and legal_name (financial/legal records).
+
+An independent legal-page approval safeguard may require a **different** proposed migration. The 22B-1 application-level publication hold is not database-enforced because Admin users can still call the Phase 22A website publishing RPC directly. Do not combine either proposal with a live database change without separate owner authorization.
