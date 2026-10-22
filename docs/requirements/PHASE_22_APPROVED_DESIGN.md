@@ -154,7 +154,8 @@ production hosting in Phase 25.
 
 | Element | Value |
 |---|---|
-| Primary public brand and logo identity | **ROICIANS TECH** |
+| Primary public brand name | **ROICIANS TECH** (unchanged) |
+| Website logo | The original **ROICIANS** logo, without TECH (owner decision, 2026-10-22; see below) |
 | Supporting line | **Practical technology training for the AI era** |
 | India legal name (footer, legal documents) | **Roicians Tech Pvt. Ltd.** |
 | Normal copy | May use "At Roicians, we…" |
@@ -167,24 +168,26 @@ the ROICIANS wordmark in muted navy (about `#2E496C`), kept unchanged at
 - It is never recoloured, redrawn or distorted.
 - Website use may trim transparent padding, or crop the symbol and wordmark
   for layout, in separate copies.
-- TECH is added only in website lockups, as live text beside or beneath the
-  original wordmark. The two revised options are under review in
-  [`../prototypes/website-v2/logo-options.html`](../prototypes/website-v2/logo-options.html).
 - The logo is used on white or very light blue, never on dark backgrounds.
-- **Lockups withdrawn (owner, 2026-10-22):** the earlier header Option B
-  (divider plus widely spaced TECH) and footer Option A (TECH between
-  horizontal rules) are **not approved**. They looked dated and used two
-  different treatments.
-- **Revision 2, awaiting the owner's choice:**
-  - TECH in Instrument Sans SemiBold, with minimal letter spacing.
-  - No dividers, rules or underlines.
-  - One arrangement for the header, footer and phones; only the size changes.
-  - The tagline stays outside the logo.
-  - Option 1 puts a smaller TECH alongside the wordmark, on its baseline.
-    Option 2 puts it beneath the end of the wordmark.
-  - Each is shown in navy `#2E496C` and with a cobalt `#2347D0` accent.
-  - Recommended: Option 1 in navy.
-  - Not applied to the prototype pages until chosen.
+
+**Website logo decision (owner, 2026-10-22):** the website uses the original
+ROICIANS logo on its own, with **no TECH**, dividers or added lettering.
+- **Header:** the original R symbol and ROICIANS wordmark side by side, at
+  the same relative scale as in the original logo.
+- **Footer:** the original stacked logo. The tagline "Practical technology
+  training for the AI era" sits beneath it as normal text.
+- **Favicon:** the original R symbol alone.
+- **Scope:** this is a website logo decision only.
+  - The legal name **Roicians Tech Pvt. Ltd.** and approved legal
+    information are unchanged.
+  - The brand name in the table above and other branding decisions are
+    unchanged.
+- **Superseded:** the earlier TECH lockups (header Option B, footer Option A,
+  and the two revision-2 options) are no longer used. They remain in the
+  review history.
+- **Record:** [`../brand/WEBSITE_LOGO_DECISIONS.md`](../brand/WEBSITE_LOGO_DECISIONS.md).
+  The prototype page is
+  [`../prototypes/website-v2/logo.html`](../prototypes/website-v2/logo.html).
 
 Brand and legal names continue to come from the existing Company Settings
 (`company_name`, `legal_name`), whose permissions are unchanged: Super Admin
@@ -654,12 +657,14 @@ ROICIANS TECH branding and logo requirements (§4) are unchanged.
   boxes.
 - **v2** (`../prototypes/website-v2/`) is the image-led redesign now under
   review. It has a three-slide hero, a featured-Programs carousel, a separate
-  Programs page and two logo lockups. Its copy is sample, not launch content.
+  Programs page and the original ROICIANS logo. Its copy is sample, not launch content.
 
 **Provisional owner decisions on v2 (2026-10-22):** branding direction
 approved provisionally; not final approval of the visual prototype.
-- Original logo artwork and colour preserved. (The header Option B and
-  footer Option A lockups were later withdrawn; see §4 for revision 2.)
+- Original logo artwork and colour preserved.
+- **Website logo (decided later the same day):** the original ROICIANS logo
+  without TECH. It replaces the header Option B and footer Option A lockups;
+  see §4.
 - White, soft-blue and cobalt palette kept.
 - Original topic-specific illustrations kept for Program cards in the
   prototype.
@@ -678,7 +683,7 @@ approved provisionally; not final approval of the visual prototype.
 | Soft-blue section | `#F1F6FF` | Alternating sections, including Corporate Training |
 | Accent (cobalt) | `#2347D0` | Primary buttons, links, small labels |
 | Text (dark navy) | `#14263F` | Headings and body text |
-| Brand blue (original logo) | `#2E496C` | Supporting brand colour: logo, TECH label, small brand details |
+| Brand blue (original logo) | `#2E496C` | Supporting brand colour: logo, small brand details |
 | Fonts | Instrument Sans, Inter, limited Geist Mono | Unchanged |
 
 Superseded starting tokens (2026-10-17): background `#F8F8F5`, ink
@@ -833,7 +838,7 @@ LCP < 2.5 s; CLS < 0.1.
 
 | Item | Needed by |
 |---|---|
-| Logo: original ROICIANS PNG supplied 2026-10-22 (approved). Still needed: a vector (SVG) or larger master, and the owner's choice between the two revision-2 website lockups (§4) | 22D |
+| Logo: original ROICIANS PNG supplied 2026-10-22 (approved). Website logo decided: the original logo without TECH (§4). Still needed: a vector (SVG) or larger master | 22D |
 | Final design tokens after logo review | 22D |
 | Approved content for each Program (summary, outcomes, curriculum overview, audience, prerequisites, FAQs) | 22E launch |
 | Approved homepage, About, Corporate, Institutions and FAQ copy | 22F–22G launch |

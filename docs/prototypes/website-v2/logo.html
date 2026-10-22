@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="The website logo decision: the original ROICIANS logo without TECH.">
+<title>Website logo · ROICIANS TECH (prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" type="image/png" sizes="180x180" href="assets/brand/roicians-favicon.png">
+<link rel="apple-touch-icon" href="assets/brand/roicians-touch-icon.png">
+</head>
+<body>
+<div class="proto-bar" role="note">
+  <div class="wrap">
+    <span>Design prototype for review: not the live website, and not approved launch content.</span>
+    <a href="notes.html">Review notes</a>
+  </div>
+</div>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand-h" href="index.html" aria-label="ROICIANS home">
+      <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+      <img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57">
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="programs.html">Programs</a>
+      <a href="index.html#upcoming">Upcoming Batches</a>
+      <a href="index.html#corporate">Corporate Training</a>
+      <a href="index.html#institutions">For Institutions</a>
+      <a href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a href="index.html#enquire">Contact</a>
+    </nav>
+    <div class="header-actions">
+      <div class="login">
+        <button type="button" id="login-btn" aria-expanded="false" aria-controls="login-menu">Log in
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <div class="login-menu" id="login-menu" hidden>
+          <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+          <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+        </div>
+      </div>
+      <a class="btn btn-primary btn-sm header-cta" href="index.html#enquire">Talk to an Advisor</a>
+      <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-panel"><span class="bars" aria-hidden="true"></span>Menu</button>
+    </div>
+  </div>
+  <div class="mobile-panel" id="mobile-panel" hidden>
+    <nav class="wrap" aria-label="Main (mobile)">
+      <a class="m-link" href="programs.html">Programs</a>
+      <a class="m-link" href="index.html#upcoming">Upcoming Batches</a>
+      <a class="m-link" href="index.html#corporate">Corporate Training</a>
+      <a class="m-link" href="index.html#institutions">For Institutions</a>
+      <a class="m-link" href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a class="m-link" href="index.html#enquire">Contact</a>
+      <div class="m-logins">
+        <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+        <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+      </div>
+      <a class="btn btn-primary" href="index.html#enquire">Talk to an Advisor</a>
+    </nav>
+  </div>
+</header>
+<main>
+<style>
+  .lg-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+  .lg-tile { margin: 0; display: grid; place-items: center; gap: 18px; min-height: 200px; padding: 32px 16px 16px; border-radius: 18px; min-width: 0; overflow: hidden; }
+  .lg-tile.white { background: var(--white); border: 1px solid var(--line); } .lg-tile.sky { background: var(--sky); }
+  .lg-tile figcaption, .fav-row figcaption { font: 500 0.74rem/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .lg-tile .stack { display: grid; justify-items: start; gap: 16px; }
+  .lg-tile .stack p { margin: 0; color: var(--muted); max-width: 30ch; }
+  .lg-section h2 { font-size: clamp(1.35rem, 1.15rem + 0.8vw, 1.75rem); margin-bottom: 18px; }
+  .lg-section + .lg-section { padding-top: 0; }
+  .fav-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; }
+  .fav-row figure { margin: 0; display: grid; gap: 12px; place-items: center; padding: 20px; border-radius: 18px; border: 1px solid var(--line); background: var(--white); flex: 1 1 200px; }
+  .tab { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 10px 10px 0 0; background: var(--sky-2); font: 500 0.82rem/1 var(--body); color: var(--navy); }
+  .tab img { width: 16px; height: 16px; }
+  .sizes { display: flex; gap: 18px; align-items: end; }
+  .touch { width: 76px; height: 76px; border-radius: 17px; box-shadow: var(--shadow-soft); }
+</style>
+  <section class="page-intro" aria-labelledby="logo-title">
+    <div class="wrap">
+      <p class="crumbs"><a href="index.html">Home</a> / Website logo</p>
+      <h1 id="logo-title">Website logo</h1>
+      <p class="lede">Owner decision (2026-10-22): the website uses the original ROICIANS logo on its own, with no TECH, dividers or extra lettering.</p>
+    </div>
+  </section>
+
+  <section class="section-tight lg-section" aria-labelledby="lg-use">
+    <div class="wrap">
+      <h2 id="lg-use">How the logo is used</h2>
+      <div class="lg-grid">
+        <figure class="lg-tile white"><span class="brand-h" role="img" aria-label="ROICIANS">
+            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+            <img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57">
+          </span><figcaption>Header · white · desktop size</figcaption></figure>
+        <figure class="lg-tile sky"><span class="brand-h" role="img" aria-label="ROICIANS">
+            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+            <img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57">
+          </span><figcaption>Header · soft blue</figcaption></figure>
+        <figure class="lg-tile sky"><span class="stack"><span class="brand-s" role="img" aria-label="ROICIANS"><img src="assets/brand/roicians-logo-web.png" alt="" width="293" height="260"></span><p>Practical technology training for the AI era.</p></span><figcaption>Footer · soft blue · tagline as normal text</figcaption></figure>
+        <figure class="lg-tile white"><span class="stack"><span class="brand-s" role="img" aria-label="ROICIANS"><img src="assets/brand/roicians-logo-web.png" alt="" width="293" height="260"></span><p>Practical technology training for the AI era.</p></span><figcaption>Footer · white</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tight lg-section" aria-labelledby="lg-fav">
+    <div class="wrap">
+      <h2 id="lg-fav">Favicon: the R symbol alone</h2>
+      <div class="fav-row">
+        <figure><span class="tab"><img src="assets/brand/roicians-favicon.png" alt="">ROICIANS TECH</span><figcaption>Browser tab, 16 px</figcaption></figure>
+        <figure><span class="sizes"><img src="assets/brand/roicians-favicon.png" alt="" width="16" height="16"><img src="assets/brand/roicians-favicon.png" alt="" width="32" height="32"><img src="assets/brand/roicians-favicon.png" alt="" width="48" height="48"></span><figcaption>16, 32 and 48 px</figcaption></figure>
+        <figure><img class="touch" src="assets/brand/roicians-touch-icon.png" alt=""><figcaption>Phone home-screen icon</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tight bg-sky" aria-labelledby="logo-rules">
+    <div class="wrap doc">
+      <h2 id="logo-rules" style="margin-top:0">How the original logo is preserved</h2>
+      <ul>
+        <li><strong>Master file unchanged:</strong> <code>docs/brand/roicians-logo-original.png</code>, 433 × 370 transparent PNG, SHA-256 <code>13ecd0b8ae36b968…</code>.</li>
+        <li><strong>Header:</strong> <code>roicians-symbol.png</code> and <code>roicians-wordmark.png</code> are straight crops of the original, placed side by side. Both are shown at the same scale as in the original logo, so their relative size is unchanged: the symbol is 56 px tall on desktop and 46 px on phones. The wordmark's letters are centred on the symbol.</li>
+        <li><strong>Footer:</strong> <code>roicians-logo-web.png</code> is the original stacked logo with only its empty transparent margin trimmed. It is 140 px wide on desktop and 124 px on phones.</li>
+        <li><strong>Favicon:</strong>
+          <ul>
+            <li><code>roicians-favicon.png</code> is the original symbol's pixels on a transparent 180 × 180 square.</li>
+            <li><code>roicians-touch-icon.png</code> is the same on white, because phones show a transparent home-screen icon on black.</li>
+            <li>Browsers scale it down for the tab. The thin lines of the R are light at 16 px, so a vector (SVG) master would sharpen it.</li>
+          </ul></li>
+        <li><strong>Colour and proportions:</strong> the original navy (about <code>#2E496C</code>). Nothing is recoloured, redrawn, stretched or squeezed; the images ignore the site-wide image width limit, so they can never be distorted.</li>
+        <li><strong>Backgrounds:</strong> white or soft blue only, never dark.</li>
+        <li><strong>Resolution:</strong> sharp at these sizes. A vector (SVG) or larger master is still recommended before launch.</li>
+      </ul>
+
+      <h2>Scope of this decision</h2>
+      <ul>
+        <li>This is a <strong>website logo decision only</strong>.</li>
+        <li>The legal company name stays <strong>Roicians Tech Pvt. Ltd.</strong>, as shown in the footer. Approved legal information is unchanged.</li>
+        <li>Other branding decisions are unchanged, including how the brand name is written in copy and page titles.</li>
+      </ul>
+
+      <h2>Review history</h2>
+      <ol>
+        <li><strong>Header Option B and footer Option A</strong> (provisionally chosen, then withdrawn). TECH sat after a vertical divider in the header and between horizontal rules in the footer; the owner found this dated and inconsistent. Commit <code>8db3c00</code>.</li>
+        <li><strong>Revision 2, two TECH lockups</strong> (not adopted). TECH sat alongside the wordmark, or beneath its end. Commit <code>745c8df</code>.</li>
+        <li><strong>Decision:</strong> no TECH in the logo. The original ROICIANS logo is used on its own (this page).</li>
+      </ol>
+      <p>Earlier versions remain in the repository history. For example, <code>git show 745c8df:docs/prototypes/website-v2/logo-options.html</code> shows the revision-2 page. The full record is in <code>docs/brand/WEBSITE_LOGO_DECISIONS.md</code>.</p>
+    </div>
+  </section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot">
+      <div class="foot-brand">
+        <a class="brand-s" href="index.html" aria-label="ROICIANS home">
+          <img src="assets/brand/roicians-logo-web.png" alt="" width="293" height="260">
+        </a>
+        <p>Practical technology training for the AI era.</p>
+      </div>
+      <div>
+        <h4>Programs</h4>
+        <ul>
+          <li><a href="programs.html">All programs</a></li>
+          <li><a href="programs.html#career">Career &amp; Technology</a></li>
+          <li><a href="programs.html#specialist">Specialist &amp; Professional</a></li>
+          <li><a href="index.html#upcoming">Upcoming Batches</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="index.html#corporate">Corporate Training</a></li>
+          <li><a href="index.html#institutions">For Institutions</a></li>
+          <li><a href="#" data-proto="The About page is not part of this prototype.">About</a></li>
+          <li><a href="index.html#enquire">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Portals</h4>
+        <ul>
+          <li><a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a></li>
+          <li><a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a></li>
+          <li><a href="#" data-proto="Prototype only: certificate verification is the existing LMS page.">Verify a certificate</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="legal">
+      <span>© Roicians Tech Pvt. Ltd.</span>
+      <nav aria-label="Legal">
+        <a href="#" data-proto="Privacy wording needs business and legal approval before launch.">Privacy</a>
+        <a href="#" data-proto="Terms wording needs business and legal approval before launch.">Terms</a>
+        <a href="logo.html">Website logo</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>

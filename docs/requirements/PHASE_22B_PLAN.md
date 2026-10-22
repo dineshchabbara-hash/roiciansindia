@@ -23,10 +23,12 @@
 - **v2** (`../prototypes/website-v2/`): redesign under review. See its `README.md`.
 - **Provisional owner decisions (2026-10-22):**
   - Original logo and colour preserved.
-  - **Logo lockups:** the header Option B and footer Option A lockups were later **withdrawn** (2026-10-22).
-    - Revision 2 offers two options in `logo-options.html`: TECH alongside the wordmark, or TECH beneath its end.
-    - Both use one arrangement everywhere, with no dividers or rules.
-    - The owner's choice is pending. Recommended: Option 1 in navy.
+  - **Website logo (decision, 2026-10-22):** the original ROICIANS logo without TECH.
+    - Header: the original symbol and wordmark side by side.
+    - Footer: the original stacked logo, with the tagline as normal text.
+    - Favicon: the R symbol alone.
+    - The earlier TECH lockups are superseded; their history is in `../brand/WEBSITE_LOGO_DECISIONS.md`.
+    - This is a logo decision only. The legal name Roicians Tech Pvt. Ltd. and other branding decisions are unchanged.
   - Palette kept.
   - Program-card illustrations kept.
   - Licensed photography planned for the live hero and Corporate Training sections.
@@ -34,8 +36,8 @@
 - Final visual approval of the homepage and Programs page is still pending. No 22B application code starts before it.
 
 **v2 contents:**
-- **Pages:** homepage, Programs listing, logo options and review notes.
-- **Logo:** the original ROICIANS logo; two revised website lockups (revision 2) for the owner's choice.
+- **Pages:** homepage, Programs listing, website logo and review notes.
+- **Logo:** the original ROICIANS logo without TECH; R symbol favicon.
 - **Imagery:** original illustrations only.
 - **Copy:** a single prototype notice. Sample copy is kept separate from approved facts.
 
