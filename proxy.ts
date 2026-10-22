@@ -1,8 +1,18 @@
 import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import {
+  applyWebsitePrivateHeaders,
+  isWebsiteManagementPath,
+} from "@/lib/domain/website-private-headers";
 
 export async function proxy(request: NextRequest) {
-  return updateSession(request);
+  const response = await updateSession(request);
+  // Phase 22B-1: Website Management screens show unpublished drafts, so they
+  // are never cached by a shared cache or indexed (B2, TI-6).
+  if (isWebsiteManagementPath(request.nextUrl.pathname)) {
+    applyWebsitePrivateHeaders(response.headers);
+  }
+  return response;
 }
 
 export const config = {
