@@ -183,3 +183,23 @@ No further design decision is needed for this scope:
 - **Legal pages:** never published until their wording is approved (C4).
 - **Slugs:** slug change after publication stays disabled (B6). TI-7 and TI-3 protections are not bypassed (B7).
 - **Branch:** no merge to `main` without separate authorization.
+
+
+---
+
+## 6. Owner authorization and security handoff — 2026-10-22
+
+The owner requested updated Phase 22B documentation after reviewing the readiness assessment. The detailed scope and test/acceptance criteria are now maintained in:
+
+- [PHASE_22B1_IMPLEMENTATION_HANDOFF.md](PHASE_22B1_IMPLEMENTATION_HANDOFF.md)
+- [PHASE_22B1_SECURITY_AND_TESTING_GATES.md](PHASE_22B1_SECURITY_AND_TESTING_GATES.md)
+
+**Status distinction:** the owner has approved the Phase 22B-1 development direction and instructed that coding begin in the conversation; this document update itself contains no implementation, SQL execution or deployment. Do not infer authorization for application of any proposed migration, DEV writes, CI activation, deployment, merge or Phase 22B-2. Use the written handoff to constrain actual 22B-1 implementation and return a separate implementation review.
+
+**Confirmed brand:** public India website ROICIANS, original ROICIANS logo without TECH; tagline unchanged; legal name Roicians Tech Pvt. Ltd.; existing LMS company_name and checkout branding unchanged. The proposed public_brand_name column is separate and does not block 22B-1.
+
+**Legal publishing:** legal-page Publish is disabled in the UI and refused by the server action during 22B-1. The existing database publishing RPC still permits direct authenticated Admin calls; this is a **known database bypass**, not fully enforced legal approval. A later revision-specific database-level guard is required before asserting full protection or releasing legal content.
+
+**Browser testing:** prefer manually triggered, disposable GitHub Actions/Supabase test stack, without hosted secrets or deployment permissions. Workflow YAML must be independently reviewed before being committed or activated. Do not run E2E against DEV, where durable website revision/audit records would remain.
+
+**Acceptance evidence:** actual Admin UI screenshots, role-denial matrix, stale-edit and publish behavior, private no-store/noindex preview headers, unit/component/typecheck/lint and full test suite, isolated E2E execution status, and clear statement of DEV/main untouched until separate approval.
