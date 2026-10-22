@@ -77,7 +77,7 @@ function submittedDraft(call = 0) {
 
 async function clickSave() {
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Save draft" })[0]);
   });
 }
 
@@ -97,7 +97,9 @@ describe("PageEditor", () => {
     expect(within(form).getByLabelText("Question")).toHaveValue("Is it online?");
     expect(within(form).getByLabelText("Button link")).toHaveValue("/programs");
     expect(form.querySelector("[contenteditable]")).toBeNull();
-    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    for (const save of screen.getAllByRole("button", { name: "Save draft" })) {
+      expect(save).toBeDisabled();
+    }
   });
 
   it("saves the edited draft with the version it was based on", async () => {
@@ -122,6 +124,23 @@ describe("PageEditor", () => {
       expect(screen.getByRole("status")).toHaveTextContent("Draft saved as version 3"),
     );
     expect(screen.getByText("Latest saved version: 3.")).toBeInTheDocument();
+  });
+
+  it("also saves from the bottom bar shown on phones and tablets", async () => {
+    vi.mocked(saveWebsiteDraftAction).mockResolvedValue({
+      saved: { revisionId: "r3", revisionNumber: 3 },
+    });
+    render(<PageEditor page={editorPage()} content={content} />);
+    fireEvent.change(screen.getByLabelText(/^Title/), {
+      target: { value: "From a phone" },
+    });
+    const [, bottomBar] = screen.getAllByRole("button", { name: "Save draft" });
+    await act(async () => {
+      fireEvent.click(bottomBar);
+    });
+    await waitFor(() => expect(saveWebsiteDraftAction).toHaveBeenCalledTimes(1));
+    expect(submittedDraft().draft.title).toBe("From a phone");
+    expect(await screen.findByText("Saved as version 3")).toBeInTheDocument();
   });
 
   it("keeps the user's text after a stale save and lets them save it deliberately", async () => {

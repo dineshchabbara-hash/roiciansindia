@@ -717,6 +717,19 @@ export function PageEditor({
             </div>
           </section>
         </form>
+        {/* Phones and tablets: keep Save reachable without scrolling to the side panel. */}
+        <div className="bg-background/95 sticky bottom-0 z-10 -mx-4 flex items-center justify-between gap-3 border-t px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:hidden">
+          <span className="text-muted-foreground text-xs">
+            {dirty
+              ? "Unsaved changes"
+              : base === 0
+                ? "Nothing saved yet"
+                : `Saved as version ${base}`}
+          </span>
+          <Button type="submit" form={formId} size="sm" disabled={isSaving || !dirty}>
+            {isSaving ? "Saving…" : "Save draft"}
+          </Button>
+        </div>
       </div>
 
       <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">

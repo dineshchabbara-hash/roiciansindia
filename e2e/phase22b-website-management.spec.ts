@@ -53,7 +53,7 @@ async function signIn(page: Page, path: string, account: TestAccount) {
 async function adminPage(browser: Browser, account: TestAccount): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await signIn(page, "/login/admin", account);
-  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/admin$/);
   return page;
 }
 
@@ -94,8 +94,8 @@ test("Admins see the Website area; other roles are refused by direct URL", async
   await expect(anonymous).toHaveURL(/\/login\/admin/);
 
   for (const [account, path, home] of [
-    [student, "/login/student", /\/student$/],
-    [trainer, "/login/trainer", /\/trainer$/],
+    [student, "/login/student", /^https?:\/\/[^/]+\/student$/],
+    [trainer, "/login/trainer", /^https?:\/\/[^/]+\/trainer$/],
   ] as const) {
     const p = await (await browser.newContext()).newPage();
     await signIn(p, path, account);
@@ -116,7 +116,7 @@ test("an Admin creates, saves, privately previews and publishes a page", async (
   const page = await adminPage(browser, admin);
   await openAboutEditor(page);
 
-  await page.getByLabel(/^Title/).fill(ABOUT_TITLE);
+  await page.locator("#page-title").fill(ABOUT_TITLE);
   await page.getByLabel("Add a section").selectOption("text");
   await page.getByRole("button", { name: "Add section" }).click();
   await page
@@ -160,17 +160,17 @@ test("a stale save keeps the user's text; restore creates a new draft", async ({
   await first.goto(aboutUrl);
   await second.goto(aboutUrl);
 
-  await first.getByLabel(/^Title/).fill(`${ABOUT_TITLE} (first editor)`);
+  await first.locator("#page-title").fill(`${ABOUT_TITLE} (first editor)`);
   await first.getByRole("button", { name: "Save draft" }).click();
   await expect(
     first.getByRole("status").filter({ hasText: "Draft saved" }),
   ).toBeVisible();
 
   const mine = `${ABOUT_TITLE} (second editor)`;
-  await second.getByLabel(/^Title/).fill(mine);
+  await second.locator("#page-title").fill(mine);
   await second.getByRole("button", { name: "Save draft" }).click();
   await expect(second.getByText("Someone else changed this content")).toBeVisible();
-  await expect(second.getByLabel(/^Title/)).toHaveValue(mine);
+  await expect(second.locator("#page-title")).toHaveValue(mine);
 
   await second.getByRole("button", { name: "Save my version anyway…" }).click();
   await second.getByRole("button", { name: "Confirm: save my version" }).click();
@@ -205,7 +205,7 @@ test("a legal page can be drafted but not published", async ({ browser }) => {
   await expect(
     page.getByRole("heading", { level: 1, name: `Legal page: ${LEGAL_KEY}` }),
   ).toBeVisible();
-  await page.getByLabel(/^Title/).fill("Terms of use (draft wording)");
+  await page.locator("#page-title").fill("Terms of use (draft wording)");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Draft saved" })).toBeVisible();
 
