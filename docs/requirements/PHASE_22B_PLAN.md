@@ -1,6 +1,6 @@
 # Phase 22B — Admin Website Management: Plan
 
-**Status: Planning only. No application code, no migration and no DEV change.**
+**Status: Planning and readiness only. No application code, no migration and no DEV change.** 22B-1 coding starts only on the owner's explicit go-ahead (§5).
 - Branch: `claude/phase22b-website-management`, from `main` at `83b7536` (Phase 22A merged).
 - Authority: [`PHASE_22_APPROVED_DESIGN.md`](PHASE_22_APPROVED_DESIGN.md) §5, §5.5 (22B decisions, 2026-10-22), §7.4, §10 and §15.
 
@@ -16,6 +16,10 @@
 | B5 | Existing DEV Program content is not published or modified without separate authorization | Design §5.5 |
 | B6 | Slug history recorded; post-publication slug change disabled until redirects are verified | Design §5.5 |
 | B7 | TI-7, TI-3 and audit-history limitations stay documented and enforced | Design §5.5 |
+| BR1 | Public India website brand: **ROICIANS**. Website logo: the original ROICIANS logo only, without TECH. Legal name stays **Roicians Tech Pvt. Ltd.** The LMS company name and payment checkout are unchanged | Design §4 |
+| BR2 | Future brand changes through one Super-Admin-controlled setting: `public_brand_name` in the existing Company Settings, with validation, permissions and audit logging. Public pages read it only through a narrow server-side accessor; private Company Settings data is never public. **Design approved; migration execution not approved.** Prepared for review in `docs/proposed-migrations/`; reviewed before 22C/22D. **Not needed for 22B-1** | Design §4.1 |
+| C3 | DEV business data is protected. 22B-1 is accepted from the isolated environment, not by creating, drafting or publishing website pages on DEV. Any DEV trial needs separate authorization | This plan §5 |
+| C4 | Unapproved legal wording is never published. Legal pages may be drafted (drafts are never public), but publishing a legal page is blocked until the owner records business/legal approval of that wording | This plan §4.2, §5 |
 
 ## 2. Visual prototype (for approval before 22D–22G)
 
@@ -97,7 +101,11 @@ Post-publication slug change is **not** built in 22B (B6).
   - labelled "Preview — not public".
 
   It shows the content structure, not the final public design; the visual preview comes with the public pages in 22D–22G.
-- **Legal pages:** the editor shows a notice that legal wording needs business and legal approval before publishing (design §5.2).
+- **Legal pages (C4): publishing held.**
+  - **Editor:** shows that legal wording needs business and legal approval before it can be published (design §5.2). Drafting, preview and history work as for other pages.
+  - **Publish refused:** for the legal page kind, the Publish button is disabled, and the server action refuses to publish with a plain message. This is enforced on the server, not only hidden in the UI.
+  - **Lifting the hold:** a small, separately authorized code change, made after the owner records approval of specific wording.
+  - **Limit:** the hold is in the application. The 22A database publish function would still accept a direct database call from a signed-in Admin, and any such call would be audited. A database-level hold would need a migration, which is not proposed for 22B-1.
 - **Navigation:** add "Website" to the Admin sidebar for Admin and Super Admin.
 
 ### 4.3 Tests
@@ -114,28 +122,64 @@ Post-publication slug change is **not** built in 22B (B6).
   - the preview labels.
 - **Route checks:** the preview response headers (`no-store`, `noindex`).
 - **SQL:** no new database code. The existing 22A suites keep running.
-- **Browser (E2E):** isolated local environment only (B4). See decision C2.
+- **Browser (E2E):** isolated local environment only (B4); never against DEV or production. The specs are written with 22B-1, and they run once the environment in C2 is chosen.
+- **Legal hold (C4):** unit tests show that the publish action refuses the legal page kind for both Admin and Super Admin, and that the button is disabled.
+- **Known intermittent test:** `student-form-duplicate-override-flow.test.tsx` (outside 22B) can fail under parallel load and passes alone. It is recorded in `docs/recovery/PHASE_22A_DEV_RECOVERY_RECORD.md` §6 and is never skipped or disabled.
 - **Gates:** typecheck, lint and the full unit suite.
 
 ### 4.4 Acceptance criteria for 22B-1
 
-1. Admin and Super Admin can create, edit, save, publish, unpublish and restore every supported page type. Trainers, Students, inactive Admins and anonymous users cannot reach the area or call the actions.
+1. Admin and Super Admin can create, edit, save, publish, unpublish and restore every supported page type, except that legal pages cannot be published until their wording is approved (C4). Trainers, Students, inactive Admins and anonymous users cannot reach the area or call the actions.
 2. Drafts never change published content until Publish. Restore creates a new draft.
 3. Two editors cannot silently overwrite each other.
 4. The preview is authenticated, `no-store` and `noindex`, and labelled.
 5. Every publish, unpublish and restore is in the audit log with actor and time.
 6. No existing LMS screen, data or audit history changes. No migration.
+7. Accepted from the isolated environment. No website page, revision, test record or audit row is created on DEV for acceptance (C3).
 
-## 5. Decisions needed before 22B-1 coding
+## 5. Phase 22B-1 implementation readiness (2026-10-22)
 
-- **C1 — Prototype approval.** Approve the visual direction (or request changes) before the public pages (22D–22G). 22B-1 is Admin-only and does not depend on it, but you asked to review the prototype first.
-- **C2 — Where browser tests run.** This cloud sandbox cannot run a local Supabase stack (its Docker daemon is unavailable). Options:
-  - **(a)** you run the 22B E2E suite on your Windows machine with Docker Desktop and the Supabase CLI;
-  - **(b)** a GitHub Actions workflow that starts a throwaway local Supabase stack, runs the tests and deploys nothing. This adds a CI file, so it needs your approval;
-  - **(c)** an environment with Docker.
+### 5.1 Preconditions (verified on this branch)
 
-  Recommended: **(b)**, for repeatable results.
-- **C3 — Manual acceptance on DEV.** Website revisions and audit rows are permanent by design. If you try the editor on DEV, any page you create leaves permanent revision and audit rows, even if it is never published. Options:
-  - use only real draft content you intend to keep, and do not publish without authorization;
-  - accept 22B-1 from the isolated environment only.
-- **C4 — Legal pages.** Allow drafting now, with publishing held by a notice (proposed). Alternatively, hide the legal page type until the wording is approved.
+| Precondition | State |
+|---|---|
+| Phase 22A merged | `main` at `83b7536`; this branch adds no application or database changes |
+| Database functions 22B-1 calls | `website_create_page`, `website_save_draft`, `website_publish_document`, `website_unpublish_document`, `website_restore_revision` and `website_assert_manager` exist (migrations 40 and 42). DEV has migrations 1–42 |
+| Validation and messages | `websiteDraftSchema(kind)` and `STALE_EDIT_MESSAGE` exist; the `legal` page kind exists |
+| Migration needed for 22B-1 | **None** |
+| Depends on the brand setting (BR2) or final visual approval (C1) | **No.** 22B-1 is Admin-only and shows no public pages |
+
+### 5.2 Ready to implement once the owner gives the go-ahead
+
+No further design decision is needed for this scope:
+1. **Website area:** a Website entry in the Admin sidebar, for Admin and Super Admin only.
+2. **Pages screen:** every supported page with its status, last editor and publisher (§4.1).
+3. **Structured editor:** title, summary, SEO and social fields, and the allowed sections (add, remove, reorder, show or hide). It supports Save draft, Publish and Unpublish, and keeps unsaved text on a stale edit.
+4. **History and restore:** restoring creates a new draft.
+5. **Structured preview:** authenticated, `no-store`, `noindex`, and labelled "Preview — not public" (B2).
+6. **Legal publishing hold (C4):** enforced in the server action, with the Publish button disabled.
+7. **Server actions** call only the existing 22A functions. Role checks run in the app and again in the database. Audit comes from the database functions, so there are no duplicate rows.
+8. **Tests:** unit, component and route-header tests, plus E2E specs (written, not run against DEV). The gates are typecheck, lint and the full unit suite.
+9. **Documentation, commits and pushes** to `claude/phase22b-website-management` only.
+
+### 5.3 Still requires the owner's approval
+
+| # | Item | Blocks |
+|---|---|---|
+| A1 | **Explicit go-ahead to start 22B-1 coding** on this branch | All of §5.2 |
+| A2 | **C2: where browser tests run** (B4 is decided: isolated only). Options: (a) your Windows machine with Docker Desktop and the Supabase CLI; (b) a GitHub Actions workflow with a throwaway local Supabase stack, which adds a CI file and needs approval (recommended); (c) another Docker environment | Running E2E and browser acceptance of 22B-1 (not coding) |
+| A3 | Any 22B-1 trial on DEV (C3). Website revisions and audit rows are permanent by design | Nothing in 22B-1; optional |
+| A4 | **Merging 22B-1 to `main`,** and any deployment | Release |
+| A5 | **Legal wording approval,** page by page, before any legal page can be published (C4) | Publishing legal pages only |
+| A6 | **Brand migration (BR2):** review and approval of `docs/proposed-migrations/public_brand_name.sql`; then separately authorized DEV application, then production | 22C/22D (not 22B-1) |
+| A7 | **Media-upload migration (B1, 22B-3):** prepared separately for review | 22B-3 |
+| A8 | **Final visual approval** of the homepage and Programs page (C1) | Public pages, 22D–22G (not 22B-1) |
+| A9 | Running SQL, applying migrations or changing DEV or production data | Always separate |
+
+### 5.4 Protections that stay in force throughout 22B-1
+
+- **No change to existing data:** no migration, no SQL and no change to DEV or production data. Existing LMS business records and audit history are untouched (B5).
+- **No test data on DEV:** no synthetic records or published test content on DEV (B4, C3).
+- **Legal pages:** never published until their wording is approved (C4).
+- **Slugs:** slug change after publication stays disabled (B6). TI-7 and TI-3 protections are not bypassed (B7).
+- **Branch:** no merge to `main` without separate authorization.

@@ -203,7 +203,30 @@ the India website's public brand is **ROICIANS**, not ROICIANS TECH.
   this decision. It remains in the decision history; nothing historical is
   rewritten.
 
-### 4.1 Centralized public-brand configuration (design; not built)
+### 4.1 Centralized public-brand configuration (design approved; not built)
+
+**Owner approval (2026-10-22):** the ROICIANS public-brand decision and this
+centralized configuration approach are approved.
+- **Recorded decisions:**
+  1. The public India website brand is **ROICIANS**.
+  2. The website logo is the original ROICIANS logo only, without TECH.
+  3. The legal name remains **Roicians Tech Pvt. Ltd.**
+  4. The existing LMS company name (`company_name`) and the payment
+     checkout remain unchanged.
+  5. Future website brand changes are managed through one Super-Admin-
+     controlled setting.
+  6. That setting is the `public_brand_name` field in the existing Company
+     Settings architecture, with proper validation, permissions and audit
+     logging.
+  7. Public pages read branding only through a narrow server-side accessor.
+     Private Company Settings data is never exposed publicly.
+- **Approved:** the design of the additive field.
+- **Not approved:** execution of the database migration. It is prepared for
+  review in
+  [`../proposed-migrations/public_brand_name.sql`](../proposed-migrations/public_brand_name.sql)
+  (with a test and a README), must be reviewed before Phase 22C/22D, and is
+  not applied to DEV or production.
+- **Phase 22B-1** does not depend on this field and is not delayed by it.
 
 **Goal:** the owner may change the public brand name later. A change to
 another approved name must need **one settings change**, with no edits
@@ -279,8 +302,11 @@ across website components and no database migration.
 - **Prototype:** the name is set once, in `BRAND` in
   `docs/prototypes/website-v2/build_pages.py`. A build check keeps every
   page consistent.
-- **Application:** not built. It needs separate authorization in 22C/22D,
-  and the migration needs separate approval.
+- **Migration:** prepared for review only (see above). It is not in
+  `supabase/migrations/` and not applied anywhere.
+- **Application:** not built. The accompanying Company Settings and accessor
+  changes are listed in the proposed-migration README. They are built in
+  22C/22D after the migration is approved.
 
 ---
 
@@ -405,8 +431,19 @@ reviewed in Phase 22A itself.
 7. **Carried issues:** TI-7, TI-3, the existing audit-history limitations and
    other carried-forward issues stay documented, and their protections are
    never bypassed.
+8. **DEV business data (confirmed for 22B-1):** 22B-1 is accepted from the
+   isolated environment. No website page, draft, revision or test record is
+   created on DEV for acceptance without separate authorization.
+9. **Legal wording:** legal pages may be drafted (drafts are never public),
+   but a legal page cannot be published until the owner records business and
+   legal approval of its wording. The application enforces this hold on the
+   server, not only in the interface.
+10. **Brand setting:** the `public_brand_name` design (§4.1) is approved and
+    its migration is prepared for review only. Phase 22B-1 does not depend on
+    it.
 
-The 22B plan is [`PHASE_22B_PLAN.md`](PHASE_22B_PLAN.md).
+The 22B plan, including the 22B-1 readiness assessment, is
+[`PHASE_22B_PLAN.md`](PHASE_22B_PLAN.md).
 
 ---
 
@@ -929,7 +966,7 @@ LCP < 2.5 s; CLS < 0.1.
 |---|---|
 | Logo: original ROICIANS PNG supplied 2026-10-22 (approved). Website logo decided: the original logo without TECH (§4). Still needed: a vector (SVG) or larger master | 22D |
 | Final design tokens after logo review | 22D |
-| Public brand setting (§4.1): one additive `company_settings.public_brand_name` field, prepared and reviewed separately; not applied without approval | Before 22C/22D |
+| Public brand setting (§4.1): the additive `company_settings.public_brand_name` field. Design approved (2026-10-22); migration prepared for review in `docs/proposed-migrations/`; execution needs separate approval; not applied to DEV or production | Review before 22C/22D (not needed for 22B-1) |
 | Approved content for each Program (summary, outcomes, curriculum overview, audience, prerequisites, FAQs) | 22E launch |
 | Approved homepage, About, Corporate, Institutions and FAQ copy | 22F–22G launch |
 | Privacy policy, terms and enquiry consent wording (including India DPDP requirements) | 22H launch |
