@@ -1,12 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useId, useState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PublicationPanel } from "@/components/admin/website/publication-panel";
+import {
+  draftStashKey,
+  forgetStashWhenOpened,
+  parseStash,
+  removeStash,
+  stashWhenOpened,
+  useUnsavedChangesGuard,
+  writeStash,
+} from "@/components/admin/website/unsaved-changes";
 import { saveWebsiteDraftAction, type WebsiteActionState } from "@/lib/actions/website";
 import type { WebsiteRevisionContent } from "@/lib/data/website";
 import {
@@ -62,6 +79,31 @@ function draftFrom(content: WebsiteRevisionContent | null): Draft {
     heroImageAssetId: content?.heroImageAssetId ?? null,
     socialImageAssetId: content?.socialImageAssetId ?? null,
     sections: content?.sections ?? [],
+  };
+}
+
+/**
+ * A draft read back from this tab's safety copy. Anything malformed is
+ * rejected; the server validates the content again when it is saved.
+ */
+function draftFromStash(value: unknown): Draft | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.title !== "string" || !Array.isArray(v.sections)) return null;
+  if (!v.sections.every((s) => s && typeof s === "object" && typeof s.type === "string"))
+    return null;
+  const text = (x: unknown) => (typeof x === "string" ? x : "");
+  const id = (x: unknown) => (typeof x === "string" ? x : null);
+  return {
+    title: v.title,
+    summary: text(v.summary),
+    seoTitle: text(v.seoTitle),
+    seoDescription: text(v.seoDescription),
+    socialTitle: text(v.socialTitle),
+    socialDescription: text(v.socialDescription),
+    heroImageAssetId: id(v.heroImageAssetId),
+    socialImageAssetId: id(v.socialImageAssetId),
+    sections: v.sections as EditableSection[],
   };
 }
 
@@ -415,12 +457,17 @@ const initialState: WebsiteActionState = {};
  * text stays on screen and they choose what to do next (lost-update
  * protection; the database refuses any save based on an older version).
  */
+const noSubscription = () => () => {};
+
 export function PageEditor({
   page,
   content,
+  stashOwnerId,
 }: {
   page: EditorPage;
   content: WebsiteRevisionContent | null;
+  /** The signed-in user's id; enables the per-tab unsaved-draft safety copy. */
+  stashOwnerId?: string;
 }) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(content));
   const [base, setBase] = useState(page.latestRevisionNumber);
@@ -429,6 +476,8 @@ export function PageEditor({
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
   const [newType, setNewType] = useState<string>(SECTION_TYPES_BY_KIND[page.kind][0]);
   const formId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stashKey = stashOwnerId ? draftStashKey(stashOwnerId, page.id) : null;
 
   const [state, formAction, isSaving] = useActionState(
     async (prev: WebsiteActionState, formData: FormData) => {
@@ -438,20 +487,50 @@ export function PageEditor({
         setLatestRevisionId(result.saved.revisionId);
         setDirty(false);
         setConfirmOverwrite(false);
+        if (stashKey) removeStash(stashKey);
       }
       return result;
     },
     initialState,
   );
 
+  // Warns before any navigation would discard unsaved changes (links, Back/
+  // Forward, forms outside the editor, closing or reloading the tab).
+  useUnsavedChangesGuard(dirty, containerRef);
+
+  // Safety copy of unsaved changes in this browser tab.
   useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+    if (!stashKey || !dirty) return;
+    const timer = window.setTimeout(
+      () => writeStash(stashKey, { base, savedAt: new Date().toISOString(), draft }),
+      400,
+    );
+    return () => window.clearTimeout(timer);
+  }, [stashKey, dirty, draft, base]);
+  useEffect(
+    () => () => {
+      if (stashKey) forgetStashWhenOpened(stashKey);
+    },
+    [stashKey],
+  );
+  const openedStash = useSyncExternalStore(
+    noSubscription,
+    () => (stashKey ? stashWhenOpened(stashKey) : null),
+    () => null,
+  );
+  const [stashHandled, setStashHandled] = useState(false);
+  const savedContent = useMemo(
+    () => JSON.stringify(draftPayload(draftFrom(content), 0)),
+    [content],
+  );
+  const recoverable = useMemo(() => {
+    const stash = parseStash<unknown>(openedStash);
+    const restored = stash ? draftFromStash(stash.draft) : null;
+    if (!stash || !restored) return null;
+    if (JSON.stringify(draftPayload(restored, 0)) === savedContent) return null;
+    return { ...stash, draft: restored };
+  }, [openedStash, savedContent]);
+  const showRecovery = recoverable !== null && !stashHandled;
 
   const errors = state.fieldErrors ?? {};
   const update = (patch: Partial<Draft>) => {
@@ -487,8 +566,51 @@ export function PageEditor({
   const fieldErrorCount = Object.keys(errors).length;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div ref={containerRef} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="flex min-w-0 flex-col gap-6">
+        {showRecovery && recoverable && (
+          <div
+            role="alert"
+            className="rounded-md border border-sky-300 bg-sky-50 p-4 text-sm dark:border-sky-800 dark:bg-sky-950"
+          >
+            <p className="font-medium">
+              Unsaved changes to this page were found from earlier in this browser tab.
+            </p>
+            <p className="mt-1">
+              They were last edited on{" "}
+              {new Date(recoverable.savedAt).toLocaleString("en-IN", {
+                timeZone: "Asia/Kolkata",
+              })}{" "}
+              IST and started from version {recoverable.base}. If someone saved a newer
+              version since, saving them will warn you first.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setDraft(recoverable.draft);
+                  setBase(recoverable.base);
+                  setDirty(true);
+                  setStashHandled(true);
+                }}
+              >
+                Restore unsaved changes
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (stashKey) removeStash(stashKey);
+                  setStashHandled(true);
+                }}
+              >
+                Discard them
+              </Button>
+            </div>
+          </div>
+        )}
         {state.error && !stale && (
           <div
             role="alert"

@@ -77,6 +77,7 @@ export default async function WebsitePageEditorPage({
         key={`${page.id}:${restoredNumber ?? ""}`}
         page={editorPage}
         content={page.latest}
+        stashOwnerId={user.authUserId}
       />
     </div>
   );
