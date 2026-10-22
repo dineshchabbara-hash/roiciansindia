@@ -997,3 +997,19 @@ Project Record & Phase 22 Plan" document maintained outside the repository
 during the design discussions. Where it differs from this document — for
 example on pricing display, deletion or launch grouping — this document
 wins.
+
+
+### 5.6 Phase 22B-1 implementation handoff and explicit safeguards (2026-10-22)
+
+The owner requested updated implementation documentation reflecting the revised ROICIANS brand, safe continuation of Phase 22B-1 and previously identified security constraints. The subordinate, non-authoritative implementation documents are:
+
+- [PHASE_22B1_IMPLEMENTATION_HANDOFF.md](PHASE_22B1_IMPLEMENTATION_HANDOFF.md)
+- [PHASE_22B1_SECURITY_AND_TESTING_GATES.md](PHASE_22B1_SECURITY_AND_TESTING_GATES.md)
+
+**No Phase 22B-1 implementation, migration or deployment is performed by these documents.** The Admin Website Management interface reuses the accepted 22A draft/publish/revision functions. It does not require the separately proposed public_brand_name migration.
+
+**Legal-page publication:** permit private drafting; block Publish in the interface and server actions until wording is approved. The existing Phase 22A database RPC remains directly callable by authenticated Admin users, so the app-only legal hold must not be described as a database-level guarantee. Design and separately authorize a revision-specific, database-enforced approval rule before any public legal publication.
+
+**Isolation:** browser test data belongs in disposable local/CI databases. Preparing a manually triggered GitHub Actions workflow is not permission to commit or activate it; review its exact YAML first. Do not create durable test revisions or audit rows in DEV.
+
+**Release boundaries:** no automated merge, main changes, DEV/production database writes, public deployment, public data contract, post-publication slug changes or next-stage work without the corresponding explicit approval. The standalone visual prototype remains separate from the eventual authenticated Admin structured preview.
