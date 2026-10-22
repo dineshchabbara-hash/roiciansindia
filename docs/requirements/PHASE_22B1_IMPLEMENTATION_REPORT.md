@@ -120,7 +120,7 @@ The hold must not be described as fully enforced until a database guard is appro
 
 ## 7. Browser-test runner (proposal, not committed)
 
-`docs/proposed-workflows/phase22b-isolated-e2e.yml` is kept **uncommitted** and **outside** `.github/workflows`, for owner review.
+The proposed workflow (`phase22b-isolated-e2e.yml`) was given to the owner for review and is **not in the repository**. It is not committed and not in `.github/workflows`; it will be added only after approval.
 - Manual trigger only, with `contents: read` permissions.
 - Uses no secrets.
 - Runs a local Supabase stack in Docker on a disposable runner, refusing to continue unless the URL is local.
