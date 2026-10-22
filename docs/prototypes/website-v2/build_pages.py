@@ -255,11 +255,24 @@ notes_body = f'''  <section class="page-intro" aria-labelledby="notes-title">
         <li>Colour palette: white #FFFFFF, soft blue #F1F6FF, cobalt #2347D0, dark navy #14263F, plus the original logo blue #2E496C as a supporting colour.</li>
       </ul>
 
+      <h2>Owner decisions so far (provisional, 2026-10-22)</h2>
+      <p>These approve the branding direction provisionally. They are not final approval of the whole visual prototype.</p>
+      <ul>
+        <li>Header: logo Option B (horizontal). Footer: logo Option A (stacked).</li>
+        <li>The original logo artwork and navy colour are preserved: no redesign or recolouring.</li>
+        <li>Palette stays white, soft blue and cobalt.</li>
+        <li>The original topic-specific illustrations stay on the Program cards in the prototype.</li>
+        <li>For the live website: a limited amount of properly licensed professional photography in the hero and Corporate Training sections (not yet sourced).</li>
+        <li>"Start with a program in demand" is replaced by "Explore our technology programs". A demand claim needs independent substantiation before it can be used.</li>
+      </ul>
+
       <h2>Sample copy (not approved launch content)</h2>
       <ul>
         <li>All headlines, slide text, value-proposition text, Program descriptions, group descriptions, Corporate Training and For Institutions text.</li>
         <li>Featured Programs on the homepage (testing, data analytics, cybersecurity, generative AI and LLMOps) are a provisional choice for layout only, not an approved order.</li>
         <li>"GenAI &amp; LLMOps for GCC Teams" is the design's example Corporate Training audience.</li>
+        <li>Section headings such as "Explore our technology programs", "Training shaped around your teams" and "Not sure which program fits?" are sample wording.</li>
+        <li>Statements that would need evidence before launch: any claim about demand, outcomes, placement, employers or numbers. None are used in this prototype.</li>
       </ul>
 
       <h2>Prototype-only actions</h2>

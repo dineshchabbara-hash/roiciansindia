@@ -21,6 +21,14 @@
 
 - **v1** (`../prototypes/roicians-tech-homepage-prototype.html`): **not approved** by the owner (2026-10-22). Kept as a record.
 - **v2** (`../prototypes/website-v2/`): redesign under review. See its `README.md`.
+- **Provisional owner decisions (2026-10-22):**
+  - Header logo Option B, footer Option A.
+  - Original logo and colour preserved.
+  - Palette kept.
+  - Program-card illustrations kept.
+  - Licensed photography planned for the live hero and Corporate Training sections.
+  - "Explore our technology programs" replaces the unsubstantiated demand heading.
+- Final visual approval of the homepage and Programs page is still pending. No 22B application code starts before it.
 
 **v2 contents:**
 - **Pages:** homepage, Programs listing, logo options and review notes.

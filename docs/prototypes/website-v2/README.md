@@ -5,6 +5,17 @@
 - No data access, no form submission, no deployment.
 - Supersedes the rejected v1 prototype, `../roicians-tech-homepage-prototype.html`. v1 is kept only as a record.
 
+## Owner decisions (provisional, 2026-10-22)
+
+The branding direction is approved provisionally; the whole visual prototype is not yet approved.
+- **Logo:** header Option B, footer Option A; original artwork and navy colour preserved.
+- **Palette:** white, soft blue and cobalt, kept.
+- **Illustrations:** the original Program-card illustrations stay in the prototype.
+- **Photography:** licensed professional photography is planned for the live hero and Corporate Training sections.
+- **Copy:**
+  - the Featured heading changed to "Explore our technology programs" (no unsubstantiated demand claim);
+  - unapproved copy stays listed in `notes.html`.
+
 ## Deliverables
 
 | # | Deliverable | File |

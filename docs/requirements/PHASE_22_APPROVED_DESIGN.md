@@ -171,6 +171,9 @@ the ROICIANS wordmark in muted navy (about `#2E496C`), kept unchanged at
   two options are under review in
   [`../prototypes/website-v2/logo-options.html`](../prototypes/website-v2/logo-options.html).
 - The logo is used on white or very light blue, never on dark backgrounds.
+- **Provisional lockup choice (owner, 2026-10-22):** header Option B
+  (horizontal), footer Option A (stacked). Final visual approval of the whole
+  prototype is still pending.
 
 Brand and legal names continue to come from the existing Company Settings
 (`company_name`, `legal_name`), whose permissions are unchanged: Super Admin
@@ -641,6 +644,20 @@ ROICIANS TECH branding and logo requirements (§4) are unchanged.
 - **v2** (`../prototypes/website-v2/`) is the image-led redesign now under
   review. It has a three-slide hero, a featured-Programs carousel, a separate
   Programs page and two logo lockups. Its copy is sample, not launch content.
+
+**Provisional owner decisions on v2 (2026-10-22):** branding direction
+approved provisionally; not final approval of the visual prototype.
+- Header logo Option B, footer Option A; original artwork and colour
+  preserved.
+- White, soft-blue and cobalt palette kept.
+- Original topic-specific illustrations kept for Program cards in the
+  prototype.
+- **Live website:** a limited amount of properly licensed professional
+  photography in the hero and Corporate Training sections, to be sourced
+  with licences and model releases recorded.
+- No demand, outcome or similar claims unless independently substantiated.
+  The Featured heading reads "Explore our technology programs".
+- Unapproved copy stays identified in the review notes.
 
 ### 10.2 Approved colour tokens (revised 2026-10-22)
 
