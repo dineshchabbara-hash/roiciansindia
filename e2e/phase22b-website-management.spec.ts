@@ -35,7 +35,9 @@ import {
  *      Back, and can be restored after leaving anyway.
  *   6. Version history and restore (restore creates a new draft).
  *   7. Unpublish: the status changes at once, without reloading.
- *   8. Legal page: drafted, but publishing is refused and nothing goes live.
+ *   8. Legal page: drafted, but publishing is refused and nothing goes live;
+ *      its unsaved wording is never kept in the browser tab. A confirmed
+ *      Sign out clears an ordinary page's unsaved-draft copy.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -113,6 +115,15 @@ function answerLeavePrompts(page: Page) {
       leave = value;
     },
   };
+}
+
+/** The editor's unsaved-draft recovery copies currently in this tab. */
+function recoveryCopyKeys(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    Object.keys(window.sessionStorage).filter((key) =>
+      key.startsWith("roicians.website.unsaved."),
+    ),
+  );
 }
 
 function expectPrivateHeaders(response: APIResponse) {
@@ -422,6 +433,7 @@ test("7. unpublishing updates the status at once", async ({ browser }) => {
 
 test("8. a legal page can be drafted but not published", async ({ browser }) => {
   const page = await adminPage(browser, superAdmin);
+  const prompts = answerLeavePrompts(page);
   await page.goto("/admin/website");
   await page.getByLabel("New legal page key").fill(LEGAL_KEY);
   await page.getByRole("button", { name: "Create legal page" }).click();
@@ -447,8 +459,25 @@ test("8. a legal page can be drafted but not published", async ({ browser }) => 
   expect(actions).toContain("website_document.draft_saved");
   expect(actions).not.toContain("website_document.published");
 
+  // Unsaved legal wording is never kept in the browser tab.
+  await page.locator("#page-title").fill("Unapproved legal wording (unsaved)");
+  await page.waitForTimeout(800);
+  expect(await recoveryCopyKeys(page)).toEqual([]);
+
+  prompts.setLeave(true);
   await page.goto("/admin/website");
   await expect(
     page.getByText("Publishing held: wording not yet approved").first(),
   ).toBeVisible();
+
+  // An ordinary page's unsaved text is kept in the tab until Sign out, which
+  // clears it once confirmed. (Last test: signing out ends this session.)
+  await page.getByRole("link", { name: "Edit About" }).click();
+  await page.locator("#page-title").fill("About text left unsaved at sign-out");
+  await page.waitForTimeout(800);
+  expect(await recoveryCopyKeys(page)).toHaveLength(1);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith("/admin"));
+  expect(prompts.asked).toContain(UNSAVED_PROMPT);
+  expect(await recoveryCopyKeys(page)).toEqual([]);
 });
