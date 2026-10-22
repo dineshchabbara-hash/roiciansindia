@@ -30,7 +30,7 @@
 **Editor** (`/admin/website/pages/[id]`):
 - **Fields:** title, summary, sections, and search and social fields. Sections can be added, edited, hidden, reordered and removed, using only the section types the page supports. There is no HTML and no page builder.
 - **Save draft:** shows a counter for every limited field. On phones and tablets a save bar is pinned to the bottom of the screen.
-- **Unsaved changes:** the editor asks before any navigation would discard them (§10.1), and keeps a copy in the browser tab that can be restored.
+- **Unsaved changes:** the editor asks before any navigation would discard them (§10.1), and keeps a copy in the browser tab that can be restored, except for legal pages (§10.4).
 - **Publish:** needs a confirmation. It is disabled with unsaved changes, before the first save, and for legal pages (reason shown).
 - **Unpublish:** needs a confirmation.
 - **Navigation:** links to the preview and the version history.
@@ -91,13 +91,13 @@ The hold must not be described as fully enforced until a database guard is appro
 | Typecheck (`npm run typecheck`) | Pass |
 | Lint (`npm run lint`) | Pass: 0 errors. The 4 warnings are pre-existing, in `lib/actions/payment-plans.ts` |
 | Prettier, every file changed in 22B-1 | Pass. `lib/domain/__tests__/certificates.test.ts` is already unformatted on `main`; it was not touched |
-| Full unit and component suite | **146 files, 1,799 tests, all pass, none skipped.** Before 22B-1: 139 files, 1,666 tests. First 22B-1 report: 145 files, 1,779 tests |
-| Unsaved-changes regression tests (`components/admin/website/__tests__/unsaved-changes.test.tsx`) | 20 tests pass. With the guard switched off, 7 of them fail, so they detect the original bug |
+| Full unit and component suite | **146 files, 1,818 tests, all pass, none skipped** (after §10.4). Before 22B-1: 139 files, 1,666 tests. First 22B-1 report: 145 files, 1,779 tests; final verification round: 1,799 |
+| Unsaved-changes and recovery-copy regression tests (`components/admin/website/__tests__/unsaved-changes.test.tsx`) | 39 tests pass. With the guard switched off, 7 fail (the original bug). Each recovery-copy rule in §10.4 was also broken on purpose, one at a time, and at least one test failed every time |
 | Production build (`next build`) | Pass. All four Website routes are dynamic (`ƒ`) |
 | Production response headers, preview route | `Cache-Control: private, no-store, max-age=0`, `X-Robots-Tag: noindex, nofollow, noarchive`, `<meta name="robots" content="noindex, nofollow, nocache">` |
 | Anonymous preview request | `307` to `/login/admin`; no draft content in the response |
 | Unsaved-changes browser check (production build) | Sidebar link, Version history, All website pages, Sign out, Back and Forward each asked first and kept the text on Cancel. Leaving anyway, then returning, offered the text back. No console errors |
-| E2E spec, **local mock dry run** (not acceptance) | **8 of 8 ran and passed**, 0 skipped, against the production build and the in-memory mock started empty. This checks the spec's steps and selectors only; it is not a database test |
+| E2E spec, **local mock dry run** (not acceptance) | **8 of 8 ran and passed**, 0 skipped (re-run after §10.4), against the production build and the in-memory mock started empty. This checks the spec's steps and selectors only; it is not a database test |
 | E2E acceptance (`e2e/phase22b-website-management.spec.ts` on a real local Supabase stack) | **NOT RUN.** Runs only with `PHASE22B_E2E_ISOLATED=1` and a 127.0.0.1/localhost Supabase URL; the runner awaits approval |
 | SQL/RLS suites | Not run. 22B-1 adds no database code; the owner asked for no SQL execution |
 
@@ -187,11 +187,27 @@ The proposed workflow (`phase22b-isolated-e2e.yml`) was given to the owner in fu
 | 5 | Stale save refused with the text kept, then saved deliberately. Sidebar link, Version history and Back all ask, and Cancel keeps the text. After leaving anyway, the text is restored, and nothing was saved by restoring |
 | 6 | History lists every version with Live and Latest draft marked; restore creates a new draft version, marked "Restored from version 1"; audit `revision_restored` |
 | 7 | Unpublish: status and buttons change without a reload; database and audit row checked; dashboard shows Unpublished |
-| 8 | Legal page drafted; Publish disabled with the reason for a Super Admin; nothing published; no `published` audit row; dashboard shows the hold |
+| 8 | Legal page drafted; Publish disabled with the reason for a Super Admin; nothing published; no `published` audit row; dashboard shows the hold; unsaved legal wording leaves no copy in the tab; a confirmed Sign out clears an ordinary page's copy |
 
 Each Admin signs in once and later tests reuse the session, to stay inside the login rate limit of 5 attempts per email per 15 minutes.
 
 ### 10.3 Legal pages
 
 Unchanged and kept separate: publishing stays blocked in the application only. The direct-database bypass described in §5 still exists. The database guard remains a proposal in `docs/proposed-migrations/legal_publication_hold.sql` and was not applied.
+
+### 10.4 Recovery-copy protection (owner request, 2026-10-22)
+
+The per-tab copy of unsaved editor content (§10.1) is now restricted. Everything is in `components/admin/website/`; the shared LMS authentication and logout components are unchanged.
+
+| Rule | Behaviour |
+|---|---|
+| Legal pages | Unsaved legal wording is never written to the browser. Legal pages still get every leave-page warning. Existing legal copies are deleted when any Website screen opens |
+| Expiry | A copy expires 8 hours after its last edit. Expired copies are not offered and are deleted when any Website screen opens. A copy dated in the future is not trusted |
+| User isolation | A copy is offered only to the user who wrote it. Other users' copies are deleted when a Website screen opens, and copies are not kept at all when the signed-in user is unknown |
+| Sign out | When the user confirms Sign out from a Website screen (dashboard, editor, history or preview), all of their copies are deleted, and a copy that was about to be written is not written. If they answer Cancel to the unsaved-changes question, nothing is deleted |
+| Older copies | Copies written before copies recorded their page type cannot be shown to be non-legal, so they are deleted |
+
+**How Sign out is recognised without changing shared components:** a listener on the Website screens recognises the shared header button by its "Sign out" label. A test renders the real shared button, so renaming it would fail the tests. The listener runs after the unsaved-changes question, so Cancel stops it.
+
+**What remains:** signing out from a non-Website screen (for example Students), from another tab, or by the session expiring does not delete copies immediately. They are then deleted when the tab closes, when the 8 hours pass, or when a Website screen next opens in that tab. Clearing them from every screen would need a change to the shared logout component, which needs separate approval.
 
