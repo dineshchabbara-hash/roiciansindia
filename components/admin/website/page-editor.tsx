@@ -36,6 +36,7 @@ import {
   SECTION_FIELDS,
   SECTION_TYPE_LABELS,
   cleanSectionForSave,
+  formatWebsiteTimestamp,
   itemFieldsToShow,
   nextSectionKey,
   type AdminPageKind,
@@ -577,12 +578,9 @@ export function PageEditor({
               Unsaved changes to this page were found from earlier in this browser tab.
             </p>
             <p className="mt-1">
-              They were last edited on{" "}
-              {new Date(recoverable.savedAt).toLocaleString("en-IN", {
-                timeZone: "Asia/Kolkata",
-              })}{" "}
-              IST and started from version {recoverable.base}. If someone saved a newer
-              version since, saving them will warn you first.
+              They were last edited on {formatWebsiteTimestamp(recoverable.savedAt)} and
+              started from version {recoverable.base}. If someone saved a newer version
+              since, saving them will warn you first.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
