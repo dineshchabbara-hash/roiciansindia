@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Two website-only logo layouts using the original ROICIANS logo.">
+<title>Logo options · ROICIANS TECH (prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="proto-bar" role="note">
+  <div class="wrap">
+    <span>Design prototype for review: not the live website, and not approved launch content.</span>
+    <a href="notes.html">Review notes</a>
+  </div>
+</div>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand-h" href="index.html" aria-label="ROICIANS TECH home">
+      <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+      <span class="word">
+        <img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57">
+        <span class="rule" aria-hidden="true"></span>
+        <span class="tech">TECH</span>
+      </span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="programs.html">Programs</a>
+      <a href="index.html#upcoming">Upcoming Batches</a>
+      <a href="index.html#corporate">Corporate Training</a>
+      <a href="index.html#institutions">For Institutions</a>
+      <a href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a href="index.html#enquire">Contact</a>
+    </nav>
+    <div class="header-actions">
+      <div class="login">
+        <button type="button" id="login-btn" aria-expanded="false" aria-controls="login-menu">Log in
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <div class="login-menu" id="login-menu" hidden>
+          <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+          <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+        </div>
+      </div>
+      <a class="btn btn-primary btn-sm header-cta" href="index.html#enquire">Talk to an Advisor</a>
+      <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-panel"><span class="bars" aria-hidden="true"></span>Menu</button>
+    </div>
+  </div>
+  <div class="mobile-panel" id="mobile-panel" hidden>
+    <nav class="wrap" aria-label="Main (mobile)">
+      <a class="m-link" href="programs.html">Programs</a>
+      <a class="m-link" href="index.html#upcoming">Upcoming Batches</a>
+      <a class="m-link" href="index.html#corporate">Corporate Training</a>
+      <a class="m-link" href="index.html#institutions">For Institutions</a>
+      <a class="m-link" href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a class="m-link" href="index.html#enquire">Contact</a>
+      <div class="m-logins">
+        <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+        <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+      </div>
+      <a class="btn btn-primary" href="index.html#enquire">Talk to an Advisor</a>
+    </nav>
+  </div>
+</header>
+<main>
+<style>
+  .opt { display: grid; gap: 22px; padding: clamp(24px, 4vw, 40px); border-radius: 28px; border: 1px solid var(--line); background: var(--white); }
+  .opt + .opt { margin-top: 36px; }
+  .stage { display: grid; place-items: center; min-height: 260px; border-radius: 20px; padding: 32px 20px; }
+  .stage.white { background: var(--white); border: 1px dashed #CBD7EC; }
+  .stage.sky { background: var(--sky); }
+  .stages { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+  .stage, .mock { min-width: 0; overflow: hidden; }
+  .big .brand-s img { width: 220px; } .big .brand-s .tech { font-size: 1.3rem; }
+  .big .brand-h .sym { height: 84px; } .big .brand-h .wm { height: 34px; } .big .brand-h .rule { height: 34px; width: 2px; } .big .brand-h .tech { font-size: 1.7rem; }
+  .mock { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--white); }
+  .mock-bar { display: flex; align-items: center; gap: 18px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  .mock-bar .fake { margin-left: auto; display: flex; gap: 10px; align-items: center; min-width: 0; flex-shrink: 1; overflow: hidden; }
+  .mock-bar > .brand-h, .mock-bar > .brand-s { flex: none; }
+  .mock-bar .fake i { display: block; width: 52px; height: 9px; border-radius: 5px; background: #DCE5F3; }
+  .mock-bar .fake i { flex: 0 1 44px; }
+  .mock-bar .fake b { display: block; flex: none; width: 92px; height: 30px; border-radius: 999px; background: var(--cobalt); }
+  .mock.phone { max-width: 390px; }
+  .mock.phone .fake i { display: none; } .mock.phone .fake b { width: 64px; background: #DCE5F3; }
+  .mock .brand-s img { width: 92px; } .mock .brand-s .tech { font-size: 0.72rem; } .mock .brand-s { gap: 6px; }
+  .mock.phone .brand-h .sym { height: 36px; } .mock.phone .brand-h .wm { height: 14px; } .mock.phone .brand-h .tech { font-size: 0.75rem; } .mock.phone .brand-h .rule { height: 14px; }
+  .mock.phone .brand-s img { width: 70px; }
+  .opt h2 { margin: 0; }
+  .facts { display: grid; gap: 8px; color: var(--muted); padding-left: 20px; margin: 0; }
+</style>
+  <section class="page-intro" aria-labelledby="logo-title">
+    <div class="wrap">
+      <p class="crumbs"><a href="index.html">Home</a> / Logo options</p>
+      <h1 id="logo-title">Website logo layouts</h1>
+      <p class="lede">Two website-only arrangements of the original ROICIANS logo with TECH added as a supporting label. The original artwork is not redrawn, recoloured or distorted. Choose one for the header.</p>
+    </div>
+  </section>
+
+  <section class="section" aria-label="Logo options">
+    <div class="wrap">
+      <div class="opt" aria-labelledby="opt-a">
+        <span class="eyebrow">Option A</span>
+        <h2 id="opt-a">Stacked: original logo with TECH beneath</h2>
+        <div class="stages big">
+          <div class="stage white"><span class="brand-s">
+            <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
+            <span class="tech-row"><span class="tech">TECH</span></span>
+          </span></div>
+          <div class="stage sky"><span class="brand-s">
+            <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
+            <span class="tech-row"><span class="tech">TECH</span></span>
+          </span></div>
+        </div>
+        <div class="stages">
+          <div class="mock"><div class="mock-bar"><span class="brand-s">
+            <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
+            <span class="tech-row"><span class="tech">TECH</span></span>
+          </span><span class="fake"><i></i><i></i><i></i><b></b></span></div></div>
+          <div class="mock phone"><div class="mock-bar"><span class="brand-s">
+            <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
+            <span class="tech-row"><span class="tech">TECH</span></span>
+          </span><span class="fake"><b></b></span></div></div>
+        </div>
+        <ul class="facts">
+          <li>Best for the footer, social images and printed materials, where there is vertical room.</li>
+          <li>In a header it needs about twice the height of Option B, which pushes the page content down, especially on phones.</li>
+        </ul>
+      </div>
+
+      <div class="opt" aria-labelledby="opt-b">
+        <span class="eyebrow">Option B · used in the prototype header</span>
+        <h2 id="opt-b">Horizontal: original symbol, original wordmark, then TECH</h2>
+        <div class="stages big">
+          <div class="stage white"><span class="brand-h" style="pointer-events:none">
+            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+            <span class="word"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57"><span class="rule" aria-hidden="true"></span><span class="tech">TECH</span></span>
+          </span></div>
+          <div class="stage sky"><span class="brand-h" style="pointer-events:none">
+            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+            <span class="word"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57"><span class="rule" aria-hidden="true"></span><span class="tech">TECH</span></span>
+          </span></div>
+        </div>
+        <div class="stages">
+          <div class="mock"><div class="mock-bar"><span class="brand-h" style="pointer-events:none">
+            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+            <span class="word"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57"><span class="rule" aria-hidden="true"></span><span class="tech">TECH</span></span>
+          </span><span class="fake"><i></i><i></i><i></i><b></b></span></div></div>
+          <div class="mock phone"><div class="mock-bar"><span class="brand-h" style="pointer-events:none">
+            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+            <span class="word"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57"><span class="rule" aria-hidden="true"></span><span class="tech">TECH</span></span>
+          </span><span class="fake"><b></b></span></div></div>
+        </div>
+        <ul class="facts">
+          <li>Compact enough for a sticky header on desktop and on a 390px phone.</li>
+          <li>The symbol and the wordmark are cropped from the original artwork and scaled evenly; neither is redrawn.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tight bg-sky" aria-labelledby="logo-rules">
+    <div class="wrap doc">
+      <h2 id="logo-rules" style="margin-top:0">How the original logo is preserved</h2>
+      <ul>
+        <li><strong>Master file kept unchanged:</strong> <code>docs/brand/roicians-logo-original.png</code>, 433 × 370 transparent PNG, SHA-256 <code>13ecd0b8ae36b968…</code>.</li>
+        <li><strong>Web copy:</strong> <code>roicians-logo-web.png</code> only trims the empty transparent margin.</li>
+        <li><strong>Header pieces:</strong> <code>roicians-symbol.png</code> and <code>roicians-wordmark.png</code> are straight crops of the original. Pixels are not changed or resampled.</li>
+        <li><strong>TECH:</strong> set in Instrument Sans, semibold, widely letter-spaced, in the original logo blue <code>#2E496C</code>, so it reads as a supporting label rather than part of the mark.</li>
+        <li><strong>Backgrounds:</strong> the navy logo is used only on white or very light blue, never on dark backgrounds.</li>
+        <li><strong>Resolution:</strong> the supplied PNG is small. It is sharp at header and footer sizes, but a vector (SVG) or larger master is recommended before launch.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot">
+      <div class="foot-brand">
+        <a class="brand-s" href="index.html" aria-label="ROICIANS TECH home">
+          <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
+          <span class="tech-row"><span class="tech">TECH</span></span>
+        </a>
+        <p>Practical technology training for the AI era.</p>
+      </div>
+      <div>
+        <h4>Programs</h4>
+        <ul>
+          <li><a href="programs.html">All programs</a></li>
+          <li><a href="programs.html#career">Career &amp; Technology</a></li>
+          <li><a href="programs.html#specialist">Specialist &amp; Professional</a></li>
+          <li><a href="index.html#upcoming">Upcoming Batches</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="index.html#corporate">Corporate Training</a></li>
+          <li><a href="index.html#institutions">For Institutions</a></li>
+          <li><a href="#" data-proto="The About page is not part of this prototype.">About</a></li>
+          <li><a href="index.html#enquire">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Portals</h4>
+        <ul>
+          <li><a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a></li>
+          <li><a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a></li>
+          <li><a href="#" data-proto="Prototype only: certificate verification is the existing LMS page.">Verify a certificate</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="legal">
+      <span>© Roicians Tech Pvt. Ltd.</span>
+      <nav aria-label="Legal">
+        <a href="#" data-proto="Privacy wording needs business and legal approval before launch.">Privacy</a>
+        <a href="#" data-proto="Terms wording needs business and legal approval before launch.">Terms</a>
+        <a href="logo-options.html">Logo options</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>

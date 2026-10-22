@@ -160,6 +160,18 @@ production hosting in Phase 25.
 | Normal copy | May use "At Roicians, we…" |
 | Not used as brand or logo | "Roicians India" |
 
+**Approved logo (owner, 2026-10-22):** the original ROICIANS logo is the
+approved brand identity. It is a transparent PNG with a stylised R symbol and
+the ROICIANS wordmark in muted navy (about `#2E496C`), kept unchanged at
+[`../brand/roicians-logo-original.png`](../brand/roicians-logo-original.png).
+- It is never recoloured, redrawn or distorted.
+- Website use may trim transparent padding, or crop the symbol and wordmark
+  for layout, in separate copies.
+- TECH is added only as a separate supporting label in website lockups. The
+  two options are under review in
+  [`../prototypes/website-v2/logo-options.html`](../prototypes/website-v2/logo-options.html).
+- The logo is used on white or very light blue, never on dark backgrounds.
+
 Brand and legal names continue to come from the existing Company Settings
 (`company_name`, `legal_name`), whose permissions are unchanged: Super Admin
 edits, Admin reads (decision D5). The logo itself is not redesigned.
@@ -619,10 +631,16 @@ and unapproved testimonials, people, logos or outcomes.
 predominantly white (`#FFFFFF`), with soft-blue sections (`#F1F6FF`), cobalt
 accents (`#2347D0`) and dark-navy text (`#14263F`). The large dark-navy
 Corporate/GCC section is removed in favour of a light-blue alternative. The
-ROICIANS TECH branding and logo requirements (§4) are unchanged. A
-non-production homepage prototype using this direction is kept at
-[`../prototypes/roicians-tech-homepage-prototype.html`](../prototypes/roicians-tech-homepage-prototype.html)
-for visual approval before 22D–22G; its copy is sample, not launch content.
+ROICIANS TECH branding and logo requirements (§4) are unchanged.
+
+**Prototypes:**
+- **v1** (`../prototypes/roicians-tech-homepage-prototype.html`) was **not
+  approved** (2026-10-22). It looked like a plain catalogue, showed all ten
+  Programs in the hero and on the homepage, and used repetitive bordered
+  boxes.
+- **v2** (`../prototypes/website-v2/`) is the image-led redesign now under
+  review. It has a three-slide hero, a featured-Programs carousel, a separate
+  Programs page and two logo lockups. Its copy is sample, not launch content.
 
 ### 10.2 Approved colour tokens (revised 2026-10-22)
 
@@ -632,6 +650,7 @@ for visual approval before 22D–22G; its copy is sample, not launch content.
 | Soft-blue section | `#F1F6FF` | Alternating sections, including Corporate Training |
 | Accent (cobalt) | `#2347D0` | Primary buttons, links, small labels |
 | Text (dark navy) | `#14263F` | Headings and body text |
+| Brand blue (original logo) | `#2E496C` | Supporting brand colour: logo, TECH label, small brand details |
 | Fonts | Instrument Sans, Inter, limited Geist Mono | Unchanged |
 
 Superseded starting tokens (2026-10-17): background `#F8F8F5`, ink
@@ -786,7 +805,7 @@ LCP < 2.5 s; CLS < 0.1.
 
 | Item | Needed by |
 |---|---|
-| Authorized ROICIANS TECH logo files (SVG, light/dark if available) | 22D |
+| Logo: original ROICIANS PNG supplied 2026-10-22 (approved). Still needed: a vector (SVG) or larger master, and the choice between the two website lockups | 22D |
 | Final design tokens after logo review | 22D |
 | Approved content for each Program (summary, outcomes, curriculum overview, audience, prerequisites, FAQs) | 22E launch |
 | Approved homepage, About, Corporate, Institutions and FAQ copy | 22F–22G launch |

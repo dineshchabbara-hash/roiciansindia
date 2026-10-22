@@ -1,0 +1,322 @@
+<title>ROICIANS TECH Website Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+
+<div class="proto-bar" role="note">
+  <div class="wrap">
+    <span>Design prototype for review: not the live website, and not approved launch content.</span>
+    <a href="notes.html">Review notes</a>
+  </div>
+</div>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand-h" href="index.html" aria-label="ROICIANS TECH home">
+      <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+      <span class="word">
+        <img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57">
+        <span class="rule" aria-hidden="true"></span>
+        <span class="tech">TECH</span>
+      </span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="programs.html">Programs</a>
+      <a href="#upcoming">Upcoming Batches</a>
+      <a href="#corporate">Corporate Training</a>
+      <a href="#institutions">For Institutions</a>
+      <a href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a href="#enquire">Contact</a>
+    </nav>
+    <div class="header-actions">
+      <div class="login">
+        <button type="button" id="login-btn" aria-expanded="false" aria-controls="login-menu">Log in
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <div class="login-menu" id="login-menu" hidden>
+          <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+          <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+        </div>
+      </div>
+      <a class="btn btn-primary btn-sm header-cta" href="#enquire">Talk to an Advisor</a>
+      <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-panel"><span class="bars" aria-hidden="true"></span>Menu</button>
+    </div>
+  </div>
+  <div class="mobile-panel" id="mobile-panel" hidden>
+    <nav class="wrap" aria-label="Main (mobile)">
+      <a class="m-link" href="programs.html">Programs</a>
+      <a class="m-link" href="#upcoming">Upcoming Batches</a>
+      <a class="m-link" href="#corporate">Corporate Training</a>
+      <a class="m-link" href="#institutions">For Institutions</a>
+      <a class="m-link" href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a class="m-link" href="#enquire">Contact</a>
+      <div class="m-logins">
+        <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+        <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+      </div>
+      <a class="btn btn-primary" href="#enquire">Talk to an Advisor</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- 2. Hero slider -->
+  <section class="hero" aria-roledescription="carousel" aria-label="ROICIANS TECH training" data-slider>
+    <div class="wrap">
+      <div class="slides">
+        <article class="slide is-active" aria-roledescription="slide" aria-label="Technology career training">
+          <div class="slide-copy">
+            <span class="eyebrow">Technology career training</span>
+            <h1>Build practical skills for a career in technology</h1>
+            <p class="lede">Instructor-led programs in software testing, data, cloud, cybersecurity and AI, learned through hands-on projects.</p>
+            <div class="actions">
+              <a class="btn btn-primary" href="programs.html">Explore Programs</a>
+              <a class="btn btn-quiet" href="#enquire">Talk to an Advisor</a>
+            </div>
+          </div>
+          <div class="slide-media"><img src="assets/img/hero-career.svg" alt="Illustration of a learner's code editor, passing tests and a learning path" width="1200" height="900"></div>
+        </article>
+        <article class="slide" aria-roledescription="slide" aria-label="Corporate AI and technology upskilling" aria-hidden="true">
+          <div class="slide-copy">
+            <span class="eyebrow">Corporate upskilling</span>
+            <h2 style="font-size: var(--fs-hero); line-height: 1.06; letter-spacing: -0.025em">Upskill your teams in AI and modern technology</h2>
+            <p class="lede">Training for engineering, data and operations teams, planned around your tools and delivery goals.</p>
+            <div class="actions">
+              <a class="btn btn-primary" href="#enquire">Talk to an Advisor</a>
+              <a class="btn btn-quiet" href="#corporate">Corporate Training</a>
+            </div>
+          </div>
+          <div class="slide-media"><img src="assets/img/hero-corporate.svg" alt="Illustration of a team training session with a shared roadmap and skills map" width="1200" height="900"></div>
+        </article>
+        <article class="slide" aria-roledescription="slide" aria-label="Advanced AI and professional learning" aria-hidden="true">
+          <div class="slide-copy">
+            <span class="eyebrow">Advanced AI and professional learning</span>
+            <h2 style="font-size: var(--fs-hero); line-height: 1.06; letter-spacing: -0.025em">Go deeper with generative AI, LLMOps and AI agents</h2>
+            <p class="lede">Programs for engineers and business professionals who want to apply AI responsibly in their work.</p>
+            <div class="actions">
+              <a class="btn btn-primary" href="programs.html">Explore Programs</a>
+              <a class="btn btn-quiet" href="#enquire">Talk to an Advisor</a>
+            </div>
+          </div>
+          <div class="slide-media"><img src="assets/img/hero-ai.svg" alt="Illustration of an AI pipeline from prompt and knowledge store to model evaluation" width="1200" height="900"></div>
+        </article>
+      </div>
+      <div class="slider-controls">
+        <button class="arrow" type="button" data-prev aria-label="Previous slide">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M11 3.5 5.5 9l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="dots" role="group" aria-label="Choose a slide">
+          <button class="dot" type="button" aria-label="Slide 1: Technology career training" aria-current="true"><span></span></button>
+          <button class="dot" type="button" aria-label="Slide 2: Corporate upskilling" aria-current="false"><span></span></button>
+          <button class="dot" type="button" aria-label="Slide 3: Advanced AI and professional learning" aria-current="false"><span></span></button>
+        </div>
+        <button class="arrow" type="button" data-next aria-label="Next slide">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 3.5 12.5 9 7 14.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="counter" aria-hidden="true">01 / 03</span>
+        <span class="sr-only" aria-live="polite" data-live></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Value proposition -->
+  <section class="section" aria-labelledby="why-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Why ROICIANS TECH</span>
+        <h2 id="why-title">Practical technology training for the AI era</h2>
+      </div>
+      <div class="values">
+        <div class="value">
+          <span class="ic" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 26 26"><path d="M4 7h18v12H4z M9 23h8 M13 19v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><path d="M8 11l2.5 2.5L8 16 M13 16h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <h3>Learn by building</h3>
+          <p>Each program is organised around hands-on projects that use the tools teams work with today.</p>
+        </div>
+        <div class="value">
+          <span class="ic" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 26 26"><circle cx="9" cy="9" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="10" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 21c.8-3.6 3.2-5.5 6-5.5s5.2 1.9 6 5.5 M15 16.2c.9-.5 1.9-.7 3-.7 2.4 0 4.3 1.6 5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+          <h3>Instructor-led cohorts</h3>
+          <p>Learners progress together with an instructor, rather than alone with recorded videos.</p>
+        </div>
+        <div class="value">
+          <span class="ic" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 13h18 M13 4c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S10.4 6.6 13 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+          <h3>Online-first delivery</h3>
+          <p>Live online sessions, with room for in-person or hybrid formats as programs grow.</p>
+        </div>
+        <div class="value">
+          <span class="ic" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 26 26"><path d="M4 21V9l9-5 9 5v12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 21v-6h8v6 M4 21h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <h3>For individuals and teams</h3>
+          <p>Career programs for individual learners, and training shaped for companies and institutions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Featured Programs carousel -->
+  <section class="section" aria-labelledby="featured-title" style="padding-top: 0">
+    <div class="wrap carousel" data-carousel>
+      <div class="section-head row">
+        <div style="display:grid; gap:14px; min-width:0">
+          <span class="eyebrow">Featured Programs</span>
+          <h2 id="featured-title">Start with a program in demand</h2>
+        </div>
+        <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap">
+          <a class="link-arrow" href="programs.html">View all programs
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10 M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <div class="car-nav">
+            <button class="arrow" type="button" data-car-prev aria-label="Previous programs"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M11 3.5 5.5 9l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="arrow" type="button" data-car-next aria-label="Next programs"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 3.5 12.5 9 7 14.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="track" role="list" aria-label="Featured programs">
+        <article class="pcard" role="listitem">
+          <div class="media"><img src="assets/img/program-testing.svg" alt="Illustration of automated test results and coverage" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>AI-Powered Software Testing &amp; QA</h3>
+            <p>Automate testing and build quality into modern software delivery.</p>
+            <a class="btn btn-primary btn-sm" href="programs.html#career" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard" role="listitem">
+          <div class="media"><img src="assets/img/program-data-analytics.svg" alt="Illustration of an analytics dashboard" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Data Analytics with AI</h3>
+            <p>Turn data into clear answers with analysis, visualisation and AI-assisted tools.</p>
+            <a class="btn btn-primary btn-sm" href="programs.html#career" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard" role="listitem">
+          <div class="media"><img src="assets/img/program-cybersecurity.svg" alt="Illustration of a security shield and alert triage" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Cybersecurity &amp; SOC Analyst</h3>
+            <p>Monitor, detect and respond to threats in a security operations role.</p>
+            <a class="btn btn-primary btn-sm" href="programs.html#career" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard" role="listitem">
+          <div class="media"><img src="assets/img/program-genai-llmops.svg" alt="Illustration of an assistant chat window and model monitoring" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Generative AI &amp; LLMOps Engineering</h3>
+            <p>Build, deploy and operate applications on large language models.</p>
+            <a class="btn btn-primary btn-sm" href="programs.html#career" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Corporate Training -->
+  <section class="section bg-sky" id="corporate" aria-labelledby="corp-title">
+    <div class="wrap split">
+      <div class="split-media"><img src="assets/img/corporate-session.svg" alt="Illustration of a team upskilling session with a presentation, participants and a planning board" width="1200" height="900" loading="lazy"></div>
+      <div class="split-copy">
+        <span class="eyebrow">Corporate Training</span>
+        <h2 id="corp-title">Training shaped around your teams</h2>
+        <p class="lede">Private cohorts in AI, data, cloud, testing and security for engineering and operations teams.</p>
+        <ul class="ticks">
+          <li>Programs planned around the tools your teams already use</li>
+          <li>Schedules that fit your delivery calendar</li>
+          <li>Online-first sessions for distributed teams</li>
+        </ul>
+        <div class="audience"><small>Example audience</small><b>GenAI &amp; LLMOps for GCC Teams</b></div>
+        <div><a class="btn btn-primary" href="#enquire">Talk to an Advisor</a></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. For Institutions -->
+  <section class="section" id="institutions" aria-labelledby="inst-title">
+    <div class="wrap split flip">
+      <div class="split-media"><img src="assets/img/institutions.svg" alt="Illustration of a campus building and a progress chart" width="960" height="600" loading="lazy"></div>
+      <div class="split-copy">
+        <span class="eyebrow">For Institutions</span>
+        <h2 id="inst-title">Industry-aligned programs for colleges and universities</h2>
+        <p class="lede">Technology training that runs alongside your academic calendar and prepares students for current roles.</p>
+        <a class="link-arrow" href="#enquire">Talk to an Advisor
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10 M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Upcoming Batches teaser (approved publication rules) -->
+  <section class="section-tight" id="upcoming" aria-labelledby="upcoming-title">
+    <div class="wrap">
+      <div class="upcoming">
+        <div style="display:grid; gap:12px; min-width:0">
+          <span class="eyebrow">Upcoming Batches</span>
+          <h2 id="upcoming-title" style="font-size: clamp(1.5rem, 1.2rem + 1.1vw, 2rem)">New cohorts are announced here</h2>
+          <p class="state">Next Cohort: Coming Soon</p>
+          <p style="color: var(--muted)">Batch dates appear only after they are confirmed and published.</p>
+        </div>
+        <a class="btn btn-primary" href="#" data-proto="Prototype only: the Join Interest List form arrives with the enquiry pages (Phase 22H). Nothing is sent.">Join Interest List</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. Final enquiry CTA -->
+  <section class="section" id="enquire" aria-labelledby="final-title">
+    <div class="wrap final">
+      <span class="eyebrow">Talk to an Advisor</span>
+      <h2 id="final-title">Not sure which program fits?</h2>
+      <p class="lede">Tell an advisor about your background or your team's goals, and they will help you choose a program.</p>
+      <a class="btn btn-primary" id="enquire-btn" href="#">Talk to an Advisor</a>
+      <p class="proto-note" id="enquire-note" tabindex="-1" hidden><strong>Prototype only.</strong> The enquiry form is built with the Phase 22H enquiry pages. Nothing is sent from this prototype.</p>
+    </div>
+  </section>
+</main>
+
+<!-- 9. Footer -->
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot">
+      <div class="foot-brand">
+        <a class="brand-s" href="index.html" aria-label="ROICIANS TECH home">
+          <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
+          <span class="tech-row"><span class="tech">TECH</span></span>
+        </a>
+        <p>Practical technology training for the AI era.</p>
+      </div>
+      <div>
+        <h4>Programs</h4>
+        <ul>
+          <li><a href="programs.html">All programs</a></li>
+          <li><a href="programs.html#career">Career &amp; Technology</a></li>
+          <li><a href="programs.html#specialist">Specialist &amp; Professional</a></li>
+          <li><a href="#upcoming">Upcoming Batches</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#corporate">Corporate Training</a></li>
+          <li><a href="#institutions">For Institutions</a></li>
+          <li><a href="#" data-proto="The About page is not part of this prototype.">About</a></li>
+          <li><a href="#enquire">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Portals</h4>
+        <ul>
+          <li><a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a></li>
+          <li><a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a></li>
+          <li><a href="#" data-proto="Prototype only: certificate verification is the existing LMS page.">Verify a certificate</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="legal">
+      <span>© Roicians Tech Pvt. Ltd.</span>
+      <nav aria-label="Legal">
+        <a href="#" data-proto="Privacy wording needs business and legal approval before launch.">Privacy</a>
+        <a href="#" data-proto="Terms wording needs business and legal approval before launch.">Terms</a>
+        <a href="logo-options.html">Logo options</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script src="site.js"></script>

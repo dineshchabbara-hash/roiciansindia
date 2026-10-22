@@ -19,13 +19,16 @@
 
 ## 2. Visual prototype (for approval before 22D–22G)
 
-- **File:** [`../prototypes/roicians-tech-homepage-prototype.html`](../prototypes/roicians-tech-homepage-prototype.html).
-- **Review link** (private to the owner): <https://claude.ai/artifact/2ucGYmS5F7yD5hRkDUKA4x>.
-- **What it is:** a standalone, non-production page. It has no data access and no deployment.
-- **What it shows:** the light palette, intended navigation, hero, Program-card layout (by display group), the Corporate Training soft-blue band, the For Institutions strip and the light footer.
-- **Approved content it uses:** the brand and supporting line, the ten Program names and two groups, the button labels, the "Next Cohort: Coming Soon" state, and the no-pricing rule.
-- **Sample content:** every headline and description is marked **Sample**. The wordmark is a placeholder until the authorized logo files are supplied.
-- **No unapproved claims:** no testimonials, counts, partners, dates, prices or photography.
+- **v1** (`../prototypes/roicians-tech-homepage-prototype.html`): **not approved** by the owner (2026-10-22). Kept as a record.
+- **v2** (`../prototypes/website-v2/`): redesign under review. See its `README.md`.
+
+**v2 contents:**
+- **Pages:** homepage, Programs listing, logo options and review notes.
+- **Logo:** the original ROICIANS logo in two website-only lockups.
+- **Imagery:** original illustrations only.
+- **Copy:** a single prototype notice. Sample copy is kept separate from approved facts.
+
+**Review link** (private to the owner): given in the review message.
 
 ## 3. Stage breakdown
 
