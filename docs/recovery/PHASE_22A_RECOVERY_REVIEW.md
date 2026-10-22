@@ -1,7 +1,7 @@
 # Phase 22A — Corrections and DEV Recovery Proposal
 
-**Status: Implemented on branch; DEV recovered and structurally verified;
-real-DEV functional verification pending; not accepted; not merged.**
+**Status: Implemented on branch; DEV recovered; structural and functional
+verification passed on DEV; ready for owner acceptance; not merged.**
 
 > **Executed (recorded 2026-10-21).** The recovery proposed below was
 > approved by its SHA-256 (`018f460f…a562`) and run once by the owner from
@@ -272,13 +272,11 @@ It then checks, under the real hosted roles and RLS:
 
 1. ~~The DEV recovery is not applied.~~ **Done:** it was applied and verified, as recorded in [`PHASE_22A_DEV_RECOVERY_RECORD.md`](PHASE_22A_DEV_RECOVERY_RECORD.md). TI-1 is closed on DEV and still open in production.
 2. Earlier connector requests: their state cannot be observed and is recorded as unknown. A repeat or late run of the recovery refuses. Re-running the read-only E check later would detect drift.
-3. The real-DEV functional verification awaits separate approval. The handoff is [`manual_psql/PHASE22A_FUNCTIONAL_VERIFICATION_HANDOFF.md`](manual_psql/PHASE22A_FUNCTIONAL_VERIFICATION_HANDOFF.md).
+3. ~~The real-DEV functional verification awaits separate approval.~~ **Done:** it passed (owner-run, recorded 2026-10-22). See the recovery record §4.
 4. TI-7 (previously published Programs) is still blocked by design until safe slug, link and asset handling is designed.
 5. The Phase 22B screens (eligibility review, reason and confirmation, explanations) are not built.
 6. On DEV, both current Programs will be blocked by `unattributable_history` (§3.2). Resolving that history is a business decision, not something this workflow can override.
 
-**Next operation requiring approval:** the real-DEV functional verification.
-That means executing exactly `docs/recovery/phase22a_dev_post_recovery_verification.sql`,
-SHA-256 `bb3b32159716db06d4fbe1e716e33e813a5d4eceae095a38915d87891e308c2f`,
-against DEV `nqeaehqzhjhhgsilrgeo`. It runs one transaction that ends in
-ROLLBACK. After it, Phase 22A acceptance and merge are separate decisions.
+**Next decisions (owner):** Phase 22A acceptance, then a separately
+authorized merge to `main`. Production deployment of migrations 40–42 is a
+further, separate decision.

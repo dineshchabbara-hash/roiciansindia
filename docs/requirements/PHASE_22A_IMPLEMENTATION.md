@@ -1,6 +1,12 @@
 # Phase 22A — Website Data Foundation and Program-Deletion Safeguards: Implementation Record
 
-**Status: Implemented on branch; DEV recovered and structurally verified; real-DEV functional verification pending; not accepted; not merged.**
+**Status: Implemented on branch; DEV recovered; structural and functional verification passed on DEV; ready for owner acceptance; not merged.**
+
+> **Real-DEV functional verification passed (owner-run, recorded 2026-10-22).**
+> The checksum matched; pre-test step E was 36/36; the run completed and ended in
+> ROLLBACK with exit code 0; post-test step E was 36/36; existing data was unchanged
+> and no sequence moved. See
+> [`docs/recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`](../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md) §4, §5 and §7.
 
 > **DEV recovery completed (recorded 2026-10-21).** The owner ran the reviewed
 > recovery script (SHA-256 `018f460f…a562`) once from Windows PowerShell with
@@ -19,7 +25,7 @@ Phase 22 is not complete; stages 22B–22J have not started.
 > EXECUTE on internal helpers. All four are corrected **forward** by
 > `20260101000042_phase22a_corrections.sql`. Migrations 40 and 41 are
 > unchanged. The corrections are locally verified and, since the DEV
-> recovery, **structurally verified on DEV**. Functional verification on DEV is pending.
+> recovery, **structurally and functionally verified on DEV**.
 > Details, tests and the DEV recovery proposal:
 > [`docs/recovery/PHASE_22A_RECOVERY_REVIEW.md`](../recovery/PHASE_22A_RECOVERY_REVIEW.md).
 > Where this record describes migration 41 below, migration 42 now adds:
@@ -166,7 +172,7 @@ own. Audit rows are never deleted or changed, and no sequence is reset.
 | Local concurrency (real separate connections, forced interleavings; waits poll a lock-wait or output marker, never a fixed sleep) | `scripts/test-program-deletion-concurrency.sh`: 7 scenarios (module insert vs deletion both ways, restore vs deletion both ways, website document vs deletion, two editors from the same base, publish vs newer draft) | Pass. The five existing concurrency scripts also pass |
 | Mutation checks (temporary, not committed) | Removing the row lock, the slug Super Admin check, or the audit-evidence check, or keeping `programs_delete_admin`, each makes a test fail | All four detected |
 | Unit (Vitest) | `lib/domain/__tests__/website.test.ts`, `lib/validation/__tests__/website.test.ts`: 50 tests, including a check that the TypeScript section-type table matches the SQL | Pass. Full suite: 139 files / 1,660 tests at the time. On re-run (2026-10-21, 1,666 tests), one unrelated test (`components/admin/students/__tests__/student-form-duplicate-override-flow.test.tsx`) failed intermittently under parallel load; it passes alone. See the DEV recovery record §6 |
-| DEV (real Supabase) | **Structural, after the recovery (confirmed 2026-10-21):** owner-run checks B 7/7, C 30/30, E 36/36. Independent read-only confirmation: schema fingerprint equals a clean install of 1–42, and existing data is unchanged. **Functional verification on DEV: pending owner approval** (`phase22a_dev_post_recovery_verification.sql`) | Structural pass; functional pending |
+| DEV (real Supabase) | **Structural, after the recovery (confirmed 2026-10-21):** owner-run checks B 7/7, C 30/30, E 36/36. Independent read-only confirmation: schema fingerprint equals a clean install of 1–42, and existing data is unchanged. **Functional (owner-run, recorded 2026-10-22):** `phase22a_dev_post_recovery_verification.sql` completed; ROLLBACK, exit code 0; step E 36/36 before and after; no data or sequence change | Pass |
 | Browser (Playwright) | Not run; no UI in this stage | Not applicable |
 
 No existing test asserted the old broad DELETE, so no existing test was changed.

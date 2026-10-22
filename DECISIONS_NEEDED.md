@@ -210,7 +210,7 @@ All Phase 22 business decisions are recorded in
   2026-10-17 by explicit owner approval; supersedes the earlier "no
   permanent deletion" decision. Database enforcement implemented on the
   Phase 22A branch, not merged; applied to DEV by the reviewed recovery
-  (confirmed 2026-10-21), real-DEV functional verification pending; screens are 22B —
+  (confirmed 2026-10-21) and functionally verified there (owner-run); screens are 22B —
   TI-1.)
 - No public pricing or financial information.
 - Batch privacy; registration Open/Closed/Full; "Next Cohort: Coming Soon".

@@ -321,8 +321,8 @@ Implementation status:
   Program through its `status` (`archived` and back to an operational
   status), available to Admin and Super Admin with audit. It is not
   rebuilt.
-- **Phase 22A — Implemented on branch; DEV recovered and structurally
-  verified; real-DEV functional verification pending; not accepted; not
+- **Phase 22A — Implemented on branch; DEV recovered; structural and
+  functional verification passed on DEV; ready for owner acceptance; not
   merged:**
   - The database enforcement and eligibility checks: migration
     `20260101000041_program_deletion_safeguards.sql`, corrected forward by
@@ -332,7 +332,8 @@ Implementation status:
   - Tested locally. Applied to DEV by the reviewed recovery and
     structurally verified there (recorded 2026-10-21, see
     [`../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`](../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md)).
-    Not yet functionally verified on DEV; not applied to production.
+    Functionally verified on DEV (owner-run, recorded 2026-10-22). Not
+    applied to production.
   - See [`PHASE_22A_IMPLEMENTATION.md`](PHASE_22A_IMPLEMENTATION.md) and
     [`../recovery/PHASE_22A_RECOVERY_REVIEW.md`](../recovery/PHASE_22A_RECOVERY_REVIEW.md).
 - **Not implemented (Phase 22B):** the Super Admin eligibility review,
@@ -732,7 +733,7 @@ LCP < 2.5 s; CLS < 0.1.
 
 | ID | Issue | Resolve in |
 |---|---|---|
-| TI-1 | Broad `programs_delete_admin` DELETE (migration 14), cascading to `program_modules`, program-level `materials` and `assignments`, nulling `leads.program_id` and leaving Storage files. **Fix implemented on the 22A branch** (migration 41, corrected forward by migration 42 after review found a forgeable deletion marker and a Program-history gap), locally tested on PostgreSQL 16 and 17.6; **applied to DEV and structurally verified (2026-10-21; functional DEV verification pending); not merged; still open in production**. | Database: 22A (branch). Super Admin workflow screens: 22B |
+| TI-1 | Broad `programs_delete_admin` DELETE (migration 14), cascading to `program_modules`, program-level `materials` and `assignments`, nulling `leads.program_id` and leaving Storage files. **Fix implemented on the 22A branch** (migration 41, corrected forward by migration 42 after review found a forgeable deletion marker and a Program-history gap), locally tested on PostgreSQL 16 and 17.6; **applied to DEV, structurally and functionally verified (2026-10-21/22); not merged; still open in production**. | Database: 22A (branch). Super Admin workflow screens: 22B |
 | TI-7 | Handling of a previously published Program's slug, redirects, website references, enquiry references and owned or shared public assets before deletion (§7.3). Until designed, such deletion stays blocked — implemented in 22A as the `website_published_history` blocker (a temporary implementation restriction; the §7 rule is unchanged). | 22B or later design |
 | TI-2 | Migration 14 comment anticipates an `anon` policy on `programs`; superseded by §14 through documentation only. | Closed by this document |
 | TI-3 | Public "upcoming" rule: in-progress Batches, registration date boundaries, timezone of "today". | Before 22E/22F |

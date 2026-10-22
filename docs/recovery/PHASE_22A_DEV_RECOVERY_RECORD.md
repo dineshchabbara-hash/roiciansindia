@@ -1,7 +1,12 @@
 # Phase 22A — DEV Recovery Record and Acceptance Status
 
-**Status: Implemented on branch; DEV recovered and structurally verified;
-real-DEV functional verification pending; not accepted; not merged.**
+**Status: Implemented on branch; DEV recovered; structural and functional
+verification passed on DEV; ready for owner acceptance; not merged.**
+
+Evidence labels used below:
+- **[Owner]** — results the owner reported from their own psql runs.
+- **[Independent]** — results checked separately in the cloud session, read-only.
+- **[Local]** — disposable local test databases only.
 
 | Item | Value |
 |---|---|
@@ -87,56 +92,77 @@ settings.
 - **Support summary.** It was kept outside the repository. It contains no
   secrets.
 
-## 4. Real-DEV functional verification (pending; separately approved)
+## 4. Real-DEV functional verification (completed)
 
 [`phase22a_dev_post_recovery_verification.sql`](phase22a_dev_post_recovery_verification.sql),
 SHA-256 `bb3b32159716db06d4fbe1e716e33e813a5d4eceae095a38915d87891e308c2f`.
-It is unchanged since review and rehearsed locally (6 / 6 PASS, no residue).
-It is **not yet run on DEV**, and needs the owner's separate approval.
-
-What it does:
-1. It runs as one transaction that ends in `ROLLBACK`.
-2. It creates synthetic fixtures with fixed `22d…` IDs, `P22D-…` codes and
-   `@validation.local` e-mails.
-3. It exercises the hosted roles: Admin, Trainer, Student, inactive Admin,
-   `anon`, `service_role` and Super Admin.
-4. It fails if any `public` sequence moves.
-
-The handoff, with the command and safety analysis, is in
+The handoff (command and safety analysis) is
 [`manual_psql/PHASE22A_FUNCTIONAL_VERIFICATION_HANDOFF.md`](manual_psql/PHASE22A_FUNCTIONAL_VERIFICATION_HANDOFF.md).
 
-Its safety preconditions were re-checked read-only on 2026-10-21, and all
-hold:
-- History: 42 rows, migrations 1–42.
-- No HTTP extension, no `auth.users` triggers and no webhook triggers.
-- No synthetic ID, code, e-mail or phone collisions.
-- `postgres` may insert into every table the script writes.
-- No required column is missing.
-- No other active sessions.
+**Before the run**
+- **[Independent]** The safety preconditions were re-checked read-only on
+  2026-10-21, and all held:
+  - History: 42 rows, migrations 1–42.
+  - No HTTP extension, no `auth.users` triggers and no webhook triggers.
+  - No synthetic ID, code, e-mail or phone collisions.
+  - `postgres` may insert into every table the script writes.
+  - No required column is missing.
+  - No other active sessions.
+- **[Local]** The script was rehearsed on PostgreSQL 17.6: 6 / 6 PASS, no
+  residue.
+
+**Results**
+
+| Step | Result | Source |
+|---|---|---|
+| Script checksum matched `bb3b3215…` before use | Yes | [Owner] |
+| Pre-test step E (`phase22a_E_post_recovery_check.sql`) | 36 / 36 PASS, exit code 0 | [Owner] |
+| Functional verification, run once from Windows PowerShell with psql | Completed successfully, including the Admin and other role/security checks | [Owner] |
+| What a successful run implies | Each check raises an error on failure, and `ON_ERROR_STOP` turns that into exit code 3. So exit code 0 means every check passed: V2 Admin website workflow and deletion refusals; V3/V3b Trainer, Student, inactive Admin and anon denial; V4 `service_role` helper and forged-marker denial; V5 Super Admin blockers and controlled synthetic deletion with audit kept; V6 no sequence advanced | Inference from the reviewed script and [Owner] exit code |
+| End of the verification run | `ROLLBACK`, exit code 0 | [Owner] |
+| Post-test step E | 36 / 36 PASS, `ALL CHECKS PASS`, exit code 0 | [Owner] |
+| Existing Programs, Students, Batches, Enrollments and audit history | Unchanged: the step E row-hash baselines matched | [Owner] |
+| Sequences | No change reported | [Owner] |
+
+**Not independently re-checked after the run.** The owner asked that no
+further database queries be made at this point. The most recent
+**[Independent]** read of DEV is from 2026-10-21, before the functional run
+(§2). The owner's post-test step E covers the same 36 checks. A single
+read-only re-check can be made on request.
+
+**Not covered by this script** (covered locally instead):
+- Concurrency races, because the script runs in a single session. **[Local]**
+  9 interleavings pass.
+- The website-reference and stored-file blockers.
 
 ## 5. Acceptance status
 
-| Gate | Status |
-|---|---|
-| Migrations 40–42 applied to DEV, history recorded | Done (owner run; independently confirmed) |
-| DEV schema equals clean install of 1–42 | Done (fingerprint match) |
-| Existing DEV data and audit history unchanged | Done (row-hash match) |
-| Local SQL/RLS suite, concurrency (9 interleavings), mutation checks, typecheck, lint | Pass (re-run 2026-10-21; lint has 4 pre-existing warnings in `lib/actions/payment-plans.ts`, outside 22A) |
-| Unit suite | See §6 — one intermittent failure unrelated to 22A |
-| Real-DEV functional verification | **Pending owner approval** |
-| Documentation reflects DEV state | Done (this commit) |
-| Owner acceptance; merge to `main` | **Not given**; merge needs separate authorization |
+| Gate | Status | Source |
+|---|---|---|
+| Migrations 40–42 applied to DEV, history recorded | Done | [Owner] + [Independent] |
+| DEV schema equals a clean install of 1–42 | Done (15-aspect fingerprint match) | [Owner] step E + [Independent] |
+| Existing DEV data and audit history unchanged by the recovery | Done (row-hash match) | [Owner] + [Independent] |
+| Real-DEV functional verification | **Done**: passed, rolled back, no residue | [Owner] |
+| Existing data unchanged after the functional run | Done (post-test step E 36 / 36) | [Owner] |
+| Local SQL/RLS suite, concurrency (9 interleavings), mutation checks, typecheck, lint | Pass (re-run 2026-10-21; lint has 4 pre-existing warnings in `lib/actions/payment-plans.ts`, outside 22A) | [Local] |
+| Unit suite | Clean full-suite runs, parallel and serial (§6); one intermittent test outside 22A recorded | [Local] |
+| Documentation reflects DEV state | Done | — |
+| Owner acceptance | **Pending owner decision** | — |
+| Merge to `main` | **Not done**; needs separate authorization | — |
 
 Known limitations accepted by design (not 22A defects):
 - **TI-7:** previously published Programs stay blocked.
 - **Both current DEV Programs are blocked** by 33 unattributable history rows;
   resolving that history is a business decision.
 - **Batch deletion is unchanged:** `batches_delete_admin` still allows
-  direct Batch deletion.
+  direct Batch deletion. Deletions are now evidenced; narrowing Batch
+  deletion was not authorized in 22A.
 - **`TRUNCATE`** bypasses row triggers.
 - **Placement settings are live**, not drafts.
 - **TI-3** (the public "upcoming" rule) is open.
 - **No screens yet:** the Super Admin deletion screens are Phase 22B.
+- **Production** still has the broad Program delete (TI-1). Merging does not
+  change any database; production needs its own authorized deployment.
 
 ## 6. Intermittent unit-test failure (outside 22A)
 
@@ -177,3 +203,96 @@ is a timing sensitivity of the test, not a Phase 22A regression.
 A clean full-suite result has already been obtained (parallel run #2 above).
 The intermittent failure is recorded so that a future red run of this one
 test is recognised rather than retried blindly.
+
+## 7. Acceptance criteria review (design §5.3, §5.4, §7.5)
+
+**Program deletion (§7.5)**
+
+| # | Criterion | Evidence |
+|---|---|---|
+| 1 | Admin cannot permanently delete a Program | [Local] D tests; [Owner] DEV V2: direct and functional deletion refused; [Independent] no `programs_delete_admin`, no anon/authenticated DELETE |
+| 2 | Super Admin cannot delete an unarchived Program | [Local]; [Owner] DEV V5 `not_archived` |
+| 3 | A verified safe, unused archived Program can be deleted by Super Admin | [Local]; [Owner] DEV V5: synthetic Program deleted inside the rolled-back run |
+| 4 | Any protected dependency blocks deletion | [Local] every FK dependency and blocker; [Owner] DEV V5 `dependency:program_modules` |
+| 5 | Academic and financial history protected and unchanged | [Local]; [Owner] + [Independent] DEV baselines unchanged |
+| 6 | Concurrent changes cannot bypass eligibility | [Local] 9 forced interleavings with real connections (not testable in the single-session DEV script) |
+| 7 | Audit history, including the deletion record, survives | [Local]; [Owner] DEV V5: `program.deleted` written, `program.create` kept |
+| 8 | Unsafe public references or unresolved file cleanup block deletion | [Local] `website_published_history`, `website_link_reference`, `stored_files`, `stored_file_reference` |
+| 9 | Routine audit alone does not block | [Local]; [Owner] DEV V5: a Program whose only history was `program.create` was deleted |
+| 10 | History known only from audit evidence blocks | [Local] incl. `unattributable_history`; [Owner] DEV V5: removed enrollment → `audit_history` |
+
+**Data foundation (§5.4)**
+- **Requirements:** Program website content; Batch publication metadata;
+  display groups; pages and sections (including the Programs-listing and
+  Upcoming-Batches kinds); revisions and concurrency; audit; public media
+  metadata in a private bucket; private by default.
+- **Evidence:**
+  - [Local] website tests W1–W11.
+  - [Independent] DEV schema fingerprint and empty, RLS-protected tables.
+  - [Owner] DEV V2 exercised documents, both listing page kinds,
+    publication and restore.
+  - [Owner] V3/V3b showed no read access for other roles or anon.
+
+**Draft and publish data rules (§5.3)**
+- **At data level:**
+  - Drafts are private ([Owner] V3/V3b).
+  - Publishing is explicit (V2).
+  - Timestamps and editor/publisher identity are recorded ([Local] W tests).
+  - History is kept.
+  - Restore is a recorded change (V2).
+  - Lost updates are prevented: V2 refused the stale save and stale publish;
+    [Local] concurrency also passes.
+- **Authenticated preview** is a 22B screen concern (TI-6).
+
+**Permissions (§5.2):** slug change after first publication is Super Admin
+only ([Local] tests, mutation-checked). The Admin and Super Admin deletion
+boundaries are covered above.
+
+**Result:** no open Phase 22A acceptance blocker. Owner acceptance and merge
+authorization remain the owner's decisions.
+
+## 8. Phase 22B scope (carried forward; not started)
+
+Per design §15 ("Admin Website Management, drafts, preview and publishing")
+and §7.4:
+
+1. **Website Management area** in the Admin portal, built from structured
+   forms only:
+   - page editors for every supported kind: home, about, corporate,
+     institutions, contact, legal, navigation, footer, Programs listing and
+     Upcoming Batches;
+   - the Program website content editor: headline, sections, SEO and social
+     metadata, image references.
+2. **Draft, publish, unpublish and restore** screens, with revision history,
+   editor and publisher identity, and clear stale-edit messages.
+3. **Authenticated preview** that is never cached or indexed (TI-6).
+4. **Display groups and placement:** create, rename, reorder, hide, archive
+   and restore groups; featured and ordering. Decide whether placement
+   becomes a drafted change (currently live).
+5. **Batch publication:** public label, and the Open / Closed / Full
+   registration state.
+6. **Public media:** an upload path into the private `website-media`
+   bucket, with metadata and approval. Public serving is 22C.
+7. **Super Admin slug change** after first publication, with the redirect
+   safeguard.
+8. **Program deletion workflow screens:**
+   - eligibility review;
+   - reason entry and confirmation by typing the Program code;
+   - blocked-deletion explanations (the wording is already mapped in
+     `lib/domain/website.ts`);
+   - the discard-unpublished-draft action.
+9. **Server actions and data wrappers** with role checks, and unit,
+   component and browser tests.
+
+**Decisions to carry alongside 22B (not 22B build work unless authorized):**
+- TI-7 design (previously published Programs: slugs, redirects, references,
+  assets).
+- Whether to narrow `batches_delete_admin`.
+- The business decision on the 33 unattributable DEV history rows.
+- Fixing the intermittent Student-form test.
+- The production deployment of migrations 40–42.
+- The Supabase connector timeout support ticket.
+
+**Later stages:** the public read contract (22C), routing (22D), public pages
+(22E–22G), enquiries (22H), SEO, accessibility and performance (22I), and the
+browser and security audit (22J). TI-3 must be settled before 22E/22F.

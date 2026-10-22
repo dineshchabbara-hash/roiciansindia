@@ -1,6 +1,11 @@
 # Phase 22A: real-DEV functional verification handoff (Windows PowerShell + psql)
 
 > ## ⛔ DO NOT RUN UNTIL THE OWNER EXPLICITLY AUTHORIZES THIS VERIFICATION.
+>
+> **Executed once by the owner (recorded 2026-10-22):** it passed, ended in
+> ROLLBACK with exit code 0, and step E was 36/36 before and after. See
+> [`../PHASE_22A_DEV_RECOVERY_RECORD.md`](../PHASE_22A_DEV_RECOVERY_RECORD.md) §4.
+> Do not re-run without a new authorization.
 
 - **Target:** Roicians India LMS Dev, `nqeaehqzhjhhgsilrgeo`, only.
 - **Script:** `docs/recovery/phase22a_dev_post_recovery_verification.sql`, unchanged since review.
