@@ -75,3 +75,41 @@ See [PHASE_22B1_IMPLEMENTATION_HANDOFF.md](../requirements/PHASE_22B1_IMPLEMENTA
 The public-brand migration remains a **proposal outside** supabase/migrations. Before approval, examine the SECURITY DEFINER execution context, search_path, role grants and leak resistance, local SQL/RLS tests, migration numbering and whether public brand changes require transactionally guaranteed auditing rather than today's best-effort Company Settings audit. The new field must remain independent of company_name (LMS and checkout) and legal_name (financial/legal records).
 
 An independent legal-page approval safeguard may require a **different** proposed migration. The 22B-1 application-level publication hold is not database-enforced because Admin users can still call the Phase 22A website publishing RPC directly. Do not combine either proposal with a live database change without separate owner authorization.
+
+## `legal_publication_hold.sql`: database-enforced legal publishing hold
+
+| | |
+|---|---|
+| Status | **Proposal only.** Not approved, not applied, not part of the 22B-1 code scope |
+| Why | In 22B-1 the legal hold is enforced by the Admin UI and the server action only. A signed-in Admin can still call `website_publish_document()` directly, so the hold is **not** database-enforced yet |
+| Test | `legal_publication_hold_test.sql` (follows the `supabase/tests` conventions; ends with ROLLBACK) |
+| Checked so far | Both files parse as valid PostgreSQL and PL/pgSQL (parser only; nothing executed) |
+
+### What it adds
+
+**Revision-specific approval, not a global switch:**
+- `website_legal_approvals` records the approval of one exact legal-page revision: who approved it, when, and an optional reference note.
+- Rows are immutable. Admins can read them; nobody can write them directly.
+
+**`website_approve_legal_revision()`:**
+- active Super Admin only;
+- the revision must belong to that legal page;
+- one approval per revision;
+- audited as `website_document.legal_revision_approved`.
+
+**`website_documents_legal_publication_guard`,** a trigger:
+- a legal page can make a revision live only if that exact revision is approved;
+- it fires for every writer: the 22A publish function, a direct RPC call, and direct SQL;
+- any later edit or restore is a new revision and needs its own approval;
+- unpublishing is always allowed;
+- other page kinds are unaffected.
+
+### When adopted
+
+- **Application:**
+  - the code-level `APPROVED_LEGAL_PAGE_KEYS` hold is replaced by "the latest revision has an approval";
+  - a Super Admin approval screen is added;
+  - the 22B-1 UI and action refusal stay as a first line.
+- **Points for the reviewer:**
+  - `approved_by` uses `on delete restrict`, which keeps approval provenance but prevents deleting that auth user;
+  - confirm whether approval should also require a second person.
