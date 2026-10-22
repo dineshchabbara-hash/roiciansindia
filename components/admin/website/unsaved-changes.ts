@@ -139,15 +139,52 @@ export function useUnsavedChangesGuard(
 
 /**
  * A copy of unsaved editor content kept in this tab's sessionStorage, keyed to
- * the signed-in user and the page. It lets the user get their text back if it
- * was lost anyway (for example after choosing to leave, or a crash). It is
- * removed when the draft is saved or the user discards it, and disappears when
- * the tab is closed. Nothing is sent anywhere.
+ * the signed-in user and the page, so the user can get their text back if it
+ * was lost anyway (for example after choosing to leave, or a crash). Nothing
+ * is sent anywhere. The copy:
+ *   - is never kept for legal pages (unapproved legal wording stays only in
+ *     the open editor and the database);
+ *   - expires 8 hours after the last edit;
+ *   - is removed when the draft is saved or the user discards it, when the
+ *     user confirms Sign out, and when the tab is closed;
+ *   - is only ever offered to the user who wrote it.
+ * Whenever a Website screen opens, copies that break these rules (another
+ * user's, expired, legal, or unreadable) are deleted from the tab.
  */
-export type DraftStash<T> = { base: number; savedAt: string; draft: T };
+export type DraftStash<T> = { base: number; savedAt: string; kind: string; draft: T };
+
+export const DRAFT_STASH_PREFIX = "roicians.website.unsaved.";
+export const DRAFT_STASH_MAX_AGE_MS = 8 * 60 * 60 * 1000;
+// A copy dated in the future (beyond small clock changes) is not trusted.
+const FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
+
+/** Whether unsaved content of this page type may be kept in the browser tab. */
+export function keepsRecoveryCopy(kind: string): boolean {
+  return kind !== "legal";
+}
 
 export function draftStashKey(userId: string, documentId: string): string {
-  return `roicians.website.unsaved.${userId}.${documentId}`;
+  return `${DRAFT_STASH_PREFIX}${userId}.${documentId}`;
+}
+
+function stashKeyOwner(key: string): string | null {
+  if (!key.startsWith(DRAFT_STASH_PREFIX)) return null;
+  const parts = key.slice(DRAFT_STASH_PREFIX.length).split(".");
+  return parts.length === 2 && parts[0] && parts[1] ? parts[0] : null;
+}
+
+function stashKeysInTab(): string[] {
+  try {
+    const storage = window.sessionStorage;
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key?.startsWith(DRAFT_STASH_PREFIX)) keys.push(key);
+    }
+    return keys;
+  } catch {
+    return [];
+  }
 }
 
 export function readStash(key: string): string | null {
@@ -159,6 +196,7 @@ export function readStash(key: string): string | null {
 }
 
 export function writeStash<T>(key: string, stash: DraftStash<T>): void {
+  if (!keepsRecoveryCopy(stash.kind)) return;
   try {
     window.sessionStorage.setItem(key, JSON.stringify(stash));
   } catch {
@@ -174,27 +212,118 @@ export function removeStash(key: string): void {
   }
 }
 
-export function parseStash<T>(raw: string | null): DraftStash<T> | null {
+/**
+ * Reads a stored copy. Returns null for anything that must not be offered:
+ * unreadable, missing its page type, a legal page, or (when `now` is given)
+ * expired or dated in the future.
+ */
+export function parseStash<T>(raw: string | null, now?: number): DraftStash<T> | null {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as DraftStash<T>;
     if (typeof value?.base !== "number" || typeof value?.savedAt !== "string")
       return null;
+    if (typeof value.kind !== "string" || !keepsRecoveryCopy(value.kind)) return null;
     if (!value.draft || typeof value.draft !== "object") return null;
+    if (now !== undefined) {
+      const savedAt = Date.parse(value.savedAt);
+      if (!Number.isFinite(savedAt)) return null;
+      if (now - savedAt > DRAFT_STASH_MAX_AGE_MS) return null;
+      if (savedAt - now > FUTURE_TOLERANCE_MS) return null;
+    }
     return value;
   } catch {
     return null;
   }
 }
 
-// The stash as it was when the editor opened (not the copy this editor writes).
+// The usable copy as it was when the editor opened (not the copy this editor
+// writes afterwards).
 const openedWith = new Map<string, string | null>();
 
 export function stashWhenOpened(key: string): string | null {
-  if (!openedWith.has(key)) openedWith.set(key, readStash(key));
+  if (!openedWith.has(key)) {
+    const raw = readStash(key);
+    openedWith.set(key, parseStash(raw, Date.now()) ? raw : null);
+  }
   return openedWith.get(key) ?? null;
 }
 
 export function forgetStashWhenOpened(key: string): void {
   openedWith.delete(key);
+}
+
+/**
+ * Deletes every copy in this tab that this user may not be offered: other
+ * users' copies, expired ones, legal pages and anything unreadable.
+ */
+export function sweepStashes(ownerId: string, now: number = Date.now()): void {
+  for (const key of stashKeysInTab()) {
+    const usable = stashKeyOwner(key) === ownerId && parseStash(readStash(key), now);
+    if (!usable) removeStash(key);
+  }
+}
+
+/** Deletes all of this user's copies in this tab (used on Sign out). */
+export function clearUserStashes(ownerId: string): void {
+  for (const key of stashKeysInTab()) {
+    if (stashKeyOwner(key) === ownerId) removeStash(key);
+  }
+  for (const key of [...openedWith.keys()]) {
+    if (stashKeyOwner(key) === ownerId) openedWith.delete(key);
+  }
+}
+
+/**
+ * Whether a form submission is the Admin header's Sign out. The shared
+ * logout button is recognised by its label, so it needs no change; a test
+ * renders the real button to keep the two in step.
+ */
+export function isSignOutSubmit(event: Event): boolean {
+  const form = event.target;
+  if (typeof HTMLFormElement === "undefined" || !(form instanceof HTMLFormElement))
+    return false;
+  const submitter =
+    (event as SubmitEvent).submitter ??
+    form.querySelector('button[type="submit"], button:not([type]), input[type="submit"]');
+  const label =
+    submitter instanceof HTMLInputElement ? submitter.value : submitter?.textContent;
+  return /^\s*sign out\s*$/i.test(label ?? "");
+}
+
+/**
+ * Keeps this tab's recovery copies tidy while a Website screen is open:
+ * removes copies the user may not be offered when the screen opens, and
+ * removes all of the user's copies when they confirm Sign out.
+ *
+ * The Sign out listener runs in the bubble phase, after the unsaved-changes
+ * question (capture phase). If the user answers Cancel, that question stops
+ * the submission before it gets here, so nothing is cleared.
+ */
+export function useWebsiteDraftCopyCleanup(
+  ownerId: string | undefined,
+  onSignOut?: () => void,
+): void {
+  const onSignOutRef = useRef(onSignOut);
+  useEffect(() => {
+    onSignOutRef.current = onSignOut;
+  }, [onSignOut]);
+
+  useEffect(() => {
+    if (!ownerId) return;
+    sweepStashes(ownerId);
+    const onSubmit = (event: Event) => {
+      if (!isSignOutSubmit(event)) return;
+      onSignOutRef.current?.();
+      clearUserStashes(ownerId);
+    };
+    window.addEventListener("submit", onSubmit);
+    return () => window.removeEventListener("submit", onSubmit);
+  }, [ownerId]);
+}
+
+/** Mounted on the Website screens other than the editor. Renders nothing. */
+export function WebsiteDraftCopyCleanup({ ownerId }: { ownerId: string }) {
+  useWebsiteDraftCopyCleanup(ownerId);
+  return null;
 }

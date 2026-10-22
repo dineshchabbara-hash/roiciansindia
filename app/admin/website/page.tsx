@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { WebsitePagesTable } from "@/components/admin/website/website-pages-table";
 import { CreatePageForm } from "@/components/admin/website/create-page-form";
+import { WebsiteDraftCopyCleanup } from "@/components/admin/website/unsaved-changes";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { listWebsitePages } from "@/lib/data/website";
 import { isAdminOrSuperAdmin, roleHomePath } from "@/lib/domain/rbac";
@@ -22,6 +23,7 @@ export default async function WebsitePage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <WebsiteDraftCopyCleanup ownerId={user.authUserId} />
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">Website</h1>
         <p className="text-muted-foreground max-w-3xl text-sm">

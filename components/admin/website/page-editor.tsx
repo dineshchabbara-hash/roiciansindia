@@ -18,10 +18,12 @@ import { PublicationPanel } from "@/components/admin/website/publication-panel";
 import {
   draftStashKey,
   forgetStashWhenOpened,
+  keepsRecoveryCopy,
   parseStash,
   removeStash,
   stashWhenOpened,
   useUnsavedChangesGuard,
+  useWebsiteDraftCopyCleanup,
   writeStash,
 } from "@/components/admin/website/unsaved-changes";
 import { saveWebsiteDraftAction, type WebsiteActionState } from "@/lib/actions/website";
@@ -467,7 +469,10 @@ export function PageEditor({
 }: {
   page: EditorPage;
   content: WebsiteRevisionContent | null;
-  /** The signed-in user's id; enables the per-tab unsaved-draft safety copy. */
+  /**
+   * The signed-in user's id. Enables the per-tab unsaved-draft safety copy
+   * (never for legal pages) and its cleanup.
+   */
   stashOwnerId?: string;
 }) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(content));
@@ -478,7 +483,13 @@ export function PageEditor({
   const [newType, setNewType] = useState<string>(SECTION_TYPES_BY_KIND[page.kind][0]);
   const formId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
-  const stashKey = stashOwnerId ? draftStashKey(stashOwnerId, page.id) : null;
+  const stashKey =
+    stashOwnerId && keepsRecoveryCopy(page.kind)
+      ? draftStashKey(stashOwnerId, page.id)
+      : null;
+  // Set when the user confirms Sign out, so a pending copy is never written
+  // after their copies have been cleared.
+  const copyWritesStopped = useRef(false);
 
   const [state, formAction, isSaving] = useActionState(
     async (prev: WebsiteActionState, formData: FormData) => {
@@ -499,15 +510,26 @@ export function PageEditor({
   // Forward, forms outside the editor, closing or reloading the tab).
   useUnsavedChangesGuard(dirty, containerRef);
 
-  // Safety copy of unsaved changes in this browser tab.
+  // Removes copies this user may not be offered when the editor opens, and
+  // all of their copies when they confirm Sign out.
+  useWebsiteDraftCopyCleanup(stashOwnerId, () => {
+    copyWritesStopped.current = true;
+  });
+
+  // Safety copy of unsaved changes in this browser tab (not for legal pages).
   useEffect(() => {
     if (!stashKey || !dirty) return;
-    const timer = window.setTimeout(
-      () => writeStash(stashKey, { base, savedAt: new Date().toISOString(), draft }),
-      400,
-    );
+    const timer = window.setTimeout(() => {
+      if (copyWritesStopped.current) return;
+      writeStash(stashKey, {
+        base,
+        savedAt: new Date().toISOString(),
+        kind: page.kind,
+        draft,
+      });
+    }, 400);
     return () => window.clearTimeout(timer);
-  }, [stashKey, dirty, draft, base]);
+  }, [stashKey, dirty, draft, base, page.kind]);
   useEffect(
     () => () => {
       if (stashKey) forgetStashWhenOpened(stashKey);

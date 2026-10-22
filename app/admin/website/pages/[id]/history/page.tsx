@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { RevisionHistory } from "@/components/admin/website/revision-history";
+import { WebsiteDraftCopyCleanup } from "@/components/admin/website/unsaved-changes";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import {
   WEBSITE_NOT_FOUND,
@@ -39,6 +40,7 @@ export default async function WebsitePageHistoryPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <WebsiteDraftCopyCleanup ownerId={user.authUserId} />
       <div className="flex flex-col gap-1">
         <Link
           href={`/admin/website/pages/${page.data.id}`}

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PagePreview } from "@/components/admin/website/page-preview";
+import { WebsiteDraftCopyCleanup } from "@/components/admin/website/unsaved-changes";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import {
   WEBSITE_NOT_FOUND,
@@ -60,6 +61,7 @@ export default async function WebsitePagePreviewPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <WebsiteDraftCopyCleanup ownerId={user.authUserId} />
       <div
         role="note"
         className="rounded-md border-2 border-amber-400 bg-amber-50 p-3 text-sm font-medium text-amber-950 dark:bg-amber-950 dark:text-amber-100"
