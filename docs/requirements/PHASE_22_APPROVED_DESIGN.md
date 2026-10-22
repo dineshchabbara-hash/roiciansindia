@@ -47,14 +47,14 @@ they differ on Phase 22, this document wins.
 | P22-02 | Canada stays at `https://www.roicians.com`, untouched and operationally independent | §3.4 |
 | P22-03 | Public brand ROICIANS TECH; supporting line "Practical technology training for the AI era"; legal name Roicians Tech Pvt. Ltd. | §4 |
 | P22-04 | Structured Website Management in the Admin portal; Admin and Super Admin manage the complete ordinary public website | §5 |
-| P22-05 | Super Admin only: slug change after first publication and other sensitive structural operations | §5.2 |
+| P22-05 | Super Admin only: slug change after first publication and other sensitive structural operations (post-publication slug change stays disabled until redirects are verified — §5.5) | §5.2 |
 | P22-06 | Ten launch Programs in two editable display groups | §6 |
 | P22-07 | "AI Quality Engineering: Testing LLMs, RAG & AI Agents" removed; no curriculum change to AI-Powered Software Testing & QA | §6.3 |
 | P22-08 | Archive-first: Admin and Super Admin archive/restore; only Super Admin permanently deletes a verified safe, unused archived Program (revised; supersedes the earlier absolute ban) | §7 |
 | P22-09 | No course pricing or LMS financial information anywhere on the public website | §8 |
 | P22-10 | Public Batch privacy; registration states Open, Closed, Full | §9 |
 | P22-11 | "Next Cohort: Coming Soon" + "Join Interest List" when a published Program has no published upcoming Batch | §9.3 |
-| P22-12 | Visual direction: Concept A — Refined Enterprise Tech, with restrained Concept B elements | §10 |
+| P22-12 | Visual direction: Concept A — Refined Enterprise Tech, with restrained Concept B elements; **revised 2026-10-22:** predominantly white with soft-blue sections, cobalt accent, dark-navy text, no dark sections | §10 |
 | P22-13 | Primary CTA "Talk to an Advisor"; secondary "Explore Programs" | §10.3 |
 | P22-14 | Public website scope (pages listed in §11); dynamic Program template | §11 |
 | P22-15 | Online-first delivery; flexibility for future in-person/hybrid | §12 |
@@ -265,6 +265,31 @@ must accommodate:
 The concrete tables, columns, constraints and policies are designed and
 reviewed in Phase 22A itself.
 
+### 5.5 Phase 22B implementation decisions (owner, 2026-10-22)
+
+1. **Media uploads:** only authenticated Admin and Super Admin, scoped to the
+   private `website-media` bucket, with file-type and size validation and
+   audit. The exact migration is prepared separately for review and is not
+   applied without approval.
+2. **Preview:** secure, authenticated, structured content preview in 22B.
+   Draft content is never exposed publicly, publicly cached or indexed (TI-6).
+3. **Placement:** featured-Program and display-order settings stay live for
+   the initial version, with clear confirmation messages, permissions and
+   audit logging. No new publication model or placement migration now.
+4. **Browser tests:** run in an isolated local test environment. No permanent
+   synthetic records or published test content in DEV.
+5. **Existing DEV Program content:** not published or modified without
+   separate authorization. All existing LMS business data and audit history
+   are preserved.
+6. **Slugs:** published slug history is recorded, but post-publication slug
+   changes stay disabled until redirects are implemented and verified in
+   later website phases.
+7. **Carried issues:** TI-7, TI-3, the existing audit-history limitations and
+   other carried-forward issues stay documented, and their protections are
+   never bypassed.
+
+The 22B plan is [`PHASE_22B_PLAN.md`](PHASE_22B_PLAN.md).
+
 ---
 
 ## 6. Program portfolio and display groups (P22-06, P22-07)
@@ -321,9 +346,8 @@ Implementation status:
   Program through its `status` (`archived` and back to an operational
   status), available to Admin and Super Admin with audit. It is not
   rebuilt.
-- **Phase 22A — Implemented on branch; DEV recovered; structural and
-  functional verification passed on DEV; ready for owner acceptance; not
-  merged:**
+- **Phase 22A — Accepted by the owner and merged to `main` (2026-10-22,
+  `83b7536`); DEV recovered, structurally and functionally verified:**
   - The database enforcement and eligibility checks: migration
     `20260101000041_program_deletion_safeguards.sql`, corrected forward by
     `20260101000042_phase22a_corrections.sql`.
@@ -339,7 +363,8 @@ Implementation status:
 - **Not implemented (Phase 22B):** the Super Admin eligibility review,
   reason/confirmation screen and blocked-deletion explanations (§7.4). The
   enforcement gap in §7.6 is closed on DEV; it remains open in production
-  until the branch is merged and the migrations are deployed there.
+  until migrations 40–42 are deployed there (Phase 25 or a separately
+  authorized deployment).
 
 ### 7.1 Rules
 
@@ -489,13 +514,13 @@ separately authorized implementation must replace the broad deletion
 behavior with the controlled workflow above, with regression tests.
 Existing migrations are not edited.
 
-*Update (Phase 22A branch, not merged):*
+*Update (Phase 22A, merged to `main` 2026-10-22):*
 - **What implements it:** migration 41, corrected forward by migration 42.
   Its regression and concurrency tests pass locally.
 - **DEV:** both are applied by the reviewed recovery and structurally
   verified, recorded 2026-10-21. `programs_delete_admin` is gone there.
-- **Production:** still has the broad delete until the branch is accepted,
-  merged and deployed.
+- **Production:** still has the broad delete until the migrations are
+  deployed there. The branch was accepted and merged on 2026-10-22.
 - See [`PHASE_22A_IMPLEMENTATION.md`](PHASE_22A_IMPLEMENTATION.md) and
   [`../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`](../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md).
 
@@ -580,23 +605,37 @@ any new public state.
 - Limited visual clutter
 - Restrained technical diagrams
 - Small monospaced metadata labels
-- One dark-navy Corporate/GCC section
+- ~~One dark-navy Corporate/GCC section~~ — removed 2026-10-22: the
+  Corporate/GCC section uses a soft-blue (`#F1F6FF`) band instead
 - Mobile-first layouts
 - Subtle motion that respects reduced-motion preferences
 
-**Avoid:** full-dark startup styling, heavy gradients or glow, excessive
-animation, generic AI robots, unapproved stock photography, and unapproved
-testimonials, people, logos or outcomes.
+**Avoid:** dark backgrounds or a predominantly dark page, full-dark startup
+styling, heavy or excessive gradients, glow effects, excessive animation,
+generic AI imagery or robots, visual clutter, unapproved stock photography,
+and unapproved testimonials, people, logos or outcomes.
 
-### 10.2 Suggested starting tokens
+**Owner revision (2026-10-22):** the public website is **bright and premium**:
+predominantly white (`#FFFFFF`), with soft-blue sections (`#F1F6FF`), cobalt
+accents (`#2347D0`) and dark-navy text (`#14263F`). The large dark-navy
+Corporate/GCC section is removed in favour of a light-blue alternative. The
+ROICIANS TECH branding and logo requirements (§4) are unchanged. A
+non-production homepage prototype using this direction is kept at
+[`../prototypes/roicians-tech-homepage-prototype.html`](../prototypes/roicians-tech-homepage-prototype.html)
+for visual approval before 22D–22G; its copy is sample, not launch content.
 
-| Token | Value |
-|---|---|
-| Background | `#F8F8F5` |
-| Ink | `#0E1A2B` |
-| Accent (cobalt) | `#2347D0` |
-| Optional restrained brass | `#8A6A2F` |
-| Fonts | Instrument Sans, Inter, limited Geist Mono |
+### 10.2 Approved colour tokens (revised 2026-10-22)
+
+| Token | Value | Use |
+|---|---|---|
+| Background | `#FFFFFF` | Predominant page background |
+| Soft-blue section | `#F1F6FF` | Alternating sections, including Corporate Training |
+| Accent (cobalt) | `#2347D0` | Primary buttons, links, small labels |
+| Text (dark navy) | `#14263F` | Headings and body text |
+| Fonts | Instrument Sans, Inter, limited Geist Mono | Unchanged |
+
+Superseded starting tokens (2026-10-17): background `#F8F8F5`, ink
+`#0E1A2B`, optional brass `#8A6A2F`.
 
 The direction is approved; exact graphic assets and token refinements may be
 adjusted after reviewing the authorized logo files. Design tokens apply to
@@ -733,7 +772,7 @@ LCP < 2.5 s; CLS < 0.1.
 
 | ID | Issue | Resolve in |
 |---|---|---|
-| TI-1 | Broad `programs_delete_admin` DELETE (migration 14), cascading to `program_modules`, program-level `materials` and `assignments`, nulling `leads.program_id` and leaving Storage files. **Fix implemented on the 22A branch** (migration 41, corrected forward by migration 42 after review found a forgeable deletion marker and a Program-history gap), locally tested on PostgreSQL 16 and 17.6; **applied to DEV, structurally and functionally verified (2026-10-21/22); not merged; still open in production**. | Database: 22A (branch). Super Admin workflow screens: 22B |
+| TI-1 | Broad `programs_delete_admin` DELETE (migration 14), cascading to `program_modules`, program-level `materials` and `assignments`, nulling `leads.program_id` and leaving Storage files. **Fix implemented on the 22A branch** (migration 41, corrected forward by migration 42 after review found a forgeable deletion marker and a Program-history gap), locally tested on PostgreSQL 16 and 17.6; **applied to DEV, structurally and functionally verified (2026-10-21/22); accepted and merged to `main` 2026-10-22; still open in production until deployed**. | Database: 22A (branch). Super Admin workflow screens: 22B |
 | TI-7 | Handling of a previously published Program's slug, redirects, website references, enquiry references and owned or shared public assets before deletion (§7.3). Until designed, such deletion stays blocked — implemented in 22A as the `website_published_history` blocker (a temporary implementation restriction; the §7 rule is unchanged). | 22B or later design |
 | TI-2 | Migration 14 comment anticipates an `anon` policy on `programs`; superseded by §14 through documentation only. | Closed by this document |
 | TI-3 | Public "upcoming" rule: in-progress Batches, registration date boundaries, timezone of "today". | Before 22E/22F |

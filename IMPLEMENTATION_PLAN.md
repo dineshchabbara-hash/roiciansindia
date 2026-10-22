@@ -59,7 +59,7 @@ in [`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_
 | 21A | Receipts & Payment Documents (FR-94, FR-95) | Complete (merged `80008da`) |
 | 21B | Refunds (FR-97; D8 resolved, Option A) | Complete (merged `c527c08`; migration 38 on dev; Windows acceptance 2/2) |
 | 21C | LMS Administration & Identity (FR-140/141 Company Settings, D3 Student portal logins, Admin accounts, Audit Log viewer, FR-41 photo) | Complete (merged `6e5e4e9`; migration 39 on dev; Windows acceptance 3/3) |
-| 22 | Roicians India Public Website (approved design: `docs/requirements/PHASE_22_APPROVED_DESIGN.md`; stages 22A–22J) | In progress — 22A: Implemented on branch (migrations 40–42); DEV recovered; structural and functional verification passed on DEV; ready for owner acceptance; not merged; 22B–22J not started |
+| 22 | Roicians India Public Website (approved design: `docs/requirements/PHASE_22_APPROVED_DESIGN.md`; stages 22A–22J) | In progress — 22A: **Accepted and merged to `main` (2026-10-22, `83b7536`)**; DEV recovered and verified. 22B: planning and visual prototype on branch `claude/phase22b-website-management` (see `docs/requirements/PHASE_22B_PLAN.md`); 22C–22J not started |
 | 23 | Zoho CRM Integration (re-scoped from Lead Management) | Not started (after 22) |
 | 18b | Transactional Email & multi-channel delivery | Not started — deferred until after 23 (provider + credentials chosen first); required before 24 if in V1 |
 | 24 | Testing, Security & UAT | Not started |
@@ -1812,8 +1812,8 @@ starts automatically):
 
 | Stage | Scope | Status |
 |---|---|---|
-| 22A | Publication and structured Website Management data model, plus Program-deletion database enforcement | Implemented on branch `claude/phase22a-website-foundation` (not accepted or merged; DEV recovered; structural and functional verification passed on DEV — see `docs/requirements/PHASE_22A_IMPLEMENTATION.md` and `docs/recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`) |
-| 22B | Admin Website Management, drafts, preview and publishing | Not started |
+| 22A | Publication and structured Website Management data model, plus Program-deletion database enforcement | **Accepted and merged to `main` (2026-10-22, `83b7536`)**; DEV recovered, structurally and functionally verified; production not yet deployed — see `docs/requirements/PHASE_22A_IMPLEMENTATION.md` and `docs/recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`) |
+| 22B | Admin Website Management, drafts, preview and publishing | Planning: decisions recorded (design §5.5), homepage visual prototype for approval, 22B-1 plan proposed (`docs/requirements/PHASE_22B_PLAN.md`); no code yet |
 | 22C | Safe server-only published-data contract | Not started |
 | 22D | Website foundation and multi-subdomain routing | Not started |
 | 22E | Programs listing and Program detail pages | Not started |
@@ -1836,7 +1836,7 @@ is not edited).
 **Technical issues to resolve during the stages:** design §16 — notably
 TI-1 (broad Program delete: database enforcement implemented in migration 41
 on the 22A branch and tested locally; applied to DEV with migration 42
-(confirmed 2026-10-21) and functionally verified there; not merged; production
+(confirmed 2026-10-21) and functionally verified there; merged to `main` 2026-10-22; production
 unchanged; the Super Admin screens remain 22B), TI-7
 (previously published Programs' slugs, redirects, references and assets
 before deletion), TI-3 (the public "upcoming Batch" rule) and TI-4/TI-5

@@ -218,7 +218,7 @@ website's data path).
 - The fee columns (`regular_fee`, `registration_fee`, `tax_rate_percent`)
   and every other financial value stay internal and are never part of the
   public website contract (P22-09); they are not removed or changed.
-- Phase 22A (migration 40, on branch, not merged) adds the Website
+- Phase 22A (migration 40, merged to `main` 2026-10-22; applied to DEV) adds the Website
   Management data foundation as **new, private-by-default** tables — no
   column is added to `programs` or `batches`: `website_display_groups`,
   `website_documents` (pages + one per Program: slug, group/featured/order),
@@ -240,7 +240,7 @@ website's data path).
   and `leads.program_id` (SET NULL), which today would be silently deleted or
   detached and must instead block. Audit history (`audit_logs.entity_id`, no
   foreign key) must survive.
-- **TI-1:** migration 41 (on the 22A branch, not merged; **applied to DEV**
+- **TI-1:** migration 41 (merged to `main` 2026-10-22; **applied to DEV**
   by the reviewed recovery, recorded 2026-10-21) drops `programs_delete_admin`, revokes DELETE on `programs`,
   adds the `programs_guard_delete` trigger and `program_deletion_blockers()` /
   `delete_archived_program()` (Super Admin only, archived only, every FK

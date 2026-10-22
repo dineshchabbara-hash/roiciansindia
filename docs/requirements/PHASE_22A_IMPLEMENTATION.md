@@ -1,6 +1,6 @@
 # Phase 22A — Website Data Foundation and Program-Deletion Safeguards: Implementation Record
 
-**Status: Implemented on branch; DEV recovered; structural and functional verification passed on DEV; ready for owner acceptance; not merged.**
+**Status: Accepted by the owner and merged to `main` on 2026-10-22 (fast-forward to `83b7536`). DEV recovered, structurally and functionally verified. Production not yet deployed (TI-1 remains open there until migrations 40–42 are deployed).**
 
 > **Real-DEV functional verification passed (owner-run, recorded 2026-10-22).**
 > The checksum matched; pre-test step E was 36/36; the run completed and ended in

@@ -209,7 +209,7 @@ All Phase 22 business decisions are recorded in
   Programs with history or protected dependencies remain archived. (Revised
   2026-10-17 by explicit owner approval; supersedes the earlier "no
   permanent deletion" decision. Database enforcement implemented on the
-  Phase 22A branch, not merged; applied to DEV by the reviewed recovery
+  Phase 22A, merged to `main` 2026-10-22; applied to DEV by the reviewed recovery
   (confirmed 2026-10-21) and functionally verified there (owner-run); screens are 22B —
   TI-1.)
 - No public pricing or financial information.

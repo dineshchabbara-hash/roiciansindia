@@ -1,7 +1,8 @@
 # Phase 22A — DEV Recovery Record and Acceptance Status
 
-**Status: Implemented on branch; DEV recovered; structural and functional
-verification passed on DEV; ready for owner acceptance; not merged.**
+**Status: Accepted by the owner and merged to `main` on 2026-10-22
+(fast-forward `9184c82..83b7536`). DEV recovered, structurally and
+functionally verified.**
 
 Evidence labels used below:
 - **[Owner]** — results the owner reported from their own psql runs.
@@ -10,7 +11,7 @@ Evidence labels used below:
 
 | Item | Value |
 |---|---|
-| Branch | `claude/phase22a-website-foundation` (not merged to `main`) |
+| Branch | `claude/phase22a-website-foundation`, fast-forward merged to `main` on 2026-10-22 (`83b7536`) |
 | DEV project | Roicians India LMS Dev, `nqeaehqzhjhhgsilrgeo` (PostgreSQL 17.6, cluster `7678069749886157684`) |
 | Recovery script | [`phase22a_dev_recovery.sql`](phase22a_dev_recovery.sql), SHA-256 `018f460fabad4d5d273035b295185a53827f5e6089161892f164470d6b21a562`, reviewed at commit `56c73406c1c4bf506d71d677b1f16f8787672c6a` |
 | How it was run | By the owner, from Windows PowerShell with `psql`, over a TLS connection with certificate and hostname verification (`sslmode=verify-full`). The Supabase MCP connector was **not** used for the recovery (see "Connector history") |
@@ -147,8 +148,8 @@ read-only re-check can be made on request.
 | Local SQL/RLS suite, concurrency (9 interleavings), mutation checks, typecheck, lint | Pass (re-run 2026-10-21; lint has 4 pre-existing warnings in `lib/actions/payment-plans.ts`, outside 22A) | [Local] |
 | Unit suite | Clean full-suite runs, parallel and serial (§6); one intermittent test outside 22A recorded | [Local] |
 | Documentation reflects DEV state | Done | — |
-| Owner acceptance | **Pending owner decision** | — |
-| Merge to `main` | **Not done**; needs separate authorization | — |
+| Owner acceptance | **Given 2026-10-22** | Owner |
+| Merge to `main` | **Done 2026-10-22**: fast-forward to `83b7536`, after the owner confirmed there are no GitHub webhooks, no deploy integrations and no Supabase GitHub or Vercel integration | Owner + [Independent] |
 
 Known limitations accepted by design (not 22A defects):
 - **TI-7:** previously published Programs stay blocked.

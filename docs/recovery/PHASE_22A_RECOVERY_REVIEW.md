@@ -1,7 +1,7 @@
 # Phase 22A — Corrections and DEV Recovery Proposal
 
-**Status: Implemented on branch; DEV recovered; structural and functional
-verification passed on DEV; ready for owner acceptance; not merged.**
+**Status: Accepted and merged to `main` on 2026-10-22 (`83b7536`); DEV
+recovered, structurally and functionally verified.**
 
 > **Executed (recorded 2026-10-21).** The recovery proposed below was
 > approved by its SHA-256 (`018f460f…a562`) and run once by the owner from
@@ -17,7 +17,7 @@ verification passed on DEV; ready for owner acceptance; not merged.**
 | Item | Value |
 |---|---|
 | Branch | `claude/phase22a-website-foundation` (corrections start from `8ec1be6`) |
-| `main` | `9184c82e2180334e2e9c0c5cb4f7151f0300d32c` (unchanged, not merged) |
+| `main` | `9184c82e2180334e2e9c0c5cb4f7151f0300d32c` at review time (the branch was merged on 2026-10-22: `83b7536`) |
 | DEV | `nqeaehqzhjhhgsilrgeo`, PostgreSQL 17.6, cluster system identifier `7678069749886157684` |
 | Previous review | [`PHASE_22A_RECOVERY_REVIEW_INITIAL.md`](PHASE_22A_RECOVERY_REVIEW_INITIAL.md) (superseded) |
 | Superseded script | `phase22a-dev-remainder.sql`, SHA-256 `5bd38ec1…90ad422` — **must not be submitted or executed** |
@@ -277,6 +277,5 @@ It then checks, under the real hosted roles and RLS:
 5. The Phase 22B screens (eligibility review, reason and confirmation, explanations) are not built.
 6. On DEV, both current Programs will be blocked by `unattributable_history` (§3.2). Resolving that history is a business decision, not something this workflow can override.
 
-**Next decisions (owner):** Phase 22A acceptance, then a separately
-authorized merge to `main`. Production deployment of migrations 40–42 is a
-further, separate decision.
+**Outcome:** Phase 22A was accepted and merged on 2026-10-22. Production
+deployment of migrations 40–42 remains a separate decision.

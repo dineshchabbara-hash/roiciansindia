@@ -29,7 +29,7 @@ Phase 22 (approved design, not implemented): the public website reads a
 (Phase 22H) hand off to Zoho in Phase 23. Neither exists yet; no public
 Program or Batch read API exists today. See
 [`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_APPROVED_DESIGN.md)
-§13–§14. Phase 22A (on branch, not merged) adds only private, authenticated
+§13–§14. Phase 22A (merged to `main` 2026-10-22) adds only private, authenticated
 Admin/Super Admin database functions (`website_*`, `program_deletion_blockers`,
 `delete_archived_program`) — no HTTP route, server action or public endpoint
 (`docs/requirements/PHASE_22A_IMPLEMENTATION.md`).

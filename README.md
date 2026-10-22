@@ -19,8 +19,11 @@ source of truth for scope and design decisions:
 - `docs/requirements/PHASE_22_APPROVED_DESIGN.md` — the authoritative Phase 22
   (Roicians India public website) decision register; approved design
 - `docs/requirements/PHASE_22A_IMPLEMENTATION.md` — Phase 22A (website data
-  foundation and Program-deletion database enforcement): implemented on its
-  branch, awaiting review; not merged
+  foundation and Program-deletion database enforcement): accepted and merged
+  to `main` (2026-10-22); applied to DEV
+- `docs/requirements/PHASE_22B_PLAN.md` — Phase 22B (Admin Website
+  Management): decisions, homepage visual prototype and 22B-1 plan; planning
+  only, no code yet
 
 ## Prerequisites
 

@@ -103,7 +103,7 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   direct deletion of an unarchived Program, no automatic and no bulk
   deletion. This supersedes the earlier absolute ban on Program deletion.
   Database enforcement is implemented on the Phase 22A branch (migrations
-  41 and 42; not merged). It is applied to DEV (confirmed 2026-10-21), and the Super
+  41 and 42; merged to `main` 2026-10-22). It is applied to DEV (confirmed 2026-10-21), and the Super
   Admin screens are Phase 22B. Production still allows a broad delete until
   the branch is merged and deployed (TI-1). Program fees and other FR-20 financial
   fields stay internal and are never shown on the public website (P22-09).
