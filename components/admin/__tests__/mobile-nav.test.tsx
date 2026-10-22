@@ -21,7 +21,12 @@ describe("MobileNav", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(16);
+    // 17 for an Admin: Phase 22B-1 added "Website" (Admin Accounts is Super Admin only).
+    expect(screen.getAllByRole("link")).toHaveLength(17);
+    expect(screen.getByRole("link", { name: /Website/ })).toHaveAttribute(
+      "href",
+      "/admin/website",
+    );
   });
 
   it("closes the drawer when a nav link is clicked", async () => {
