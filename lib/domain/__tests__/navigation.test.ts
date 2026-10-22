@@ -10,7 +10,7 @@ import {
 } from "@/lib/domain/navigation";
 
 describe("ADMIN_NAV_ITEMS", () => {
-  it("includes exactly the 17 admin nav sections (Audit Log and Admin Accounts added in Phase 21C)", () => {
+  it("includes exactly the 18 admin nav sections (Audit Log and Admin Accounts added in Phase 21C, Website in Phase 22B-1)", () => {
     const labels = ADMIN_NAV_ITEMS.map((i) => i.label);
     expect(labels).toEqual([
       "Dashboard",
@@ -27,6 +27,7 @@ describe("ADMIN_NAV_ITEMS", () => {
       "Notifications",
       "Leads",
       "Reports",
+      "Website",
       "Audit Log",
       "Admin Accounts",
       "Settings",
@@ -38,11 +39,12 @@ describe("ADMIN_NAV_ITEMS", () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it("marks Dashboard, Students and the Phase 21C sections implemented", () => {
+  it("marks Dashboard, Students, Website and the Phase 21C sections implemented", () => {
     const implemented = ADMIN_NAV_ITEMS.filter((i) => i.implemented).map((i) => i.label);
     expect(implemented).toEqual([
       "Dashboard",
       "Students",
+      "Website",
       "Audit Log",
       "Admin Accounts",
       "Settings",

@@ -70,6 +70,13 @@ export const DEFAULT_PAGE_KEYS: Record<Exclude<AdminPageKind, "legal">, string> 
   footer: "footer",
 };
 
+/** The page's name in the Admin, for example "Home" or "Legal page: privacy-policy". */
+export function pageDisplayName(page: { kind: AdminPageKind; pageKey: string }): string {
+  return page.kind === "legal"
+    ? `${PAGE_KIND_LABELS.legal}: ${page.pageKey}`
+    : PAGE_KIND_LABELS[page.kind];
+}
+
 export function isAdminPageKind(value: unknown): value is AdminPageKind {
   return (
     typeof value === "string" && (ADMIN_PAGE_KINDS as readonly string[]).includes(value)

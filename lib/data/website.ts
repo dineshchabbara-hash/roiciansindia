@@ -133,7 +133,9 @@ export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
-const NOT_FOUND = "This page could not be found.";
+/** Returned for an unknown, malformed or Program page id; pages show a 404 for it. */
+export const WEBSITE_NOT_FOUND = "This page could not be found.";
+const NOT_FOUND = WEBSITE_NOT_FOUND;
 
 function log(message: string, error?: unknown) {
   console.error(`[website] ${message}:`, error);
