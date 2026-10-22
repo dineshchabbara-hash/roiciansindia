@@ -45,7 +45,7 @@ they differ on Phase 22, this document wins.
 |---|---|---|
 | P22-01 | Same repository; subdomain-based hostnames; internal `/admin`, `/student`, `/trainer` paths kept | §3 |
 | P22-02 | Canada stays at `https://www.roicians.com`, untouched and operationally independent | §3.4 |
-| P22-03 | Public brand ROICIANS TECH; supporting line "Practical technology training for the AI era"; legal name Roicians Tech Pvt. Ltd. | §4 |
+| P22-03 | Public brand **ROICIANS** (revised 2026-10-22; previously ROICIANS TECH); website logo: the original ROICIANS logo without TECH; supporting line "Practical technology training for the AI era"; legal name Roicians Tech Pvt. Ltd.; the public brand name is set in one place, separate from the legal identity (§4.1) | §4 |
 | P22-04 | Structured Website Management in the Admin portal; Admin and Super Admin manage the complete ordinary public website | §5 |
 | P22-05 | Super Admin only: slug change after first publication and other sensitive structural operations (post-publication slug change stays disabled until redirects are verified — §5.5) | §5.2 |
 | P22-06 | Ten launch Programs in two editable display groups | §6 |
@@ -154,7 +154,7 @@ production hosting in Phase 25.
 
 | Element | Value |
 |---|---|
-| Primary public brand name | **ROICIANS TECH** (unchanged) |
+| Public brand name (India website) | **ROICIANS** (owner decision, 2026-10-22; previously ROICIANS TECH). Used consistently in page titles, branding labels, navigation and SEO metadata |
 | Website logo | The original **ROICIANS** logo, without TECH (owner decision, 2026-10-22; see below) |
 | Supporting line | **Practical technology training for the AI era** |
 | India legal name (footer, legal documents) | **Roicians Tech Pvt. Ltd.** |
@@ -177,11 +177,9 @@ ROICIANS logo on its own, with **no TECH**, dividers or added lettering.
 - **Footer:** the original stacked logo. The tagline "Practical technology
   training for the AI era" sits beneath it as normal text.
 - **Favicon:** the original R symbol alone.
-- **Scope:** this is a website logo decision only.
-  - The legal name **Roicians Tech Pvt. Ltd.** and approved legal
-    information are unchanged.
-  - The brand name in the table above and other branding decisions are
-    unchanged.
+- **Scope:** the website logo only. The legal name **Roicians Tech Pvt.
+  Ltd.** and approved legal information are unchanged. (The public brand
+  name was decided separately; see below.)
 - **Superseded:** the earlier TECH lockups (header Option B, footer Option A,
   and the two revision-2 options) are no longer used. They remain in the
   review history.
@@ -189,9 +187,100 @@ ROICIANS logo on its own, with **no TECH**, dividers or added lettering.
   The prototype page is
   [`../prototypes/website-v2/logo.html`](../prototypes/website-v2/logo.html).
 
-Brand and legal names continue to come from the existing Company Settings
-(`company_name`, `legal_name`), whose permissions are unchanged: Super Admin
-edits, Admin reads (decision D5). The logo itself is not redesigned.
+**Public brand name decision (owner, 2026-10-22, after the logo decision):**
+the India website's public brand is **ROICIANS**, not ROICIANS TECH.
+- **Used consistently** in public page titles, branding labels, navigation,
+  logo alt text and, from 22I, SEO and social metadata.
+- **Tagline kept:** "Practical technology training for the AI era."
+- **Legal name kept:** **Roicians Tech Pvt. Ltd.** stays on the footer
+  copyright line, legal pages, receipts and certificates.
+- **Unchanged:**
+  - the existing LMS, including its display name (`company_name`), which
+    the Admin portal and the payment checkout use;
+  - the legal company settings, historical records and the database;
+  - the domain plans (§3) and the Canada website (§3.4).
+- **The previous name:** ROICIANS TECH was the approved public brand until
+  this decision. It remains in the decision history; nothing historical is
+  rewritten.
+
+### 4.1 Centralized public-brand configuration (design; not built)
+
+**Goal:** the owner may change the public brand name later. A change to
+another approved name must need **one settings change**, with no edits
+across website components and no database migration.
+
+**1. One source of truth, reusing Company Settings.**
+- Add one field, `public_brand_name`, to the existing single-row
+  `company_settings` table. It stores the public website brand name
+  (`ROICIANS`): required, 1–60 characters.
+- It is edited on the existing Company Settings screen, with the same
+  permissions (Super Admin edits, Admin reads; decision D5), validation and
+  audit trail as the other identity fields (Phase 21C).
+- **No new branding table, editor or service.**
+- **One-time setup:** one small additive migration, prepared and reviewed
+  separately before 22C/22D.
+  - It adds and seeds the field only.
+  - `company_name`, `legal_name` and historical rows are untouched.
+  - After it, renaming the brand is a data edit, never a migration.
+
+**2. Kept separate from the legal identity and from the LMS name.**
+
+| Setting | Holds | Used by |
+|---|---|---|
+| `public_brand_name` (new) | Public website brand: **ROICIANS** | Public website only |
+| `company_name` (existing) | LMS display name | LMS portals and payment checkout, unchanged |
+| `legal_name` (existing) | **Roicians Tech Pvt. Ltd.** | Copyright line, legal pages, receipts, certificates |
+
+- None of these is derived from another.
+- `company_name` is not reused for the website, because changing it would
+  change the LMS.
+- If the owner later wants one name everywhere, that is a separate,
+  explicit settings decision.
+
+**3. One server-side accessor.**
+- The 22C published-data layer provides `getPublicBrand()`. It returns the
+  public brand name, the legal name and the tagline.
+- It reads through the narrow server-only contract (§14). There is no
+  `anon` policy on `company_settings`.
+- It is cached with the other published website data. Saving Company
+  Settings revalidates that cache, so a rename appears without a code
+  change or redeploy.
+- **The tagline** stays editable website content: the footer document in
+  Website Management, with drafts and publishing as today. It is not a new
+  setting.
+
+**4. Every public surface reads the accessor, never a literal name.**
+- Header and footer logo labels and alt text; navigation labels that name
+  the brand.
+- The page-title template ("{page} · {brand}") and default meta
+  descriptions.
+- Open Graph and social `site_name`; the web-app manifest name.
+- Structured data: `Organization.name` is the brand, and
+  `Organization.legalName` is the legal name.
+- Error pages; enquiry acknowledgements and emails (22H).
+- **Guard:** a unit test fails if a literal brand name appears in
+  public-website source outside the accessor and its tests.
+
+**5. What a future rename still involves (by nature, not code).**
+- New logo artwork, if the name in the logo changes. Logo files are assets
+  referenced from one place in the accessor's module.
+- Editor-written page copy that mentions the name, updated through Website
+  Management.
+- Separate decisions on domains and SEO redirects. This configuration does
+  not change the domain plans.
+
+**Not chosen:**
+- A deployment setting (environment variable): every rename would need a
+  redeploy and developer access, and it goes against FR-140 (no brand
+  detail hard-coded in the application).
+- A separate branding system: more than the need requires.
+
+**Status:**
+- **Prototype:** the name is set once, in `BRAND` in
+  `docs/prototypes/website-v2/build_pages.py`. A build check keeps every
+  page consistent.
+- **Application:** not built. It needs separate authorization in 22C/22D,
+  and the migration needs separate approval.
 
 ---
 
@@ -648,7 +737,7 @@ and unapproved testimonials, people, logos or outcomes.
 predominantly white (`#FFFFFF`), with soft-blue sections (`#F1F6FF`), cobalt
 accents (`#2347D0`) and dark-navy text (`#14263F`). The large dark-navy
 Corporate/GCC section is removed in favour of a light-blue alternative. The
-ROICIANS TECH branding and logo requirements (§4) are unchanged.
+ROICIANS branding and logo requirements (§4) are unchanged.
 
 **Prototypes:**
 - **v1** (`../prototypes/roicians-tech-homepage-prototype.html`) was **not
@@ -840,6 +929,7 @@ LCP < 2.5 s; CLS < 0.1.
 |---|---|
 | Logo: original ROICIANS PNG supplied 2026-10-22 (approved). Website logo decided: the original logo without TECH (§4). Still needed: a vector (SVG) or larger master | 22D |
 | Final design tokens after logo review | 22D |
+| Public brand setting (§4.1): one additive `company_settings.public_brand_name` field, prepared and reviewed separately; not applied without approval | Before 22C/22D |
 | Approved content for each Program (summary, outcomes, curriculum overview, audience, prerequisites, FAQs) | 22E launch |
 | Approved homepage, About, Corporate, Institutions and FAQ copy | 22F–22G launch |
 | Privacy policy, terms and enquiry consent wording (including India DPDP requirements) | 22H launch |

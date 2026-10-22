@@ -1,7 +1,19 @@
-"""Builds programs.html, logo.html and notes.html for the ROICIANS TECH
+"""Builds programs.html, logo.html and notes.html for the ROICIANS
 website prototype v2, reusing the header and footer from index.html so that
 navigation is identical on every page. Run from this folder: python3 build_pages.py"""
 import re, hashlib, html
+
+# Public brand configuration: the single place the prototype's public brand is set.
+# The public brand is kept separate from the legal identity. Changing the public name
+# here (and in index.html, which check_brand() verifies) updates every generated page.
+# This mirrors the planned app design (design doc section 4.1), where the name lives in
+# one Company Settings field rather than in code.
+BRAND = {
+    "name": "ROICIANS",                                    # public brand name (owner decision, 2026-10-22)
+    "tagline": "Practical technology training for the AI era.",
+    "legal_name": "Roicians Tech Pvt. Ltd.",               # legal identity: never derived from the brand
+}
+B = BRAND["name"]
 
 idx = open("index.html", encoding="utf-8").read()
 start = idx.index('<div class="proto-bar"'); end = idx.index("</header>") + len("</header>")
@@ -127,7 +139,7 @@ programs_body = f'''  <section class="page-intro" aria-labelledby="programs-titl
     </div>
   </section>'''
 
-open("programs.html", "w", encoding="utf-8").write(page("Programs · ROICIANS TECH (prototype)", programs_body, "programs.html", "Prototype Programs listing for ROICIANS TECH."))
+open("programs.html", "w", encoding="utf-8").write(page(f"Programs · {B} (prototype)", programs_body, "programs.html", f"Prototype Programs listing for {B}."))
 
 # ---------------------------------------------------------------- website logo (decision page)
 def sha(p):
@@ -139,7 +151,7 @@ HDR = '''<span class="brand-h" role="img" aria-label="ROICIANS">
             <img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57">
           </span>'''
 FTR = '<span class="brand-s" role="img" aria-label="ROICIANS"><img src="assets/brand/roicians-logo-web.png" alt="" width="293" height="260"></span>'
-TAG = "Practical technology training for the AI era."
+TAG = BRAND["tagline"]
 logo_css = '''<style>
   .lg-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
   .lg-tile { margin: 0; display: grid; place-items: center; gap: 18px; min-height: 200px; padding: 32px 16px 16px; border-radius: 18px; min-width: 0; overflow: hidden; }
@@ -181,7 +193,7 @@ logo_body = f'''{logo_css}
     <div class="wrap">
       <h2 id="lg-fav">Favicon: the R symbol alone</h2>
       <div class="fav-row">
-        <figure><span class="tab"><img src="assets/brand/roicians-favicon.png" alt="">ROICIANS TECH</span><figcaption>Browser tab, 16 px</figcaption></figure>
+        <figure><span class="tab"><img src="assets/brand/roicians-favicon.png" alt="">{B}</span><figcaption>Browser tab, 16 px</figcaption></figure>
         <figure><span class="sizes"><img src="assets/brand/roicians-favicon.png" alt="" width="16" height="16"><img src="assets/brand/roicians-favicon.png" alt="" width="32" height="32"><img src="assets/brand/roicians-favicon.png" alt="" width="48" height="48"></span><figcaption>16, 32 and 48 px</figcaption></figure>
         <figure><img class="touch" src="assets/brand/roicians-touch-icon.png" alt=""><figcaption>Phone home-screen icon</figcaption></figure>
       </div>
@@ -208,9 +220,9 @@ logo_body = f'''{logo_css}
 
       <h2>Scope of this decision</h2>
       <ul>
-        <li>This is a <strong>website logo decision only</strong>.</li>
-        <li>The legal company name stays <strong>Roicians Tech Pvt. Ltd.</strong>, as shown in the footer. Approved legal information is unchanged.</li>
-        <li>Other branding decisions are unchanged, including how the brand name is written in copy and page titles.</li>
+        <li>The logo decision covers the website logo only.</li>
+        <li><strong>Public brand name (owner decision, later on 2026-10-22):</strong> the India website's public brand is <strong>{B}</strong>, used consistently in page titles, labels, navigation and future SEO metadata.</li>
+        <li>The legal company name stays <strong>{BRAND["legal_name"]}</strong>, as shown in the footer. Approved legal information, the LMS, the domain plans and the Canada website are unchanged.</li>
       </ul>
 
       <h2>Review history</h2>
@@ -222,7 +234,7 @@ logo_body = f'''{logo_css}
       <p>Earlier versions remain in the repository history. For example, <code>git show 745c8df:docs/prototypes/website-v2/logo-options.html</code> shows the revision-2 page. The full record is in <code>docs/brand/WEBSITE_LOGO_DECISIONS.md</code>.</p>
     </div>
   </section>'''
-open("logo.html", "w", encoding="utf-8").write(page("Website logo · ROICIANS TECH (prototype)", logo_body, None, "The website logo decision: the original ROICIANS logo without TECH."))
+open("logo.html", "w", encoding="utf-8").write(page(f"Website logo · {B} (prototype)", logo_body, None, "The website logo decision: the original ROICIANS logo without TECH."))
 
 # ---------------------------------------------------------------- review notes
 imgs = [
@@ -244,7 +256,7 @@ notes_body = f'''  <section class="page-intro" aria-labelledby="notes-title">
     <div class="wrap doc">
       <h2 style="margin-top:0">Approved content used</h2>
       <ul>
-        <li>The public brand name ROICIANS TECH, the line "Practical technology training for the AI era" and the original ROICIANS logo (supplied by the owner).</li>
+        <li>The public brand name {B} (owner decision, 2026-10-22), the line "{BRAND["tagline"].rstrip(".")}", the legal name {BRAND["legal_name"]} and the original ROICIANS logo (supplied by the owner).</li>
         <li>The ten Program names and the two initial groups: Career &amp; Technology Programs, Specialist &amp; Professional Programs.</li>
         <li>Button labels Talk to an Advisor, Explore Programs and Join Interest List, and the state "Next Cohort: Coming Soon".</li>
         <li>Online-first delivery with room for in-person or hybrid formats.</li>
@@ -257,7 +269,10 @@ notes_body = f'''  <section class="page-intro" aria-labelledby="notes-title">
       <ul>
         <li>The original logo artwork and navy colour are preserved: no redesign or recolouring.</li>
         <li><strong>Website logo (decision, 2026-10-22):</strong> the original ROICIANS logo without TECH. The header uses the original R symbol and wordmark side by side. The footer uses the original stacked logo, with the tagline as normal text beneath it. The R symbol alone is the favicon. See <a href="logo.html">Website logo</a>.</li>
-        <li>This is a website logo decision only. The legal company name stays Roicians Tech Pvt. Ltd., and other branding decisions are unchanged. The earlier TECH lockups (header Option B, footer Option A and the two revision-2 options) are no longer used; they remain in the review history.</li>
+        <li>The earlier TECH lockups (header Option B, footer Option A and the two revision-2 options) are no longer used. They remain in the review history.</li>
+        <li><strong>Public brand name (decision, 2026-10-22):</strong> the India website's public brand is <strong>{B}</strong>, replacing the earlier name <span data-history>ROICIANS TECH</span>. It is used for page titles, branding labels, navigation and future SEO metadata. The tagline stays "{BRAND["tagline"].rstrip(".")}".</li>
+        <li>The legal company name stays <strong>{BRAND["legal_name"]}</strong>, used for the copyright line and legal information. The LMS, legal company settings, historical records, the database, the domain plans and the Canada website are unchanged.</li>
+        <li><strong>Changing the name later:</strong> the future website reads the public brand name from one setting (design doc §4.1), so a rename needs no code edits across components and no database migration. In this prototype, the name is set once in <code>build_pages.py</code> (<code>BRAND</code>).</li>
         <li>Palette stays white, soft blue and cobalt.</li>
         <li>The original topic-specific illustrations stay on the Program cards in the prototype.</li>
         <li>For the live website: a limited amount of properly licensed professional photography in the hero and Corporate Training sections (not yet sourced).</li>
@@ -301,5 +316,23 @@ notes_body = f'''  <section class="page-intro" aria-labelledby="notes-title">
       </ul>
     </div>
   </section>'''
-open("notes.html", "w", encoding="utf-8").write(page("Review notes · ROICIANS TECH (prototype)", notes_body, None, "Review notes for the ROICIANS TECH website prototype."))
-print("built programs.html, logo.html, notes.html")
+open("notes.html", "w", encoding="utf-8").write(page(f"Review notes · {B} (prototype)", notes_body, None, f"Review notes for the {B} website prototype."))
+
+
+# ---------------------------------------------------------------- brand consistency check
+def check_brand():
+    """Fail the build if a page drifts from BRAND: wrong title, an old brand name, or a
+    missing tagline or legal name."""
+    legal = BRAND["legal_name"]
+    for f in ["index.html", "programs.html", "logo.html", "notes.html"]:
+        s = open(f, encoding="utf-8").read()
+        title = re.search(r"<title>(.*?)</title>", s).group(1)
+        assert B in title, f"{f}: title does not use the public brand: {title}"
+        visible = re.sub(r"<span data-history>.*?</span>", "", s.replace(legal, ""))  # marked decision-history text is allowed
+        assert not re.search(r"ROICIANS TECH|Roicians Tech(?! Pvt)", visible), f"{f}: old public brand name found"
+        assert legal in s, f"{f}: legal name missing"
+        assert BRAND["tagline"] in s, f"{f}: tagline missing"
+
+
+check_brand()
+print(f"built programs.html, logo.html, notes.html (public brand: {B}; legal name: {BRAND['legal_name']})")

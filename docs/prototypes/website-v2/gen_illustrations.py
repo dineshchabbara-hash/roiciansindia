@@ -1,4 +1,4 @@
-"""Original technical illustrations for the ROICIANS TECH website prototype.
+"""Original technical illustrations for the ROICIANS website prototype.
 All artwork is generated here from basic shapes (no third-party images).
 Style: light product-UI panels, brand blues, small teal/amber/coral accents,
 soft shadows, no glow, no heavy gradients, no robots."""

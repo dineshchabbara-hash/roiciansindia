@@ -1781,8 +1781,9 @@ this section summarizes it and tracks the stages.
   `trainer.roicians.in`, `admin.roicians.in` mapped onto the existing
   internal routes by an allowlisted hostname layer (Phase 22D). Canada stays
   at `https://www.roicians.com`, untouched (`ARCHITECTURE.md` §1a, §1b).
-- Public brand ROICIANS TECH, "Practical technology training for the AI
-  era"; legal name Roicians Tech Pvt. Ltd.
+- Public brand ROICIANS (revised 2026-10-22; previously ROICIANS TECH),
+  "Practical technology training for the AI era"; legal name Roicians Tech
+  Pvt. Ltd. The public brand name is read from one setting (design doc §4.1).
 - Website Management in the Admin portal: Admin and Super Admin manage the
   complete ordinary public website through structured forms, with drafts,
   authenticated preview, explicit publishing, revision history, restoration,

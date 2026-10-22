@@ -1,4 +1,4 @@
-/* ROICIANS TECH website prototype v2 — shared behaviour (non-production).
+/* ROICIANS website prototype v2 — shared behaviour (non-production).
    No data is read or sent anywhere. */
 (function () {
   "use strict";

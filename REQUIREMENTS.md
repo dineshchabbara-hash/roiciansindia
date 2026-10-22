@@ -816,8 +816,8 @@ contradictions" instruction:
    emergency contact are modeled as **nullable/optional** fields, collected only if
    the enrollment/program requires them, not mandatory on every student.
 8. **Public website (Phase 22 approved design)** — the brief's public site is
-   now the Roicians India website on `roicians.in` with the ROICIANS TECH
-   brand; it publishes no course pricing; its content is managed by Admin and
+   now the Roicians India website on `roicians.in` with the ROICIANS brand
+   (revised 2026-10-22; previously ROICIANS TECH); it publishes no course pricing; its content is managed by Admin and
    Super Admin in a structured Website Management area; leads belong to Zoho
    CRM (Phase 23). See `docs/requirements/PHASE_22_APPROVED_DESIGN.md`.
 

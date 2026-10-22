@@ -1,9 +1,8 @@
 # Website logo decisions
 
-**Scope:** the public website logo only. This record does not change:
-- the legal company name, **Roicians Tech Pvt. Ltd.**, or any approved legal information;
-- how the brand name is written in copy, page titles or other materials;
-- any other branding decision.
+**Scope:** the public website logo only. It does not change the legal company name, **Roicians Tech Pvt. Ltd.**, or any approved legal information.
+
+**Related decision (owner, 2026-10-22, made after this logo decision):** the India website's public brand name is **ROICIANS** (previously ROICIANS TECH), so the logo and the name now match. The name is set in one place, separate from the legal identity. See `docs/requirements/PHASE_22_APPROVED_DESIGN.md` §4 and §4.1.
 
 ## Current decision (owner, 2026-10-22)
 

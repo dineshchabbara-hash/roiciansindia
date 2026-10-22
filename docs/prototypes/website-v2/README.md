@@ -1,4 +1,4 @@
-# ROICIANS TECH website prototype v2 (design review only)
+# ROICIANS website prototype v2 (design review only)
 
 **Status:** non-production design prototype for owner review (2026-10-22).
 - Not approved launch content.
@@ -8,10 +8,22 @@
 ## Owner decisions (provisional, 2026-10-22)
 
 The branding direction is approved provisionally; the whole visual prototype is not yet approved.
+- **Public brand name (decision, 2026-10-22):**
+  - **ROICIANS** replaces ROICIANS TECH as the India website's public brand;
+  - it is used consistently in page titles, branding labels, navigation and (later) SEO metadata;
+  - the tagline stays "Practical technology training for the AI era.";
+  - the legal company name stays **Roicians Tech Pvt. Ltd.** (footer copyright and legal information);
+  - the LMS, legal company settings, historical records, database, domain plans and Canada website are unchanged.
+- **Brand configuration in this prototype:**
+  - the public name, tagline and legal name are set once, in `BRAND` at the top of `build_pages.py`;
+  - every generated page uses them;
+  - a build check fails if any page (including the hand-written `index.html`) has a title without the public brand, an old brand name, or a missing tagline or legal name.
+
+  The future application reads the name from one setting instead (design doc §4.1).
 - **Website logo (decision, 2026-10-22):**
   - the original ROICIANS logo without TECH: no divider and no added lettering;
   - the original artwork, navy colour and proportions are preserved;
-  - this is a website logo decision only; the legal name Roicians Tech Pvt. Ltd. and other branding decisions are unchanged;
+  - the legal name Roicians Tech Pvt. Ltd. is unchanged;
   - see `../../brand/WEBSITE_LOGO_DECISIONS.md`.
 - **Palette:** white, soft blue and cobalt, kept.
 - **Illustrations:** the original Program-card illustrations stay in the prototype.

@@ -28,7 +28,12 @@
     - Footer: the original stacked logo, with the tagline as normal text.
     - Favicon: the R symbol alone.
     - The earlier TECH lockups are superseded; their history is in `../brand/WEBSITE_LOGO_DECISIONS.md`.
-    - This is a logo decision only. The legal name Roicians Tech Pvt. Ltd. and other branding decisions are unchanged.
+    - The legal name Roicians Tech Pvt. Ltd. is unchanged.
+  - **Public brand name (decision, 2026-10-22):**
+    - **ROICIANS** replaces ROICIANS TECH as the India website's public brand, in page titles, branding labels, navigation and future SEO metadata.
+    - The tagline is kept, and the legal name stays Roicians Tech Pvt. Ltd.
+    - The LMS, legal company settings, historical records, database, domain plans and Canada website are unchanged.
+    - The future website reads the name from one setting, so a rename needs no code edits across components and no migration (design doc §4.1). That setting needs one small additive Company Settings field, prepared separately and not applied without approval.
   - Palette kept.
   - Program-card illustrations kept.
   - Licensed photography planned for the live hero and Corporate Training sections.
