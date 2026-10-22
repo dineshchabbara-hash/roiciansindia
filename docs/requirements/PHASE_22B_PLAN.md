@@ -1,6 +1,10 @@
 # Phase 22B — Admin Website Management: Plan
 
-**Status: Planning and readiness only. No application code, no migration and no DEV change.** 22B-1 coding starts only on the owner's explicit go-ahead (§5).
+**Status (2026-10-22): 22B-1 implemented on this branch after the owner's go-ahead, awaiting review.**
+- See [`PHASE_22B1_IMPLEMENTATION_REPORT.md`](PHASE_22B1_IMPLEMENTATION_REPORT.md).
+- **Not done:** no migration, no SQL, no DEV change, no merge.
+- **Browser tests:** NOT RUN until the isolated runner is approved.
+- **Legal hold:** application-level only; the database guard is a separate proposal.
 - Branch: `claude/phase22b-website-management`, from `main` at `83b7536` (Phase 22A merged).
 - Authority: [`PHASE_22_APPROVED_DESIGN.md`](PHASE_22_APPROVED_DESIGN.md) §5, §5.5 (22B decisions, 2026-10-22), §7.4, §10 and §15.
 
