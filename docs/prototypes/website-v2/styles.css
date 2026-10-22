@@ -101,7 +101,29 @@ p { margin: 0; }
 .site-header.scrolled { border-bottom-color: var(--line); box-shadow: 0 8px 24px -20px rgba(20, 38, 63, 0.35); }
 .site-header .wrap { display: flex; align-items: center; gap: 28px; min-height: 80px; }
 
-/* Logo lockup B (horizontal header): original symbol + original wordmark + TECH */
+/* ROICIANS TECH lockups, revision 2 (proposals awaiting the owner's choice).
+   The symbol and wordmark are crops of the original artwork, scaled evenly, never redrawn or recoloured.
+   TECH is live text sized from the wordmark: --wm is the wordmark image height; its caps are 39/57 of it
+   and its baseline sits 43/57 from the top. No dividers, rules or underlines. */
+.rt { --wm: 22px; --sym: 50px; --tech: var(--brand); display: inline-flex; align-items: center; gap: calc(var(--wm) * 0.62); text-decoration: none; line-height: 1; flex: none; }
+.rt .sym { height: var(--sym); width: auto; max-width: none; display: block; flex: none; }
+.rt .wm { height: var(--wm); width: auto; max-width: none; } /* never squeezed: the original artwork keeps its proportions */
+.rt .tech { font-family: var(--display); font-weight: 600; color: var(--tech); white-space: nowrap; }
+.rt.cobalt { --tech: var(--cobalt); }
+/* Option 1: a smaller TECH alongside, sitting on the wordmark's baseline */
+.rt-1 .name { display: block; white-space: nowrap; font-size: calc(var(--wm) * 0.627); line-height: 1; transform: translateY(calc(var(--wm) * 0.088)); }
+.rt-1 .wm { display: inline; vertical-align: calc(var(--wm) * -14 / 57); }
+.rt-1 .tech { letter-spacing: 0.04em; margin-left: calc(var(--wm) * 0.16 - 0.03em); }
+/* Option 2: a smaller TECH beneath the end of the wordmark, right edge flush with the S */
+.rt-2 .name { display: grid; justify-items: end; font-size: max(10px, calc(var(--wm) * 0.55)); }
+.rt-2 .wm { display: block; }
+.rt-2 .tech { display: block; line-height: 1; letter-spacing: 0.06em; margin-top: calc(var(--wm) * -0.04 - 0.14em); margin-right: calc(var(--wm) * 5 / 57 - 0.122em); }
+/* Responsive sizes: one arrangement, different sizes only */
+.rt-1.hd { --wm: 22px; --sym: 50px; } .rt-1.ph { --wm: 17px; --sym: 40px; } .rt-1.ft { --wm: 30px; --sym: 68px; } .rt-1.xl { --wm: 40px; --sym: 90px; }
+.rt-2.hd { --wm: 24px; --sym: 54px; } .rt-2.ph { --wm: 19px; --sym: 44px; } .rt-2.ft { --wm: 30px; --sym: 68px; } .rt-2.xl { --wm: 40px; --sym: 90px; }
+
+/* Logo lockup B (horizontal header): original symbol + original wordmark + TECH.
+   WITHDRAWN by the owner (2026-10-22); still on the pages until a revision-2 option is chosen. */
 .brand-h { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; flex: none; }
 .brand-h .sym { height: 46px; width: auto; }
 .brand-h .word { display: flex; align-items: center; gap: 10px; }
@@ -113,7 +135,7 @@ p { margin: 0; }
   .brand-h .word { gap: 8px; } .brand-h { gap: 10px; }
 }
 
-/* Logo lockup A (stacked): original full logo + TECH as supporting label */
+/* Logo lockup A (stacked): original full logo + TECH as supporting label. WITHDRAWN (2026-10-22). */
 .brand-s { display: inline-flex; flex-direction: column; align-items: center; gap: 10px; text-decoration: none; }
 .brand-s img { width: 150px; height: auto; }
 .brand-s .tech-row { display: flex; align-items: center; gap: 12px; width: 100%; justify-content: center; }

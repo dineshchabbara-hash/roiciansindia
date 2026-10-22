@@ -167,13 +167,24 @@ the ROICIANS wordmark in muted navy (about `#2E496C`), kept unchanged at
 - It is never recoloured, redrawn or distorted.
 - Website use may trim transparent padding, or crop the symbol and wordmark
   for layout, in separate copies.
-- TECH is added only as a separate supporting label in website lockups. The
-  two options are under review in
+- TECH is added only in website lockups, as live text beside or beneath the
+  original wordmark. The two revised options are under review in
   [`../prototypes/website-v2/logo-options.html`](../prototypes/website-v2/logo-options.html).
 - The logo is used on white or very light blue, never on dark backgrounds.
-- **Provisional lockup choice (owner, 2026-10-22):** header Option B
-  (horizontal), footer Option A (stacked). Final visual approval of the whole
-  prototype is still pending.
+- **Lockups withdrawn (owner, 2026-10-22):** the earlier header Option B
+  (divider plus widely spaced TECH) and footer Option A (TECH between
+  horizontal rules) are **not approved**. They looked dated and used two
+  different treatments.
+- **Revision 2, awaiting the owner's choice:**
+  - TECH in Instrument Sans SemiBold, with minimal letter spacing.
+  - No dividers, rules or underlines.
+  - One arrangement for the header, footer and phones; only the size changes.
+  - The tagline stays outside the logo.
+  - Option 1 puts a smaller TECH alongside the wordmark, on its baseline.
+    Option 2 puts it beneath the end of the wordmark.
+  - Each is shown in navy `#2E496C` and with a cobalt `#2347D0` accent.
+  - Recommended: Option 1 in navy.
+  - Not applied to the prototype pages until chosen.
 
 Brand and legal names continue to come from the existing Company Settings
 (`company_name`, `legal_name`), whose permissions are unchanged: Super Admin
@@ -647,8 +658,8 @@ ROICIANS TECH branding and logo requirements (§4) are unchanged.
 
 **Provisional owner decisions on v2 (2026-10-22):** branding direction
 approved provisionally; not final approval of the visual prototype.
-- Header logo Option B, footer Option A; original artwork and colour
-  preserved.
+- Original logo artwork and colour preserved. (The header Option B and
+  footer Option A lockups were later withdrawn; see §4 for revision 2.)
 - White, soft-blue and cobalt palette kept.
 - Original topic-specific illustrations kept for Program cards in the
   prototype.
@@ -822,7 +833,7 @@ LCP < 2.5 s; CLS < 0.1.
 
 | Item | Needed by |
 |---|---|
-| Logo: original ROICIANS PNG supplied 2026-10-22 (approved). Still needed: a vector (SVG) or larger master, and the choice between the two website lockups | 22D |
+| Logo: original ROICIANS PNG supplied 2026-10-22 (approved). Still needed: a vector (SVG) or larger master, and the owner's choice between the two revision-2 website lockups (§4) | 22D |
 | Final design tokens after logo review | 22D |
 | Approved content for each Program (summary, outcomes, curriculum overview, audience, prerequisites, FAQs) | 22E launch |
 | Approved homepage, About, Corporate, Institutions and FAQ copy | 22F–22G launch |

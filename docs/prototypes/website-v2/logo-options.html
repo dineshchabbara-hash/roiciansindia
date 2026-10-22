@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="description" content="Two website-only logo layouts using the original ROICIANS logo.">
+<meta name="description" content="Two revised ROICIANS TECH logo lockups, side by side, using the original ROICIANS logo.">
 <title>Logo options · ROICIANS TECH (prototype)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -69,95 +69,192 @@
 </header>
 <main>
 <style>
-  .opt { display: grid; gap: 22px; padding: clamp(24px, 4vw, 40px); border-radius: 28px; border: 1px solid var(--line); background: var(--white); }
-  .opt + .opt { margin-top: 36px; }
-  .stage { display: grid; place-items: center; min-height: 260px; border-radius: 20px; padding: 32px 20px; }
-  .stage.white { background: var(--white); border: 1px dashed #CBD7EC; }
-  .stage.sky { background: var(--sky); }
-  .stages { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
-  .stage, .mock { min-width: 0; overflow: hidden; }
-  .big .brand-s img { width: 220px; } .big .brand-s .tech { font-size: 1.3rem; }
-  .big .brand-h .sym { height: 84px; } .big .brand-h .wm { height: 34px; } .big .brand-h .rule { height: 34px; width: 2px; } .big .brand-h .tech { font-size: 1.7rem; }
-  .mock { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--white); }
-  .mock-bar { display: flex; align-items: center; gap: 18px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
-  .mock-bar .fake { margin-left: auto; display: flex; gap: 10px; align-items: center; min-width: 0; flex-shrink: 1; overflow: hidden; }
-  .mock-bar > .brand-h, .mock-bar > .brand-s { flex: none; }
-  .mock-bar .fake i { display: block; width: 52px; height: 9px; border-radius: 5px; background: #DCE5F3; }
-  .mock-bar .fake i { flex: 0 1 44px; }
-  .mock-bar .fake b { display: block; flex: none; width: 92px; height: 30px; border-radius: 999px; background: var(--cobalt); }
-  .mock.phone { max-width: 390px; }
-  .mock.phone .fake i { display: none; } .mock.phone .fake b { width: 64px; background: #DCE5F3; }
-  .mock .brand-s img { width: 92px; } .mock .brand-s .tech { font-size: 0.72rem; } .mock .brand-s { gap: 6px; }
-  .mock.phone .brand-h .sym { height: 36px; } .mock.phone .brand-h .wm { height: 14px; } .mock.phone .brand-h .tech { font-size: 0.75rem; } .mock.phone .brand-h .rule { height: 14px; }
-  .mock.phone .brand-s img { width: 70px; }
-  .opt h2 { margin: 0; }
-  .facts { display: grid; gap: 8px; color: var(--muted); padding-left: 20px; margin: 0; }
+  .lk-section h2 { font-size: clamp(1.35rem, 1.15rem + 0.8vw, 1.75rem); margin-bottom: 6px; }
+  .lk-section .sub { color: var(--muted); margin: 0 0 22px; max-width: 70ch; }
+  .lk-section + .lk-section { padding-top: 0; }
+  .cmp { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); }
+  .opt { display: grid; gap: 12px; align-content: start; padding: clamp(20px, 3vw, 32px); border-radius: 24px; border: 1px solid var(--line); background: var(--white); min-width: 0; }
+  .opt h3 { margin: 0; font-size: var(--fs-h3); }
+  .opt-desc { margin: 0; color: var(--muted); }
+  .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); margin-top: 8px; }
+  .tile { margin: 0; display: grid; place-items: center; gap: 16px; min-height: 170px; padding: 28px 10px 14px; border-radius: 16px; min-width: 0; overflow: hidden; }
+  .tile.white { background: var(--white); border: 1px solid var(--line); }
+  .tile.sky { background: var(--sky); }
+  .tile figcaption, .mock-fig figcaption, .phone-fig figcaption, .mock-foot-fig figcaption { font: 500 0.74rem/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .hero-spec { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); margin-bottom: 24px; }
+  .hero-spec .tile { min-height: 230px; }
+  @media (max-width: 600px) { .hero-spec .rt.xl { --wm: 26px; --sym: 58px; } }
+  .mock-fig, .mock-foot-fig, .phone-fig { margin: 0; display: grid; gap: 8px; min-width: 0; }
+  .mock-stack { display: grid; gap: 20px; }
+  .mock-head { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .mock-head.white { background: var(--white); } .mock-head.sky { background: var(--sky); }
+  .mock-bar { display: flex; align-items: center; gap: 28px; min-height: 80px; padding: 0 clamp(16px, 3vw, 32px); }
+  .mock-bar .fake { margin-left: auto; display: flex; gap: clamp(14px, 2vw, 28px); align-items: center; min-width: 0; overflow: hidden; }
+  .mock-bar .fake i { display: block; flex: none; width: 70px; height: 9px; border-radius: 5px; background: #D3DDEE; }
+  .mock-bar .fake u { display: block; flex: none; width: 54px; height: 9px; border-radius: 5px; background: #C3D0E6; }
+  .mock-bar .fake b { display: block; flex: none; width: 150px; height: 44px; border-radius: 999px; background: var(--cobalt); }
+  @media (max-width: 1100px) { .mock-bar .fake i { display: none; } } @media (max-width: 860px) { .mock-bar .fake b { width: 110px; } } @media (max-width: 600px) { .mock-bar { gap: 16px; } .mock-bar .fake u { display: none; } .mock-bar .fake b { width: 44px; height: 36px; } }
+  .mock-foot { display: grid; justify-items: start; gap: 16px; padding: 36px clamp(20px, 3vw, 36px); border-radius: 14px; min-width: 0; overflow: hidden; }
+  .mock-foot.sky { background: var(--sky); } .mock-foot.white { background: var(--white); border: 1px solid var(--line); }
+  .mock-foot .tag, .ph-foot .tag { margin: 0; color: var(--muted); max-width: 36ch; text-wrap: balance; }
+  .phones { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
+  .phone-fig { width: min(100%, 392px); }
+  .phone { width: 100%; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: var(--white); box-shadow: var(--shadow-soft); }
+  .ph-bar { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+  .ph-act { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .ph-act b { font: 600 0.88rem/1 var(--body); color: var(--navy); padding: 10px 12px; border: 1.5px solid #C6D3EC; border-radius: 999px; }
+  .ph-act s { display: grid; gap: 4px; width: 40px; height: 40px; place-content: center; border-radius: 12px; background: var(--sky); }
+  .ph-act s i { display: block; width: 18px; height: 2px; border-radius: 2px; background: var(--navy); }
+  .ph-body { display: grid; gap: 10px; padding: 28px 16px 32px; background: linear-gradient(180deg, var(--white), var(--sky)); }
+  .ph-body i { display: block; height: 14px; border-radius: 7px; background: #D3DDEE; } .ph-body i.short { width: 60%; }
+  .ph-body b { display: block; width: 150px; height: 44px; border-radius: 999px; background: var(--cobalt); margin-top: 8px; }
+  .ph-foot { display: grid; justify-items: start; gap: 14px; padding: 28px 16px; background: var(--sky); }
+  .toggle { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--white); margin-bottom: 22px; }
+  .toggle legend { float: left; font-weight: 600; margin-right: 6px; padding: 0; }
+  .toggle label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggle input { accent-color: var(--cobalt); width: 18px; height: 18px; }
+  .rec { display: grid; gap: 14px; padding: clamp(22px, 3vw, 34px); border-radius: 24px; background: var(--white); border: 1.5px solid #BFD0F2; }
+  .rec h2 { margin: 0; }
+  .rec ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+  .rec-spec { display: flex; flex-wrap: wrap; gap: 14px; }
+  .rec-spec > div { display: grid; place-items: center; padding: 22px 26px; border-radius: 16px; background: var(--sky); flex: 1 1 260px; min-width: 0; overflow: hidden; }
+  .rec-spec > div.white { background: var(--white); border: 1px solid var(--line); }
+  @media (max-width: 600px) { .rec-spec > div { padding: 20px 14px; } .rec-spec .rt-1.ft { --wm: 22px; --sym: 50px; } }
+  table.lk-table td:first-child { font-weight: 600; color: var(--navy); }
 </style>
   <section class="page-intro" aria-labelledby="logo-title">
     <div class="wrap">
       <p class="crumbs"><a href="index.html">Home</a> / Logo options</p>
-      <h1 id="logo-title">Website logo layouts</h1>
-      <p class="lede">Two website-only arrangements of the original ROICIANS logo with TECH added as a supporting label. The original artwork is not redrawn, recoloured or distorted. Choose one for the header.</p>
+      <h1 id="logo-title">ROICIANS TECH logo lockups, revision 2</h1>
+      <p class="lede">Two modernised ways to add TECH to the original ROICIANS logo, shown side by side for your choice. The previous header and footer treatments are withdrawn. The original symbol and wordmark are unchanged.</p>
     </div>
   </section>
 
-  <section class="section" aria-label="Logo options">
+  <section class="section-tight lk-section" aria-labelledby="s-what">
     <div class="wrap">
-      <div class="opt" aria-labelledby="opt-a">
-        <span class="eyebrow">Option A</span>
-        <h2 id="opt-a">Stacked: original logo with TECH beneath</h2>
-        <div class="stages big">
-          <div class="stage white"><span class="brand-s">
-            <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
-            <span class="tech-row"><span class="tech">TECH</span></span>
-          </span></div>
-          <div class="stage sky"><span class="brand-s">
-            <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
-            <span class="tech-row"><span class="tech">TECH</span></span>
-          </span></div>
-        </div>
-        <div class="stages">
-          <div class="mock"><div class="mock-bar"><span class="brand-s">
-            <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
-            <span class="tech-row"><span class="tech">TECH</span></span>
-          </span><span class="fake"><i></i><i></i><i></i><b></b></span></div></div>
-          <div class="mock phone"><div class="mock-bar"><span class="brand-s">
-            <img src="assets/brand/roicians-logo-web.png" alt="ROICIANS" width="293" height="260">
-            <span class="tech-row"><span class="tech">TECH</span></span>
-          </span><span class="fake"><b></b></span></div></div>
-        </div>
-        <ul class="facts">
-          <li>Best for the footer, social images and printed materials, where there is vertical room.</li>
-          <li>In a header it needs about twice the height of Option B, which pushes the page content down, especially on phones.</li>
-        </ul>
-      </div>
+      <h2 id="s-what">What changed from the rejected version</h2>
+      <ul class="sub" style="padding-left:20px;display:grid;gap:6px">
+        <li>No vertical divider, no horizontal rules and no underline.</li>
+        <li>TECH is set in Instrument Sans SemiBold with minimal letter spacing (4–6 %), not widely spaced capitals.</li>
+        <li>TECH is sized and placed from the wordmark itself: on its baseline (Option 1) or flush with the end of its S (Option 2). This makes the two words read as one name.</li>
+        <li>One arrangement is used in the header, footer and on phones; only the size changes.</li>
+        <li>The tagline stays outside the logo, as supporting footer copy.</li>
+      </ul>
+    </div>
+  </section>
 
-      <div class="opt" aria-labelledby="opt-b">
-        <span class="eyebrow">Option B · used in the prototype header</span>
-        <h2 id="opt-b">Horizontal: original symbol, original wordmark, then TECH</h2>
-        <div class="stages big">
-          <div class="stage white"><span class="brand-h" style="pointer-events:none">
-            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
-            <span class="word"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57"><span class="rule" aria-hidden="true"></span><span class="tech">TECH</span></span>
-          </span></div>
-          <div class="stage sky"><span class="brand-h" style="pointer-events:none">
-            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
-            <span class="word"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57"><span class="rule" aria-hidden="true"></span><span class="tech">TECH</span></span>
-          </span></div>
+  <section class="section-tight lk-section" aria-labelledby="s-opts">
+    <div class="wrap">
+      <h2 id="s-opts">1. The two options</h2>
+      <p class="sub">Large size first, then at header size in navy (the same colour as the logo) and with a cobalt accent, on white and on soft blue.</p>
+      <div class="hero-spec">
+        <figure class="tile white"><span class="rt rt-1 xl" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Option 1 · navy · white</figcaption></figure>
+        <figure class="tile white"><span class="rt rt-2 xl" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Option 2 · navy · white</figcaption></figure>
+      </div>
+      <div class="cmp">
+        <article class="opt" aria-labelledby="o1-title">
+          <span class="eyebrow">Option 1</span>
+          <h3 id="o1-title">TECH alongside the wordmark</h3>
+          <p class="opt-desc">A smaller TECH follows ROICIANS on the same baseline, so the name reads in one line: ROICIANS TECH.</p>
+          <div class="tiles"><figure class="tile white"><span class="rt rt-1 hd" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Navy TECH · white</figcaption></figure><figure class="tile sky"><span class="rt rt-1 hd" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Navy TECH · soft blue</figcaption></figure><figure class="tile white"><span class="rt rt-1 hd cobalt" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Cobalt TECH · white</figcaption></figure><figure class="tile sky"><span class="rt rt-1 hd cobalt" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Cobalt TECH · soft blue</figcaption></figure></div>
+        </article>
+        <article class="opt" aria-labelledby="o2-title">
+          <span class="eyebrow">Option 2</span>
+          <h3 id="o2-title">TECH beneath the end of the wordmark</h3>
+          <p class="opt-desc">A smaller TECH sits under the end of ROICIANS, its right edge flush with the S, forming a compact two-line name block.</p>
+          <div class="tiles"><figure class="tile white"><span class="rt rt-2 hd" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Navy TECH · white</figcaption></figure><figure class="tile sky"><span class="rt rt-2 hd" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Navy TECH · soft blue</figcaption></figure><figure class="tile white"><span class="rt rt-2 hd cobalt" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Cobalt TECH · white</figcaption></figure><figure class="tile sky"><span class="rt rt-2 hd cobalt" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><figcaption>Cobalt TECH · soft blue</figcaption></figure></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <div id="mockups">
+  <section class="section-tight lk-section" aria-labelledby="s-head">
+    <div class="wrap">
+      <h2 id="s-head">2. Website header (desktop, actual size)</h2>
+      <p class="sub">The real 80 px header height. Grey bars stand in for the menu, Log in and the call-to-action button.</p>
+      <fieldset class="toggle"><legend>TECH colour in sections 2–4:</legend>
+        <label><input type="radio" name="techcolour" value="navy" checked> Navy (same colour as the logo)</label>
+        <label><input type="radio" name="techcolour" value="cobalt"> Cobalt accent</label>
+      </fieldset>
+      <div class="mock-stack">
+        <figure class="mock-fig"><figcaption>Option 1 · header on white</figcaption>
+          <div class="mock-head white"><div class="mock-bar"><span class="rt rt-1 hd" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><span class="fake" aria-hidden="true"><i></i><i></i><i></i><i></i><u></u><b></b></span></div></div></figure>
+        <figure class="mock-fig"><figcaption>Option 2 · header on white</figcaption>
+          <div class="mock-head white"><div class="mock-bar"><span class="rt rt-2 hd" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><span class="fake" aria-hidden="true"><i></i><i></i><i></i><i></i><u></u><b></b></span></div></div></figure>
+        <figure class="mock-fig"><figcaption>Option 1 · header on soft blue</figcaption>
+          <div class="mock-head sky"><div class="mock-bar"><span class="rt rt-1 hd" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><span class="fake" aria-hidden="true"><i></i><i></i><i></i><i></i><u></u><b></b></span></div></div></figure>
+        <figure class="mock-fig"><figcaption>Option 2 · header on soft blue</figcaption>
+          <div class="mock-head sky"><div class="mock-bar"><span class="rt rt-2 hd" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><span class="fake" aria-hidden="true"><i></i><i></i><i></i><i></i><u></u><b></b></span></div></div></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tight lk-section" aria-labelledby="s-foot">
+    <div class="wrap">
+      <h2 id="s-foot">3. Footer (actual size)</h2>
+      <p class="sub">The same arrangement as the header, larger, with the tagline as separate copy beneath it. The live footer uses the soft-blue background.</p>
+      <div class="cmp">
+        <figure class="mock-foot-fig"><figcaption>Option 1 · footer on soft blue and white</figcaption><div class="mock-foot sky"><span class="rt rt-1 ft" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><p class="tag">Practical technology training for the AI era.</p></div><div class="mock-foot white"><span class="rt rt-1 ft" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><p class="tag">Practical technology training for the AI era.</p></div></figure>
+        <figure class="mock-foot-fig"><figcaption>Option 2 · footer on soft blue and white</figcaption><div class="mock-foot sky"><span class="rt rt-2 ft" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><p class="tag">Practical technology training for the AI era.</p></div><div class="mock-foot white"><span class="rt rt-2 ft" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><p class="tag">Practical technology training for the AI era.</p></div></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tight lk-section" aria-labelledby="s-phone">
+    <div class="wrap">
+      <h2 id="s-phone">4. Phone (390 px wide)</h2>
+      <p class="sub">The header bar on white and the footer on soft blue, with the real Log in button and menu button sizes and a 16 px side margin.</p>
+      <div class="phones">
+        <figure class="phone-fig"><figcaption>Option 1 · 390 px phone</figcaption>
+          <div class="phone">
+            <div class="ph-bar"><span class="rt rt-1 ph" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><span class="ph-act" aria-hidden="true"><b>Log in</b><s><i></i><i></i><i></i></s></span></div>
+            <div class="ph-body" aria-hidden="true"><i></i><i></i><i class="short"></i><b></b></div>
+            <div class="ph-foot"><span class="rt rt-1 hd" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><p class="tag">Practical technology training for the AI era.</p></div>
+          </div></figure>
+        <figure class="phone-fig"><figcaption>Option 2 · 390 px phone</figcaption>
+          <div class="phone">
+            <div class="ph-bar"><span class="rt rt-2 ph" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><span class="ph-act" aria-hidden="true"><b>Log in</b><s><i></i><i></i><i></i></s></span></div>
+            <div class="ph-body" aria-hidden="true"><i></i><i></i><i class="short"></i><b></b></div>
+            <div class="ph-foot"><span class="rt rt-2 hd" role="img" aria-label="ROICIANS TECH, option 2"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span><p class="tag">Practical technology training for the AI era.</p></div>
+          </div></figure>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <section class="section-tight lk-section" aria-labelledby="s-cmp">
+    <div class="wrap">
+      <h2 id="s-cmp">5. Comparison</h2>
+      <div class="table-wrap"><table class="lk-table">
+        <thead><tr><th></th><th>Option 1: TECH alongside</th><th>Option 2: TECH beneath</th></tr></thead>
+        <tbody>
+          <tr><td>How it reads</td><td>One line, in natural order: ROICIANS TECH</td><td>ROICIANS first, then TECH as a second line</td></tr>
+          <tr><td>TECH text size: header / phone / footer</td><td>13.8 px / 10.7 px / 18.8 px</td><td>13.2 px / 10.5 px / 16.5 px</td></tr>
+          <tr><td>Logo size: header</td><td>216 × 50 px</td><td>189 × 54 px</td></tr>
+          <tr><td>Logo size: 390 px phone</td><td>168 × 40 px</td><td>151 × 44 px</td></tr>
+          <tr><td>Strengths</td><td>Clearest name; TECH stays as large as possible at every size; slim header</td><td>Compact, tidy block; narrower</td></tr>
+          <tr><td>Weaknesses</td><td>Wider (still fits a 390 px phone header with Log in and the menu button)</td><td>TECH must be smaller to sit under the wordmark, and reads more like a sub-label than part of the name</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="section-tight lk-section" aria-labelledby="s-rec">
+    <div class="wrap">
+      <div class="rec">
+        <span class="eyebrow">Recommendation</span>
+        <h2 id="s-rec">Option 1, with TECH in the same navy as the logo</h2>
+        <div class="rec-spec">
+          <div class="white"><span class="rt rt-1 hd" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span></div>
+          <div><span class="rt rt-1 ft" role="img" aria-label="ROICIANS TECH, option 1"><img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180"><span class="name"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57"><span class="tech">TECH</span></span></span></div>
         </div>
-        <div class="stages">
-          <div class="mock"><div class="mock-bar"><span class="brand-h" style="pointer-events:none">
-            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
-            <span class="word"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57"><span class="rule" aria-hidden="true"></span><span class="tech">TECH</span></span>
-          </span><span class="fake"><i></i><i></i><i></i><b></b></span></div></div>
-          <div class="mock phone"><div class="mock-bar"><span class="brand-h" style="pointer-events:none">
-            <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
-            <span class="word"><img class="wm" src="assets/brand/roicians-wordmark.png" alt="ROICIANS" width="290" height="57"><span class="rule" aria-hidden="true"></span><span class="tech">TECH</span></span>
-          </span><span class="fake"><b></b></span></div></div>
-        </div>
-        <ul class="facts">
-          <li>Compact enough for a sticky header on desktop and on a 390px phone.</li>
-          <li>The symbol and the wordmark are cropped from the original artwork and scaled evenly; neither is redrawn.</li>
+        <ul>
+          <li><strong>One arrangement everywhere:</strong> symbol, ROICIANS, TECH, in one line, in the header, the footer and on phones. Only the size changes. Sizes (symbol / wordmark height): header 50 / 22 px; phone header 40 / 17 px; footer 68 / 30 px (50 / 22 px on phones).</li>
+          <li><strong>Why Option 1:</strong> it reads as one name, ROICIANS TECH, in natural order; TECH stays legible on a phone; and the header stays slim.</li>
+          <li><strong>Why navy rather than cobalt:</strong> a single colour keeps ROICIANS and TECH together as one identity. A cobalt TECH is fresh, but it makes TECH look like a separate label. Cobalt stays for buttons and links.</li>
+          <li><strong>Footer:</strong> the logo, then the tagline "Practical technology training for the AI era" as ordinary text beneath it, not part of the logo.</li>
+          <li><strong>Nothing is applied yet.</strong> The prototype's header and footer still show the withdrawn treatment until you choose. Once you choose, only the header and footer logo change.</li>
         </ul>
       </div>
     </div>
@@ -167,15 +264,26 @@
     <div class="wrap doc">
       <h2 id="logo-rules" style="margin-top:0">How the original logo is preserved</h2>
       <ul>
-        <li><strong>Master file kept unchanged:</strong> <code>docs/brand/roicians-logo-original.png</code>, 433 × 370 transparent PNG, SHA-256 <code>13ecd0b8ae36b968…</code>.</li>
-        <li><strong>Web copy:</strong> <code>roicians-logo-web.png</code> only trims the empty transparent margin.</li>
-        <li><strong>Header pieces:</strong> <code>roicians-symbol.png</code> and <code>roicians-wordmark.png</code> are straight crops of the original. Pixels are not changed or resampled.</li>
-        <li><strong>TECH:</strong> set in Instrument Sans, semibold, widely letter-spaced, in the original logo blue <code>#2E496C</code>, so it reads as a supporting label rather than part of the mark.</li>
-        <li><strong>Backgrounds:</strong> the navy logo is used only on white or very light blue, never on dark backgrounds.</li>
-        <li><strong>Resolution:</strong> the supplied PNG is small. It is sharp at header and footer sizes, but a vector (SVG) or larger master is recommended before launch.</li>
+        <li><strong>Master file unchanged:</strong> <code>docs/brand/roicians-logo-original.png</code>, 433 × 370 transparent PNG, SHA-256 <code>13ecd0b8ae36b968…</code>.</li>
+        <li><strong>Symbol and wordmark:</strong> <code>roicians-symbol.png</code> and <code>roicians-wordmark.png</code> are straight crops of the original. Their pixels and colour are not changed. Each is scaled evenly by the browser, never stretched.</li>
+        <li><strong>TECH:</strong> live text in Instrument Sans SemiBold (Inter as fallback), letter spacing 0.04em (Option 1) or 0.06em (Option 2). The colour is the original logo navy <code>#2E496C</code>, with cobalt <code>#2347D0</code> shown only as an alternative.</li>
+        <li><strong>Alignment:</strong> TECH's size and position come from measurements of the wordmark (cap height 39 of 57 px; baseline 43 px from the top; the S ends 5 px from the right edge). Alignment therefore holds at every size.</li>
+        <li><strong>Backgrounds:</strong> white or soft blue only, never dark.</li>
+        <li><strong>Resolution:</strong> the supplied PNG is small. It is sharp at header and footer sizes. A vector (SVG) or larger master is recommended before launch, and before using the logo larger than about 40 px wordmark height.</li>
       </ul>
     </div>
   </section>
+<script>
+  (function () {
+    var zone = document.getElementById("mockups");
+    document.querySelectorAll('input[name="techcolour"]').forEach(function (r) {
+      r.addEventListener("change", function () {
+        var cob = document.querySelector('input[name="techcolour"]:checked').value === "cobalt";
+        zone.querySelectorAll(".rt").forEach(function (el) { el.classList.toggle("cobalt", cob); });
+      });
+    });
+  })();
+</script>
 </main>
 <footer class="site-footer">
   <div class="wrap">
