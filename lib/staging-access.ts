@@ -33,7 +33,6 @@ type Env = Record<string, string | undefined>;
 const ON_VALUES = new Set(["1", "true", "on", "yes", "enabled"]);
 const OFF_VALUES = new Set(["0", "false", "off", "no", "disabled"]);
 // No control characters (Basic credentials are one header line).
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 
 function isPresent(value: string | undefined): boolean {
