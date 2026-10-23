@@ -185,6 +185,33 @@ export function nextFeaturedOrder(orders: ReadonlyArray<number | null>): number 
 }
 
 // ---------------------------------------------------------------------------
+// Display group archive and restore
+
+/**
+ * Shown when an Admin tries to archive a group that still holds Programs. The
+ * database refuses this too (website_set_display_group_archived).
+ */
+export const GROUP_HAS_PROGRAMS_MESSAGE =
+  "This group still holds Programs, so it cannot be archived. Move its Programs to another group first (on each Program's Web address and placement screen), or hide the group instead: hiding keeps its Programs and takes it off the website.";
+
+/** Shown when an archived group's name is now used by an active group. */
+export const GROUP_RESTORE_NAME_TAKEN_MESSAGE =
+  "An active display group already uses this name, so this group cannot be restored. Rename or archive the active group first, then restore this one.";
+
+/** Group names compare like the database does: trimmed, ignoring case. */
+export function sameGroupName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** Whether restoring this archived group would clash with an active group's name. */
+export function restoreNameClash(
+  archivedName: string,
+  activeNames: readonly string[],
+): boolean {
+  return activeNames.some((name) => sameGroupName(name, archivedName));
+}
+
+// ---------------------------------------------------------------------------
 // Messages for database outcomes
 
 const GENERIC = "Something went wrong. Please try again.";

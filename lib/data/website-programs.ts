@@ -14,6 +14,8 @@ import {
 import { websiteErrorKind } from "@/lib/domain/website";
 import { websitePageStatus, type WebsitePageStatus } from "@/lib/domain/website-admin";
 import {
+  GROUP_HAS_PROGRAMS_MESSAGE,
+  GROUP_RESTORE_NAME_TAKEN_MESSAGE,
   programWebsiteMessage,
   type BatchPublicationRow,
   type LmsBatchStatus,
@@ -99,6 +101,15 @@ export type DisplayGroup = {
   version: number;
   /** Program website entries placed in this group. */
   programCount: number;
+};
+
+export type ArchivedDisplayGroup = {
+  id: string;
+  name: string;
+  description: string | null;
+  isVisible: boolean;
+  version: number;
+  archivedAt: string;
 };
 
 export type ProgramBatch = {
@@ -401,6 +412,35 @@ export async function listDisplayGroups(): Promise<DataResult<DisplayGroup[]>> {
   }
 }
 
+/** Archived display groups, most recently archived first (restore list). */
+export async function listArchivedDisplayGroups(): Promise<
+  DataResult<ArchivedDisplayGroup[]>
+> {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data, error } = await client
+      .from("website_display_groups")
+      .select(`${GROUP_COLUMNS}, archived_at`)
+      .not("archived_at", "is", null)
+      .order("archived_at", { ascending: false });
+    if (error) throw error;
+    return {
+      ok: true,
+      data: ((data ?? []) as Array<GroupRow & { archived_at: string }>).map((g) => ({
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        isVisible: g.is_visible,
+        version: g.version,
+        archivedAt: g.archived_at,
+      })),
+    };
+  } catch (error) {
+    log("Could not load archived display groups", error);
+    return { ok: false, error: "Could not load the archived display groups." };
+  }
+}
+
 /** A Program's Batches (newest start first) with their website publication. */
 export async function listProgramBatches(
   programId: string,
@@ -614,6 +654,48 @@ export async function reorderDisplayGroups(
     return { ok: true, data: null };
   } catch (error) {
     return unexpected("Could not reorder display groups", error);
+  }
+}
+
+/**
+ * Archives or restores a display group (website_set_display_group_archived).
+ * The database checks the role and version, refuses to archive a group that
+ * still holds Programs, refuses to restore over an active group's name, puts
+ * a restored group last, and audits the change.
+ */
+export async function setDisplayGroupArchived(
+  groupId: string,
+  expectedVersion: number,
+  archived: boolean,
+): Promise<WriteResult<{ version: number }>> {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data, error } = await client.rpc("website_set_display_group_archived", {
+      p_group_id: groupId,
+      p_expected_version: expectedVersion,
+      p_archived: archived,
+    });
+    if (error) {
+      if (
+        archived &&
+        error.code === "P2206" &&
+        /move the programs/i.test(error.message)
+      ) {
+        return { ok: false, kind: "invalid_state", error: GROUP_HAS_PROGRAMS_MESSAGE };
+      }
+      if (!archived && error.code === "23505") {
+        return { ok: false, kind: "duplicate", error: GROUP_RESTORE_NAME_TAKEN_MESSAGE };
+      }
+      return failure(error);
+    }
+    return { ok: true, data: { version: Number(data) } };
+  } catch (error) {
+    return unexpected(
+      archived
+        ? "Could not archive a display group"
+        : "Could not restore a display group",
+      error,
+    );
   }
 }
 

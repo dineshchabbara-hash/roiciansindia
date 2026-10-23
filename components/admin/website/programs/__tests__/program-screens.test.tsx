@@ -14,6 +14,8 @@ vi.mock("@/lib/actions/website-programs", () => ({
   createDisplayGroupAction: vi.fn(),
   updateDisplayGroupAction: vi.fn(),
   moveDisplayGroupAction: vi.fn(),
+  archiveDisplayGroupAction: vi.fn(),
+  restoreDisplayGroupAction: vi.fn(),
   saveBatchPublicationAction: vi.fn(),
   publishBatchAction: vi.fn(),
   unpublishBatchAction: vi.fn(),
@@ -43,6 +45,7 @@ import {
 } from "@/components/admin/website/programs/website-area-nav";
 import * as actions from "@/lib/actions/website-programs";
 import type {
+  ArchivedDisplayGroup,
   DisplayGroup,
   ProgramBatch,
   ProgramWebsiteSummary,
@@ -360,6 +363,150 @@ describe("DisplayGroupsManager", () => {
     expect(
       await within(form).findByText("A display group with that name already exists."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("DisplayGroupsManager archive and restore", () => {
+  const G3 = "dddddddd-0000-4000-8000-000000000003";
+  const active: DisplayGroup[] = [
+    {
+      id: G1,
+      name: "Quality Engineering",
+      description: null,
+      displayOrder: 1,
+      isVisible: true,
+      version: 2,
+      programCount: 3,
+    },
+    {
+      id: G2,
+      name: "Data and AI",
+      description: null,
+      displayOrder: 2,
+      isVisible: false,
+      version: 5,
+      programCount: 0,
+    },
+  ];
+  const archived: ArchivedDisplayGroup[] = [
+    {
+      id: G3,
+      name: "Cloud",
+      description: "Retired group",
+      isVisible: true,
+      version: 8,
+      archivedAt: "2026-10-20T09:00:00Z",
+    },
+  ];
+
+  it("shows archived groups separately, with a Restore button", () => {
+    render(<DisplayGroupsManager groups={active} archivedGroups={archived} />);
+    const activeList = screen.getByRole("list", { name: "" });
+    expect(within(activeList).queryByText("Cloud")).toBeNull();
+    const archivedList = screen.getByRole("list", { name: "Archived groups" });
+    expect(archivedList).toHaveTextContent("Cloud");
+    expect(archivedList).toHaveTextContent("Archived");
+    expect(archivedList).toHaveTextContent(/Archived 20 Oct 2026/);
+    expect(screen.getByRole("button", { name: "Restore Cloud" })).toBeEnabled();
+  });
+
+  it("says when there are no archived groups", () => {
+    render(<DisplayGroupsManager groups={active} />);
+    expect(screen.getByText("No archived groups.")).toBeInTheDocument();
+  });
+
+  it("cannot archive a group that holds Programs, and explains the alternatives", () => {
+    render(<DisplayGroupsManager groups={active} />);
+    const button = screen.getByRole("button", { name: "Archive Quality Engineering" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(
+      "To archive this group, first move its Programs to another group, or hide the group instead.",
+    );
+    expect(screen.getByRole("button", { name: "Archive Data and AI" })).toBeEnabled();
+  });
+
+  it("asks for confirmation before archiving, and Cancel archives nothing", async () => {
+    vi.mocked(actions.archiveDisplayGroupAction).mockResolvedValue({
+      message: 'Display group "Data and AI" archived.',
+    });
+    render(<DisplayGroupsManager groups={active} />);
+    fireEvent.click(screen.getByRole("button", { name: "Archive Data and AI" }));
+    expect(
+      screen.getByText(/Archive "Data and AI"\? It holds no Programs/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("button", { name: "Confirm archive" })).toBeNull();
+    expect(actions.archiveDisplayGroupAction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive Data and AI" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm archive" }));
+    });
+    const fd = submitted(actions.archiveDisplayGroupAction);
+    expect(fd.get("groupId")).toBe(G2);
+    expect(fd.get("expectedVersion")).toBe("5");
+    expect(await screen.findByRole("status", { name: "" })).toHaveTextContent(
+      'Display group "Data and AI" archived.',
+    );
+    expect(screen.queryByRole("button", { name: "Confirm archive" })).toBeNull();
+  });
+
+  it("shows a refused archive as an alert", async () => {
+    vi.mocked(actions.archiveDisplayGroupAction).mockResolvedValue({
+      error: "This group still holds Programs, so it cannot be archived.",
+    });
+    render(<DisplayGroupsManager groups={active} />);
+    fireEvent.click(screen.getByRole("button", { name: "Archive Data and AI" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm archive" }));
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This group still holds Programs, so it cannot be archived.",
+    );
+  });
+
+  it("restores a group with its version and shows the outcome", async () => {
+    vi.mocked(actions.restoreDisplayGroupAction).mockResolvedValue({
+      message: "Display group restored.",
+    });
+    render(<DisplayGroupsManager groups={active} archivedGroups={archived} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Restore Cloud" }));
+    });
+    const fd = submitted(actions.restoreDisplayGroupAction);
+    expect(fd.get("groupId")).toBe(G3);
+    expect(fd.get("expectedVersion")).toBe("8");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Display group restored.",
+    );
+  });
+
+  it("does not offer Restore when an active group already uses the name", () => {
+    render(
+      <DisplayGroupsManager
+        groups={active}
+        archivedGroups={[{ ...archived[0], name: "  data AND ai " }]}
+      />,
+    );
+    const button = screen.getByRole("button", { name: /Restore/ });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(
+      "An active group already uses this name. Rename or archive that group before restoring this one.",
+    );
+  });
+
+  it("shows a refused restore (name taken meanwhile) as an alert", async () => {
+    vi.mocked(actions.restoreDisplayGroupAction).mockResolvedValue({
+      error:
+        "An active display group already uses this name, so this group cannot be restored.",
+    });
+    render(<DisplayGroupsManager groups={active} archivedGroups={archived} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Restore Cloud" }));
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /already uses this name, so this group cannot be restored/,
+    );
   });
 });
 

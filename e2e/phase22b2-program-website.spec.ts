@@ -14,7 +14,9 @@ import {
   isIsolatedLocalSupabase,
   readAuditActions,
   readBatchPublication,
+  readDisplayGroupState,
   readDisplayGroups,
+  readMaxActiveGroupOrder,
   readProgram,
   readProgramDocument,
   type TestBatch,
@@ -38,7 +40,10 @@ import {
  *      publishes and its status changes at once.
  *   5. A published Program's web address is locked for Admin and Super Admin;
  *      an unpublished one can change.
- *   6. Display groups: create, rename, hide and reorder (audited).
+ *   6. Display groups: create, rename, hide and reorder (audited); archive
+ *      (confirmed; refused while the group holds a Program, which keeps its
+ *      group) and restore (refused while an active group uses the name;
+ *      restored last, still hidden), all audited.
  *   7. Placement and featured order, each confirmed; a stale placement save
  *      is refused.
  *   8. Batch publication: label and Open/Closed/Full, publish, change,
@@ -59,6 +64,8 @@ const HEADLINE = `E2E Headline ${RUN_ID}`;
 const GROUP_A = `E2E Group A ${RUN_ID}`;
 const GROUP_A_RENAMED = `E2E Group A2 ${RUN_ID}`;
 const GROUP_B = `E2E Group B ${RUN_ID}`;
+const GROUP_C = `E2E Group C ${RUN_ID}`;
+const GROUP_A_TWIN = `E2E Group A twin ${RUN_ID}`;
 const BATCH_LABEL = `Weekend batch E2E ${RUN_ID}`;
 const STALE_MESSAGE = /changed this content|changed by someone else/i;
 
@@ -302,7 +309,7 @@ test("5. a published Program's web address is locked; an unpublished one can cha
   expect(await readAuditActions(doc!.id)).toContain("website_document.slug_changed");
 });
 
-test("6. display groups can be created, renamed, hidden and reordered", async ({
+test("6. display groups can be created, renamed, hidden, reordered, archived and restored", async ({
   browser,
 }) => {
   const page = await adminPage(browser, admin);
@@ -334,6 +341,115 @@ test("6. display groups can be created, renamed, hidden and reordered", async ({
       "website_display_group.updated",
     ]),
   );
+
+  // Archive needs confirmation; Cancel changes nothing.
+  const activeList = page.getByRole("region", { name: "Groups in display order" });
+  const archivedList = page.getByRole("list", { name: "Archived groups" });
+  await page.getByRole("button", { name: `Archive ${GROUP_A_RENAMED}` }).click();
+  await expect(
+    page.getByText(`Archive "${GROUP_A_RENAMED}"? It holds no Programs`),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("button", { name: "Confirm archive" })).toHaveCount(0);
+  expect((await readDisplayGroupState(groupA.id)).archived_at).toBeNull();
+
+  await page.getByRole("button", { name: `Archive ${GROUP_A_RENAMED}` }).click();
+  await page.getByRole("button", { name: "Confirm archive" }).click();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: `Display group "${GROUP_A_RENAMED}" archived.` }),
+  ).toBeVisible();
+  await expect(archivedList.getByText(GROUP_A_RENAMED)).toBeVisible();
+  await expect(
+    activeList.getByRole("button", { name: `Edit ${GROUP_A_RENAMED}` }),
+  ).toHaveCount(0);
+  expect((await readDisplayGroupState(groupA.id)).archived_at).not.toBeNull();
+  expect(await readAuditActions(groupA.id)).toContain("website_display_group.archived");
+
+  // A group holding a Program cannot be archived; the Program keeps its group.
+  await create.getByLabel("Group name").fill(GROUP_C);
+  await create.getByRole("button", { name: "Create group" }).click();
+  await expect(page.getByText(`Display group "${GROUP_C}" created.`)).toBeVisible();
+  const [groupC] = await readDisplayGroups([GROUP_C]);
+  const stale = await adminPage(browser, superAdmin);
+  await stale.goto("/admin/website/groups");
+  await expect(stale.getByRole("button", { name: `Archive ${GROUP_C}` })).toBeEnabled();
+  await page.goto(`${draftPath}/settings`);
+  await page.getByLabel("Display group").selectOption({ label: GROUP_C });
+  await page.getByRole("button", { name: "Save placement…" }).click();
+  await page.getByRole("button", { name: "Confirm placement" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Placement saved" }),
+  ).toBeVisible();
+  await stale.getByRole("button", { name: `Archive ${GROUP_C}` }).click();
+  await stale.getByRole("button", { name: "Confirm archive" }).click();
+  await expect(
+    stale.getByRole("alert").filter({
+      hasText: /Move its Programs to another group first.*hide the group instead/,
+    }),
+  ).toBeVisible();
+  expect((await readDisplayGroupState(groupC.id)).archived_at).toBeNull();
+  expect((await readProgramDocument(draftProgram.id))?.displayGroupId).toBe(groupC.id);
+  expect(await readAuditActions(groupC.id)).not.toContain(
+    "website_display_group.archived",
+  );
+  await stale.reload();
+  await expect(stale.getByRole("button", { name: `Archive ${GROUP_C}` })).toBeDisabled();
+
+  // Restore is refused while an active group uses the archived group's name.
+  await page.goto("/admin/website/groups");
+  await expect(
+    page.getByRole("button", { name: `Restore ${GROUP_A_RENAMED}` }),
+  ).toBeEnabled();
+  await create.getByLabel("Group name").fill(GROUP_A_RENAMED);
+  await create.getByRole("button", { name: "Create group" }).click();
+  await expect(
+    page.getByText(`Display group "${GROUP_A_RENAMED}" created.`),
+  ).toBeVisible();
+  await stale.getByRole("button", { name: `Restore ${GROUP_A_RENAMED}` }).click();
+  await expect(
+    stale
+      .getByRole("alert")
+      .filter({ hasText: /already uses this name, so this group cannot be restored/ }),
+  ).toBeVisible();
+  expect((await readDisplayGroupState(groupA.id)).archived_at).not.toBeNull();
+  expect(await readAuditActions(groupA.id)).not.toContain(
+    "website_display_group.restored",
+  );
+  await expect(
+    page.getByRole("button", { name: `Restore ${GROUP_A_RENAMED}` }),
+  ).toBeDisabled();
+
+  // Renaming the active twin frees the name; restore puts the group last, still hidden.
+  await activeList.getByRole("button", { name: `Edit ${GROUP_A_RENAMED}` }).click();
+  const twin = activeList
+    .getByRole("listitem")
+    .filter({ has: page.getByLabel("Group name") });
+  await twin.getByLabel("Group name").fill(GROUP_A_TWIN);
+  await twin.getByRole("button", { name: "Save group" }).click();
+  await expect(page.getByText("Display group saved.")).toBeVisible();
+  await page.getByRole("button", { name: `Restore ${GROUP_A_RENAMED}` }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Display group restored." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: `Restore ${GROUP_A_RENAMED}` }),
+  ).toHaveCount(0);
+  await expect(
+    activeList.getByRole("button", { name: `Edit ${GROUP_A_RENAMED}`, exact: true }),
+  ).toBeVisible();
+  const restored = await readDisplayGroupState(groupA.id);
+  expect(restored.archived_at).toBeNull();
+  expect(restored.is_visible).toBe(false);
+  expect(restored.display_order).toBe(await readMaxActiveGroupOrder());
+  expect(await readAuditActions(groupA.id)).toEqual(
+    expect.arrayContaining([
+      "website_display_group.archived",
+      "website_display_group.restored",
+    ]),
+  );
+  await stale.context().close();
 });
 
 test("7. placement and featured order are confirmed, audited and stale-safe", async ({

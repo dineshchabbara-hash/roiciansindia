@@ -18,17 +18,23 @@ import {
   createDisplayGroup,
   createProgramWebsite,
   getProgramWebsite,
+  listArchivedDisplayGroups,
   listDisplayGroups,
   listProgramBatches,
   listProgramWebsiteEntries,
   publishBatch,
   reorderDisplayGroups,
   saveBatchPublication,
+  setDisplayGroupArchived,
   unpublishBatch,
   updateDisplayGroup,
   updateProgramPlacement,
 } from "@/lib/data/website-programs";
 import { listWebsiteRevisions } from "@/lib/data/website";
+import {
+  GROUP_HAS_PROGRAMS_MESSAGE,
+  GROUP_RESTORE_NAME_TAKEN_MESSAGE,
+} from "@/lib/domain/website-programs";
 
 const P1 = "11111111-0000-4000-8000-000000000001";
 const P2 = "11111111-0000-4000-8000-000000000002";
@@ -54,7 +60,16 @@ function makeClient(options: {
   const client = {
     from(table: string) {
       const builder: Record<string, unknown> = {};
-      for (const method of ["select", "eq", "neq", "in", "is", "order", "maybeSingle"]) {
+      for (const method of [
+        "select",
+        "eq",
+        "neq",
+        "in",
+        "is",
+        "not",
+        "order",
+        "maybeSingle",
+      ]) {
         builder[method] = (...args: unknown[]) => {
           calls.push({ table, method, args });
           return builder;
@@ -335,6 +350,62 @@ describe("listDisplayGroups", () => {
   });
 });
 
+describe("listArchivedDisplayGroups", () => {
+  it("lists only archived groups, most recently archived first", async () => {
+    const { calls } = makeClient({
+      tables: {
+        website_display_groups: [
+          {
+            data: [
+              {
+                id: G1,
+                name: "Old Group",
+                description: "Retired",
+                display_order: 3,
+                is_visible: false,
+                version: 6,
+                archived_at: "2026-10-20T09:00:00Z",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const result = await listArchivedDisplayGroups();
+    expect(result.ok && result.data).toEqual([
+      {
+        id: G1,
+        name: "Old Group",
+        description: "Retired",
+        isVisible: false,
+        version: 6,
+        archivedAt: "2026-10-20T09:00:00Z",
+      },
+    ]);
+    expect(calls).toContainEqual({
+      table: "website_display_groups",
+      method: "not",
+      args: ["archived_at", "is", null],
+    });
+    expect(calls).toContainEqual({
+      table: "website_display_groups",
+      method: "order",
+      args: ["archived_at", { ascending: false }],
+    });
+  });
+
+  it("reports a read failure plainly", async () => {
+    makeClient({
+      tables: { website_display_groups: [{ error: { message: "boom" } }] },
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await listArchivedDisplayGroups()).toEqual({
+      ok: false,
+      error: "Could not load the archived display groups.",
+    });
+  });
+});
+
 describe("listProgramBatches", () => {
   it("returns Batches with their publication, and only safe columns", async () => {
     const { calls } = makeClient({
@@ -526,6 +597,96 @@ describe("writes go through the 22A functions", () => {
       ok: false,
       kind: "duplicate",
       error: "A display group with that name already exists.",
+    });
+  });
+
+  it("archives and restores a group through the 22A function with its version", async () => {
+    const { rpcCalls } = makeClient({
+      rpc: { website_set_display_group_archived: { data: 7 } },
+    });
+    expect(await setDisplayGroupArchived(G1, 6, true)).toEqual({
+      ok: true,
+      data: { version: 7 },
+    });
+    expect(await setDisplayGroupArchived(G1, 7, false)).toEqual({
+      ok: true,
+      data: { version: 7 },
+    });
+    expect(rpcCalls).toEqual([
+      {
+        fn: "website_set_display_group_archived",
+        args: { p_group_id: G1, p_expected_version: 6, p_archived: true },
+      },
+      {
+        fn: "website_set_display_group_archived",
+        args: { p_group_id: G1, p_expected_version: 7, p_archived: false },
+      },
+    ]);
+  });
+
+  it("explains a refused archive of a group that still holds Programs", async () => {
+    makeClient({
+      rpc: {
+        website_set_display_group_archived: {
+          error: {
+            code: "P2206",
+            message: "Move the Programs out of this group before archiving it",
+          },
+        },
+      },
+    });
+    expect(await setDisplayGroupArchived(G1, 2, true)).toEqual({
+      ok: false,
+      kind: "invalid_state",
+      error: GROUP_HAS_PROGRAMS_MESSAGE,
+    });
+  });
+
+  it("explains a refused restore when an active group uses the name", async () => {
+    makeClient({
+      rpc: {
+        website_set_display_group_archived: {
+          error: {
+            code: "23505",
+            message: "An active display group already uses that name; rename one first",
+          },
+        },
+      },
+    });
+    expect(await setDisplayGroupArchived(G1, 2, false)).toEqual({
+      ok: false,
+      kind: "duplicate",
+      error: GROUP_RESTORE_NAME_TAKEN_MESSAGE,
+    });
+  });
+
+  it("refuses a stale archive or restore and keeps other state messages", async () => {
+    makeClient({
+      rpc: {
+        website_set_display_group_archived: {
+          error: {
+            code: "P2203",
+            message:
+              "This display group was changed by someone else; reload and try again",
+          },
+        },
+      },
+    });
+    expect(await setDisplayGroupArchived(G1, 1, true)).toMatchObject({
+      ok: false,
+      kind: "stale",
+    });
+    makeClient({
+      rpc: {
+        website_set_display_group_archived: {
+          error: { code: "P2206", message: "The display group is already archived" },
+        },
+      },
+    });
+    expect(await setDisplayGroupArchived(G1, 1, true)).toEqual({
+      ok: false,
+      kind: "invalid_state",
+      error: "The display group is already archived.",
     });
   });
 

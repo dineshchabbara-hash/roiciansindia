@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   BATCH_STATUS_LABELS,
+  GROUP_HAS_PROGRAMS_MESSAGE,
+  GROUP_RESTORE_NAME_TAKEN_MESSAGE,
   batchCanBePublished,
   batchPublicationStatus,
   featuredOrderChanges,
@@ -10,6 +12,8 @@ import {
   programCanBePublished,
   programCanGetWebsiteContent,
   programWebsiteMessage,
+  restoreNameClash,
+  sameGroupName,
   sortFeatured,
   type BatchPublicationRow,
 } from "@/lib/domain/website-programs";
@@ -148,6 +152,29 @@ describe("programWebsiteMessage", () => {
     expect(programWebsiteMessage("stale")).toBe(STALE_EDIT_MESSAGE);
     expect(programWebsiteMessage("unknown", "secret detail")).toBe(
       "Something went wrong. Please try again.",
+    );
+  });
+});
+
+describe("display group archive and restore rules", () => {
+  it("compares group names like the database (trimmed, any case)", () => {
+    expect(sameGroupName("Data and AI", "  data AND ai ")).toBe(true);
+    expect(sameGroupName("Data and AI", "Data & AI")).toBe(false);
+  });
+
+  it("finds a restore name clash with an active group", () => {
+    expect(restoreNameClash("Data and AI", ["Quality", "DATA AND AI"])).toBe(true);
+    expect(restoreNameClash("Data and AI", ["Quality"])).toBe(false);
+    expect(restoreNameClash("Data and AI", [])).toBe(false);
+  });
+
+  it("explains that Programs must be moved first, and that hiding is the alternative", () => {
+    expect(GROUP_HAS_PROGRAMS_MESSAGE).toMatch(
+      /Move its Programs to another group first/,
+    );
+    expect(GROUP_HAS_PROGRAMS_MESSAGE).toMatch(/hide the group instead/);
+    expect(GROUP_RESTORE_NAME_TAKEN_MESSAGE).toMatch(
+      /Rename or archive the active group first/,
     );
   });
 });

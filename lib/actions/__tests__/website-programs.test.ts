@@ -29,6 +29,7 @@ vi.mock("@/lib/data/website-programs", () => ({
   publishBatch: vi.fn(),
   reorderDisplayGroups: vi.fn(),
   saveBatchPublication: vi.fn(),
+  setDisplayGroupArchived: vi.fn(),
   unpublishBatch: vi.fn(),
   updateDisplayGroup: vi.fn(),
   updateProgramPlacement: vi.fn(),
@@ -52,6 +53,8 @@ import type {
 } from "@/lib/data/website-programs";
 import { STALE_EDIT_MESSAGE } from "@/lib/domain/website";
 import {
+  GROUP_HAS_PROGRAMS_MESSAGE,
+  GROUP_RESTORE_NAME_TAKEN_MESSAGE,
   PROGRAM_NOT_ACTIVE_MESSAGE,
   PUBLISHED_SLUG_LOCKED_MESSAGE,
 } from "@/lib/domain/website-programs";
@@ -165,6 +168,8 @@ const ALL_ACTIONS: Array<[string, (s: never, f: FormData) => Promise<unknown>]> 
   ["createDisplayGroupAction", actions.createDisplayGroupAction],
   ["updateDisplayGroupAction", actions.updateDisplayGroupAction],
   ["moveDisplayGroupAction", actions.moveDisplayGroupAction],
+  ["archiveDisplayGroupAction", actions.archiveDisplayGroupAction],
+  ["restoreDisplayGroupAction", actions.restoreDisplayGroupAction],
   ["saveBatchPublicationAction", actions.saveBatchPublicationAction],
   ["publishBatchAction", actions.publishBatchAction],
   ["unpublishBatchAction", actions.unpublishBatchAction],
@@ -600,6 +605,142 @@ describe("display groups", () => {
     );
     expect(stale.error).toMatch(/list changed/);
     expect(data.reorderDisplayGroups).not.toHaveBeenCalled();
+  });
+});
+
+describe("display group archive and restore", () => {
+  const group = (id: string, programCount: number, version = 4) => ({
+    id,
+    name: id === G1 ? "Quality Engineering" : "Data and AI",
+    description: null,
+    displayOrder: 1,
+    isVisible: true,
+    version,
+    programCount,
+  });
+
+  it("archives an empty group with the version the Admin saw", async () => {
+    vi.mocked(data.listDisplayGroups).mockResolvedValue({
+      ok: true,
+      data: [group(G1, 0)],
+    });
+    vi.mocked(data.setDisplayGroupArchived).mockResolvedValue({
+      ok: true,
+      data: { version: 5 },
+    });
+    const result = await actions.archiveDisplayGroupAction(
+      {},
+      form({ groupId: G1, expectedVersion: "4" }),
+    );
+    expect(data.setDisplayGroupArchived).toHaveBeenCalledWith(G1, 4, true);
+    expect(result.message).toBe(
+      'Display group "Quality Engineering" archived. It no longer appears on the website. You can restore it from Archived groups.',
+    );
+  });
+
+  it("refuses to archive a group that holds Programs, before any database write", async () => {
+    vi.mocked(data.listDisplayGroups).mockResolvedValue({
+      ok: true,
+      data: [group(G1, 2)],
+    });
+    const result = await actions.archiveDisplayGroupAction(
+      {},
+      form({ groupId: G1, expectedVersion: "4" }),
+    );
+    expect(result.error).toBe(GROUP_HAS_PROGRAMS_MESSAGE);
+    expect(data.setDisplayGroupArchived).not.toHaveBeenCalled();
+  });
+
+  it("refuses a group that is no longer active, and an unreadable request", async () => {
+    vi.mocked(data.listDisplayGroups).mockResolvedValue({
+      ok: true,
+      data: [group(G2, 0)],
+    });
+    const gone = await actions.archiveDisplayGroupAction(
+      {},
+      form({ groupId: G1, expectedVersion: "4" }),
+    );
+    expect(gone.error).toMatch(/list changed/);
+    const unreadable: Array<Record<string, string>> = [
+      { groupId: "not-a-uuid", expectedVersion: "4" },
+      { groupId: G1, expectedVersion: "-1" },
+      { groupId: G1 },
+    ];
+    for (const values of unreadable) {
+      const result = await actions.restoreDisplayGroupAction({}, form(values));
+      expect(result.error).toMatch(/could not be read/);
+    }
+    expect(data.setDisplayGroupArchived).not.toHaveBeenCalled();
+  });
+
+  it("passes a stale or database refusal through without claiming success", async () => {
+    vi.mocked(data.listDisplayGroups).mockResolvedValue({
+      ok: true,
+      data: [group(G1, 0)],
+    });
+    vi.mocked(data.setDisplayGroupArchived).mockResolvedValue({
+      ok: false,
+      kind: "stale",
+      error: STALE_EDIT_MESSAGE,
+    });
+    const result = await actions.archiveDisplayGroupAction(
+      {},
+      form({ groupId: G1, expectedVersion: "3" }),
+    );
+    expect(result).toMatchObject({ error: STALE_EDIT_MESSAGE });
+    expect(result.message).toBeUndefined();
+  });
+
+  it("restores a group, and explains a name already used by an active group", async () => {
+    vi.mocked(data.setDisplayGroupArchived).mockResolvedValueOnce({
+      ok: true,
+      data: { version: 6 },
+    });
+    const restored = await actions.restoreDisplayGroupAction(
+      {},
+      form({ groupId: G1, expectedVersion: "5" }),
+    );
+    expect(data.setDisplayGroupArchived).toHaveBeenCalledWith(G1, 5, false);
+    expect(restored.message).toMatch(/Display group restored/);
+
+    vi.mocked(data.setDisplayGroupArchived).mockResolvedValueOnce({
+      ok: false,
+      kind: "duplicate",
+      error: GROUP_RESTORE_NAME_TAKEN_MESSAGE,
+    });
+    const clash = await actions.restoreDisplayGroupAction(
+      {},
+      form({ groupId: G1, expectedVersion: "5" }),
+    );
+    expect(clash.error).toBe(GROUP_RESTORE_NAME_TAKEN_MESSAGE);
+  });
+
+  it("allows a Super Admin to archive and restore", async () => {
+    signIn("super_admin");
+    vi.mocked(data.listDisplayGroups).mockResolvedValue({
+      ok: true,
+      data: [group(G1, 0)],
+    });
+    vi.mocked(data.setDisplayGroupArchived).mockResolvedValue({
+      ok: true,
+      data: { version: 5 },
+    });
+    expect(
+      (
+        await actions.archiveDisplayGroupAction(
+          {},
+          form({ groupId: G1, expectedVersion: "4" }),
+        )
+      ).message,
+    ).toMatch(/archived/);
+    expect(
+      (
+        await actions.restoreDisplayGroupAction(
+          {},
+          form({ groupId: G1, expectedVersion: "5" }),
+        )
+      ).message,
+    ).toMatch(/restored/);
   });
 });
 

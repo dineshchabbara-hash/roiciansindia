@@ -3,18 +3,24 @@ import { DisplayGroupsManager } from "@/components/admin/website/programs/displa
 import { WebsiteAreaNav } from "@/components/admin/website/programs/website-area-nav";
 import { WebsiteDraftCopyCleanup } from "@/components/admin/website/unsaved-changes";
 import { getCurrentUserContext } from "@/lib/auth/session";
-import { listDisplayGroups } from "@/lib/data/website-programs";
+import {
+  listArchivedDisplayGroups,
+  listDisplayGroups,
+} from "@/lib/data/website-programs";
 import { isAdminOrSuperAdmin, roleHomePath } from "@/lib/domain/rbac";
 
 export const dynamic = "force-dynamic";
 
-/** Phase 22B-2: Program display groups (create, rename, reorder, hide). */
+/** Phase 22B-2: Program display groups (create, rename, reorder, hide, archive, restore). */
 export default async function WebsiteGroupsPage() {
   const user = await getCurrentUserContext();
   if (!user) redirect("/login/admin");
   if (!isAdminOrSuperAdmin(user.role)) redirect(roleHomePath(user.role));
 
-  const groups = await listDisplayGroups();
+  const [groups, archived] = await Promise.all([
+    listDisplayGroups(),
+    listArchivedDisplayGroups(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,11 +34,11 @@ export default async function WebsiteGroupsPage() {
         </p>
       </div>
       <WebsiteAreaNav current="groups" />
-      {groups.ok ? (
-        <DisplayGroupsManager groups={groups.data} />
+      {groups.ok && archived.ok ? (
+        <DisplayGroupsManager groups={groups.data} archivedGroups={archived.data} />
       ) : (
         <p role="alert" className="text-destructive text-sm">
-          {groups.error}
+          {groups.ok ? (archived.ok ? null : archived.error) : groups.error}
         </p>
       )}
     </div>

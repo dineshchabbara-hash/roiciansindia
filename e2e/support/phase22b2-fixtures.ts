@@ -131,6 +131,36 @@ export async function readDisplayGroups(names: string[]) {
   }>;
 }
 
+/** One display group by id, archived or not (verification only). */
+export async function readDisplayGroupState(groupId: string) {
+  const { data, error } = await serviceClient()
+    .from("website_display_groups")
+    .select("id, name, display_order, is_visible, archived_at, version")
+    .eq("id", groupId)
+    .single();
+  if (error) throw new Error(`Could not read display group: ${error.message}`);
+  return data as {
+    id: string;
+    name: string;
+    display_order: number;
+    is_visible: boolean;
+    archived_at: string | null;
+    version: number;
+  };
+}
+
+/** The highest display order among active groups (a restored group goes last). */
+export async function readMaxActiveGroupOrder(): Promise<number> {
+  const { data, error } = await serviceClient()
+    .from("website_display_groups")
+    .select("display_order")
+    .is("archived_at", null)
+    .order("display_order", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`Could not read display groups: ${error.message}`);
+  return ((data ?? []) as Array<{ display_order: number }>)[0]?.display_order ?? 0;
+}
+
 export async function readBatchPublication(batchId: string) {
   const { data, error } = await serviceClient()
     .from("batch_website_publications")

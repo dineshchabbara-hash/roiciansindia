@@ -6,6 +6,7 @@ import { getCurrentUserContext } from "@/lib/auth/session";
 import { isAdminOrSuperAdmin } from "@/lib/domain/rbac";
 import { STALE_EDIT_MESSAGE } from "@/lib/domain/website";
 import {
+  GROUP_HAS_PROGRAMS_MESSAGE,
   PROGRAM_NOT_ACTIVE_MESSAGE,
   PUBLISHED_SLUG_LOCKED_MESSAGE,
   featuredOrderChanges,
@@ -34,6 +35,7 @@ import {
   publishBatch,
   reorderDisplayGroups,
   saveBatchPublication,
+  setDisplayGroupArchived,
   unpublishBatch,
   updateDisplayGroup,
   updateProgramPlacement,
@@ -599,6 +601,58 @@ export async function moveDisplayGroupAction(
   revalidateProgram();
   return {
     message: "Group order saved. It applies to the public website straight away.",
+  };
+}
+
+/**
+ * Archives an active display group (confirmed in the screen first). A group
+ * that still holds Programs is refused here with the reason, and again by the
+ * database; hiding the group is the alternative. The version the Admin was
+ * looking at is sent, so a concurrent change is refused.
+ */
+export async function archiveDisplayGroupAction(
+  _prev: ProgramActionState,
+  formData: FormData,
+): Promise<ProgramActionState> {
+  if (!(await authorized())) return refused(NOT_AUTHORIZED);
+  const groupId = text(formData, "groupId");
+  const expectedVersion = wholeNumber(formData, "expectedVersion");
+  if (!isUuid(groupId) || expectedVersion === null) return refused(UNREADABLE);
+
+  const current = await listDisplayGroups();
+  if (!current.ok) return refused(current.error);
+  const group = current.data.find((g) => g.id === groupId);
+  if (!group) return refused(LIST_CHANGED);
+  if (group.programCount > 0) return refused(GROUP_HAS_PROGRAMS_MESSAGE);
+
+  const result = await setDisplayGroupArchived(groupId, expectedVersion, true);
+  if (!result.ok) return refused(result.error);
+  revalidateProgram();
+  return {
+    message: `Display group "${group.name}" archived. It no longer appears on the website. You can restore it from Archived groups.`,
+  };
+}
+
+/**
+ * Restores an archived display group. The database refuses it if an active
+ * group now uses the same name, and puts the restored group last in the
+ * display order with its visibility unchanged.
+ */
+export async function restoreDisplayGroupAction(
+  _prev: ProgramActionState,
+  formData: FormData,
+): Promise<ProgramActionState> {
+  if (!(await authorized())) return refused(NOT_AUTHORIZED);
+  const groupId = text(formData, "groupId");
+  const expectedVersion = wholeNumber(formData, "expectedVersion");
+  if (!isUuid(groupId) || expectedVersion === null) return refused(UNREADABLE);
+
+  const result = await setDisplayGroupArchived(groupId, expectedVersion, false);
+  if (!result.ok) return refused(result.error);
+  revalidateProgram();
+  return {
+    message:
+      "Display group restored. It is now last in the display order, and its visibility setting is unchanged.",
   };
 }
 
