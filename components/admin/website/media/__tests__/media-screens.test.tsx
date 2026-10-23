@@ -358,6 +358,21 @@ describe("MediaDetail", () => {
   });
 });
 
+describe("MediaDetail after a save refreshes the page", () => {
+  it("keeps the alt text confirmation when the image's version changes", async () => {
+    vi.mocked(actions.saveMediaAltTextAction).mockResolvedValue({
+      message: "Alt text saved.",
+      version: 3,
+    });
+    const { rerender } = render(<MediaDetail asset={asset()} usage={[]} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save alt text" }));
+    });
+    rerender(<MediaDetail asset={asset({ version: 3 })} usage={[]} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Alt text saved.");
+  });
+});
+
 describe("MediaPicker", () => {
   const media: EditorMedia = {
     approved: [

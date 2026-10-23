@@ -252,7 +252,7 @@ export function MediaDetail({
           Private preview, shown only to signed-in Admins. The preview link expires after
           a few minutes; reload the page to see it again.
         </p>
-        <AltTextForm key={`${asset.id}:${asset.version}`} asset={asset} />
+        <AltTextForm key={asset.id} asset={asset} />
         <Usage usage={usage} />
       </div>
       <aside className="flex flex-col gap-6">
