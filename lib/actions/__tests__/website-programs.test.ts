@@ -46,6 +46,7 @@ import {
 } from "@/lib/data/website";
 import * as data from "@/lib/data/website-programs";
 import type {
+  ProgramPlacement,
   ProgramWebsiteDetail,
   ProgramWebsiteSummary,
 } from "@/lib/data/website-programs";
@@ -87,7 +88,7 @@ function form(values: Record<string, string>) {
   return fd;
 }
 
-const placement = {
+const placement: ProgramPlacement = {
   displayGroupId: G1,
   displayGroupName: "Quality Engineering",
   isFeatured: false,

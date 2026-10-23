@@ -14,7 +14,7 @@ import {
   isPublicationHeld,
   websitePageStatus,
 } from "@/lib/domain/website-admin";
-import type { EditorPage } from "@/components/admin/website/page-editor";
+import type { EditorBindings, EditorPage } from "@/components/admin/website/page-editor";
 
 const initialState: WebsiteActionState = {};
 
@@ -30,18 +30,24 @@ export function PublicationPanel({
   latestRevisionId,
   latestRevisionNumber,
   dirty,
+  bindings,
 }: {
   page: EditorPage;
   latestRevisionId: string | null;
   latestRevisionNumber: number;
   dirty: boolean;
+  bindings?: EditorBindings;
 }) {
+  const publishPageAction = bindings?.publish ?? publishWebsitePageAction;
+  const unpublishPageAction = bindings?.unpublish ?? unpublishWebsitePageAction;
+  const basePath = bindings?.basePath ?? `/admin/website/pages/${page.id}`;
+  const subject = bindings?.subject ?? "page";
   const [confirm, setConfirm] = useState<"publish" | "unpublish" | null>(null);
   // Only the most recent outcome is shown.
   const [feedback, setFeedback] = useState<WebsiteActionState | null>(null);
   const [, publishAction, isPublishing] = useActionState(
     async (prev: WebsiteActionState, formData: FormData) => {
-      const result = await publishWebsitePageAction(prev, formData);
+      const result = await publishPageAction(prev, formData);
       setConfirm(null);
       setFeedback(result);
       return result;
@@ -50,7 +56,7 @@ export function PublicationPanel({
   );
   const [, unpublishAction, isUnpublishing] = useActionState(
     async (prev: WebsiteActionState, formData: FormData) => {
-      const result = await unpublishWebsitePageAction(prev, formData);
+      const result = await unpublishPageAction(prev, formData);
       setConfirm(null);
       setFeedback(result);
       return result;
@@ -63,12 +69,20 @@ export function PublicationPanel({
     publishedRevisionId: page.publishedRevisionId,
     firstPublishedAt: page.firstPublishedAt,
   });
-  const held = isPublicationHeld(page);
+  // Legal pages are held until their wording is approved (C4); other callers
+  // may pass their own reason (for example a Program not active in the LMS).
+  const heldReason =
+    bindings?.publishHeldReason !== undefined
+      ? bindings.publishHeldReason
+      : isPublicationHeld(page)
+        ? LEGAL_PUBLICATION_HELD_MESSAGE
+        : null;
+  const held = heldReason !== null;
   const alreadyLive =
     latestRevisionId !== null && latestRevisionId === page.publishedRevisionId;
 
   let publishBlockedReason: string | null = null;
-  if (held) publishBlockedReason = LEGAL_PUBLICATION_HELD_MESSAGE;
+  if (held) publishBlockedReason = heldReason;
   else if (latestRevisionId === null)
     publishBlockedReason = "Save a draft before publishing.";
   else if (dirty) publishBlockedReason = "Save your changes before publishing.";
@@ -98,7 +112,7 @@ export function PublicationPanel({
           id="publish-held-note"
           className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
         >
-          {LEGAL_PUBLICATION_HELD_MESSAGE}
+          {heldReason}
         </p>
       )}
 
@@ -107,8 +121,8 @@ export function PublicationPanel({
           <input type="hidden" name="documentId" value={page.id} />
           <input type="hidden" name="revisionId" value={latestRevisionId ?? ""} />
           <p className="text-sm">
-            Publish version {latestRevisionNumber}? It becomes the live content for this
-            page.
+            Publish version {latestRevisionNumber}? It becomes the live content for this{" "}
+            {subject}.
           </p>
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={isPublishing}>
@@ -154,7 +168,7 @@ export function PublicationPanel({
             <input type="hidden" name="documentId" value={page.id} />
             <input type="hidden" name="expectedVersion" value={String(page.version)} />
             <p className="text-sm">
-              Unpublish this page? It will have no live content until a version is
+              Unpublish this {subject}? It will have no live content until a version is
               published again. Drafts and history are kept.
             </p>
             <div className="flex gap-2">
@@ -195,7 +209,7 @@ export function PublicationPanel({
 
       <div className="flex flex-col gap-1 border-t pt-3 text-sm">
         <Link
-          href={`/admin/website/pages/${page.id}/preview`}
+          href={`${basePath}/preview`}
           target="_blank"
           rel="noopener"
           className="text-primary underline-offset-4 hover:underline"
@@ -203,7 +217,7 @@ export function PublicationPanel({
           Preview latest saved version
         </Link>
         <Link
-          href={`/admin/website/pages/${page.id}/history`}
+          href={`${basePath}/history`}
           className="text-primary underline-offset-4 hover:underline"
         >
           Version history
