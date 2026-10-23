@@ -68,7 +68,7 @@ Every change is audited by the database. The proposal adds before and after alt 
 
 ## 6. Proposed migration (review only)
 
-`docs/proposed-migrations/website_media_uploads.sql`, with `website_media_uploads_test.sql`. **Not applied.**
+`docs/proposed-migrations/website_media_uploads.sql`, with `website_media_uploads_test.sql` (M1–M9) and, for the plain-Postgres test harness only, `website_media_uploads_harness_stub.sql`. **Not applied.** The proposals README lists two existing 22A test assertions that change on adoption.
 
 | Change | Purpose |
 |---|---|
@@ -86,7 +86,7 @@ Every change is audited by the database. The proposal adds before and after alt 
 
 | Where | Image slots |
 |---|---|
-| Home, About, Corporate Training, Institutions, Program | Main image, Social sharing image |
+| Home, About, Corporate Training, Institutions, Programs listing, Upcoming Batches, Program | Main image, Social sharing image |
 | Contact, legal pages | Social sharing image |
 | Navigation, footer | None |
 | Hero and banner sections | Section image |
