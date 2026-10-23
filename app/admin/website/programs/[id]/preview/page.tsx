@@ -101,8 +101,13 @@ export default async function ProgramPreviewPage({
         className="flex flex-col gap-2 rounded-md border p-4"
       >
         <h2 id="preview-batches" className="text-base font-semibold">
-          Upcoming batches
+          Batches on the website
         </h2>
+        <p className="text-muted-foreground text-xs">
+          Published labels and registration states only. Which Batches the public page
+          lists (for example, whether active Batches appear) is decided with the public
+          website (TI-3).
+        </p>
         {published.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             No Batch is published, so the public page would show &quot;Next Cohort: Coming

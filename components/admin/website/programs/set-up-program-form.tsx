@@ -48,7 +48,7 @@ export function SetUpProgramForm({
           name="slug"
           defaultValue={suggestedSlug}
           autoComplete="off"
-          className="h-8 w-56"
+          className="h-8 w-72 max-w-full"
           aria-invalid={slugError ? true : undefined}
           aria-describedby={slugError ? `${id}-error` : undefined}
         />

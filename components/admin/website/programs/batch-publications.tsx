@@ -244,7 +244,7 @@ function BatchCard({ documentId, batch }: { documentId: string; batch: ProgramBa
         </form>
       ) : (
         <div className="flex flex-wrap items-start gap-2">
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col items-start gap-1">
             <Button
               type="button"
               size="sm"
