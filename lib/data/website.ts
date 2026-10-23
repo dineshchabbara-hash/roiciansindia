@@ -26,10 +26,19 @@ import {
  * every content rule, and write the audit log themselves, so this layer adds no
  * audit rows of its own.
  *
- * Program pages (kind = 'program') are managed in 22B-2 and are excluded here.
+ * Program pages (kind = 'program') are managed in 22B-2 (lib/data/website-programs.ts)
+ * and are excluded from the page functions here. The version-history readers
+ * take a scope, so 22B-2 reuses them for Program documents.
  */
 
 type Client = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+/** Which documents a reader accepts: website pages (22B-1) or Programs (22B-2). */
+export type DocumentScope = "page" | "program";
+
+function inScope(kind: string, scope: DocumentScope): boolean {
+  return scope === "program" ? kind === "program" : isAdminPageKind(kind);
+}
 
 export type WriteResult<T> =
   { ok: true; data: T } | { ok: false; error: string; kind: WebsiteErrorKind };
@@ -90,7 +99,7 @@ export type WebsiteRevisionSummary = {
 const DOCUMENT_COLUMNS =
   "id, kind, page_key, latest_revision_id, latest_revision_number, published_revision_id, published_at, published_by, first_published_at, unpublished_at, version, updated_at, updated_by";
 
-const REVISION_COLUMNS =
+export const REVISION_COLUMNS =
   "id, document_id, revision_number, title, summary, seo_title, seo_description, social_title, social_description, hero_image_asset_id, social_image_asset_id, sections, restored_from_revision_id, created_at, created_by";
 
 type DocumentRow = {
@@ -109,7 +118,7 @@ type DocumentRow = {
   updated_by: string | null;
 };
 
-type RevisionRow = {
+export type RevisionRow = {
   id: string;
   document_id: string;
   revision_number: number;
@@ -142,7 +151,7 @@ function log(message: string, error?: unknown) {
 }
 
 /** Admin names for the people who edited or published (through the caller's session). */
-async function adminNames(
+export async function adminNames(
   client: Client,
   ids: Array<string | null>,
 ): Promise<Map<string, string>> {
@@ -241,7 +250,10 @@ export function parseStoredSections(value: unknown): EditableSection[] {
   return sections;
 }
 
-function toContent(row: RevisionRow, names: Map<string, string>): WebsiteRevisionContent {
+export function toContent(
+  row: RevisionRow,
+  names: Map<string, string>,
+): WebsiteRevisionContent {
   return {
     id: row.id,
     number: row.revision_number,
@@ -309,7 +321,11 @@ export async function listWebsitePages(): Promise<DataResult<WebsitePageSummary[
   }
 }
 
-async function loadDocument(client: Client, id: string): Promise<DocumentRow | null> {
+async function loadDocument(
+  client: Client,
+  id: string,
+  scope: DocumentScope = "page",
+): Promise<DocumentRow | null> {
   const { data, error } = await client
     .from("website_documents")
     .select(DOCUMENT_COLUMNS)
@@ -317,7 +333,7 @@ async function loadDocument(client: Client, id: string): Promise<DocumentRow | n
     .maybeSingle();
   if (error) throw error;
   const row = data as DocumentRow | null;
-  if (!row || !isAdminPageKind(row.kind)) return null;
+  if (!row || !inScope(row.kind, scope)) return null;
   return row;
 }
 
@@ -365,14 +381,15 @@ export async function getWebsitePage(id: string): Promise<DataResult<WebsitePage
   }
 }
 
-/** Every saved version of a page, newest first. */
+/** Every saved version of a page (or, with scope "program", a Program), newest first. */
 export async function listWebsiteRevisions(
   documentId: string,
+  scope: DocumentScope = "page",
 ): Promise<DataResult<WebsiteRevisionSummary[]>> {
   if (!isUuid(documentId)) return { ok: false, error: NOT_FOUND };
   try {
     const client = await createSupabaseServerClient();
-    const doc = await loadDocument(client, documentId);
+    const doc = await loadDocument(client, documentId, scope);
     if (!doc) return { ok: false, error: NOT_FOUND };
     const { data, error } = await client
       .from("website_document_revisions")
@@ -416,15 +433,16 @@ export async function listWebsiteRevisions(
   }
 }
 
-/** One saved version of a page (it must belong to that page). */
+/** One saved version of a page or Program (it must belong to that document). */
 export async function getWebsiteRevision(
   documentId: string,
   revisionId: string,
+  scope: DocumentScope = "page",
 ): Promise<DataResult<WebsiteRevisionContent>> {
   if (!isUuid(documentId) || !isUuid(revisionId)) return { ok: false, error: NOT_FOUND };
   try {
     const client = await createSupabaseServerClient();
-    const doc = await loadDocument(client, documentId);
+    const doc = await loadDocument(client, documentId, scope);
     if (!doc) return { ok: false, error: NOT_FOUND };
     const { data, error } = await client
       .from("website_document_revisions")
