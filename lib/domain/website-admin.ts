@@ -174,10 +174,7 @@ export const STATUS_BADGE_VARIANTS: Record<
  */
 export const APPROVED_LEGAL_PAGE_KEYS: ReadonlySet<string> = new Set<string>();
 
-export function isPublicationHeld(page: {
-  kind: AdminPageKind;
-  pageKey: string;
-}): boolean {
+export function isPublicationHeld(page: { kind: string; pageKey: string }): boolean {
   return page.kind === "legal" && !APPROVED_LEGAL_PAGE_KEYS.has(page.pageKey);
 }
 

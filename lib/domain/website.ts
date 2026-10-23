@@ -137,9 +137,18 @@ export function containsMarkup(value: string): boolean {
   return /<[A-Za-z/!?]/.test(value);
 }
 
-/** P22-09: the public website shows no pricing. */
+/**
+ * P22-09: the public website shows no pricing. Catches the rupee sign and the
+ * common written forms: "Rs 4,999", "Rs.4999", "INR 50000" and "4,999/-".
+ * The database itself refuses only the rupee sign (website_clean_text); this
+ * application check is deliberately stricter.
+ */
 export function containsPrice(value: string): boolean {
-  return value.includes("₹");
+  return (
+    value.includes("₹") ||
+    /\b(?:rs|inr)\.?\s*\d/i.test(value) ||
+    /\d[\d,.]*\s*\/-/.test(value)
+  );
 }
 
 /** Same rule as website_is_safe_href(): site path, https, mailto: or tel:. */

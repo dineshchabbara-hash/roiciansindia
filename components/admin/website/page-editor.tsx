@@ -46,9 +46,31 @@ import {
   type ItemField,
 } from "@/lib/domain/website-admin";
 
+/** A server action with the editor's form state (22B-1 pages or 22B-2 Programs). */
+export type WebsiteFormAction = (
+  prev: WebsiteActionState,
+  formData: FormData,
+) => Promise<WebsiteActionState>;
+
+/**
+ * What the editor saves, publishes and links to. Website pages (22B-1) use
+ * the defaults; Program content (22B-2) passes its own actions and paths.
+ */
+export type EditorBindings = {
+  save?: WebsiteFormAction;
+  publish?: WebsiteFormAction;
+  unpublish?: WebsiteFormAction;
+  /** The document's editor path; preview and history live below it. */
+  basePath?: string;
+  /** Why publishing is held (shown, and Publish disabled); null when not held. */
+  publishHeldReason?: string | null;
+  /** "page" or "Program", used in confirmation wording. */
+  subject?: string;
+};
+
 export type EditorPage = {
   id: string;
-  kind: AdminPageKind;
+  kind: AdminPageKind | "program";
   pageKey: string;
   label: string;
   latestRevisionId: string | null;
@@ -466,6 +488,7 @@ export function PageEditor({
   page,
   content,
   stashOwnerId,
+  bindings,
 }: {
   page: EditorPage;
   content: WebsiteRevisionContent | null;
@@ -474,7 +497,10 @@ export function PageEditor({
    * (never for legal pages) and its cleanup.
    */
   stashOwnerId?: string;
+  bindings?: EditorBindings;
 }) {
+  const saveAction = bindings?.save ?? saveWebsiteDraftAction;
+  const basePath = bindings?.basePath ?? `/admin/website/pages/${page.id}`;
   const [draft, setDraft] = useState<Draft>(() => draftFrom(content));
   const [base, setBase] = useState(page.latestRevisionNumber);
   const [latestRevisionId, setLatestRevisionId] = useState(page.latestRevisionId);
@@ -493,7 +519,7 @@ export function PageEditor({
 
   const [state, formAction, isSaving] = useActionState(
     async (prev: WebsiteActionState, formData: FormData) => {
-      const result = await saveWebsiteDraftAction(prev, formData);
+      const result = await saveAction(prev, formData);
       if (result.saved) {
         setBase(result.saved.revisionNumber);
         setLatestRevisionId(result.saved.revisionId);
@@ -661,11 +687,7 @@ export function PageEditor({
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button asChild size="sm" variant="outline">
-                <Link
-                  href={`/admin/website/pages/${page.id}`}
-                  target="_blank"
-                  rel="noopener"
-                >
+                <Link href={basePath} target="_blank" rel="noopener">
                   Open the latest version in a new tab
                 </Link>
               </Button>
@@ -897,6 +919,7 @@ export function PageEditor({
           latestRevisionId={latestRevisionId}
           latestRevisionNumber={base}
           dirty={dirty}
+          bindings={{ ...bindings, basePath }}
         />
       </aside>
     </div>

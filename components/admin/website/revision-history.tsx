@@ -8,6 +8,7 @@ import {
   restoreWebsiteRevisionAction,
   type WebsiteActionState,
 } from "@/lib/actions/website";
+import type { WebsiteFormAction } from "@/components/admin/website/page-editor";
 import type { WebsiteRevisionSummary } from "@/lib/data/website";
 import { formatWebsiteTimestamp } from "@/lib/domain/website-admin";
 
@@ -17,16 +18,15 @@ function RestoreForm({
   documentId,
   revision,
   baseRevisionNumber,
+  restoreAction,
 }: {
   documentId: string;
   revision: WebsiteRevisionSummary;
   baseRevisionNumber: number;
+  restoreAction: WebsiteFormAction;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const [state, formAction, isPending] = useActionState(
-    restoreWebsiteRevisionAction,
-    initialState,
-  );
+  const [state, formAction, isPending] = useActionState(restoreAction, initialState);
 
   if (!confirming) {
     return (
@@ -83,10 +83,16 @@ export function RevisionHistory({
   documentId,
   revisions,
   latestRevisionNumber,
+  restoreAction = restoreWebsiteRevisionAction,
+  basePath = `/admin/website/pages/${documentId}`,
 }: {
   documentId: string;
   revisions: WebsiteRevisionSummary[];
   latestRevisionNumber: number;
+  /** Defaults to the 22B-1 page action; Programs pass their own. */
+  restoreAction?: WebsiteFormAction;
+  /** The document's editor path (the preview link is below it). */
+  basePath?: string;
 }) {
   if (revisions.length === 0) {
     return (
@@ -140,7 +146,7 @@ export function RevisionHistory({
               <td className="px-3 py-3">
                 <div className="flex flex-col items-start gap-2">
                   <Link
-                    href={`/admin/website/pages/${documentId}/preview?revision=${revision.id}`}
+                    href={`${basePath}/preview?revision=${revision.id}`}
                     target="_blank"
                     rel="noopener"
                     className="text-primary text-sm underline-offset-4 hover:underline"
@@ -152,6 +158,7 @@ export function RevisionHistory({
                       documentId={documentId}
                       revision={revision}
                       baseRevisionNumber={latestRevisionNumber}
+                      restoreAction={restoreAction}
                     />
                   )}
                 </div>

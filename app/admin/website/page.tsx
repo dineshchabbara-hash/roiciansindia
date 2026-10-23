@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { WebsitePagesTable } from "@/components/admin/website/website-pages-table";
 import { CreatePageForm } from "@/components/admin/website/create-page-form";
+import { WebsiteAreaNav } from "@/components/admin/website/programs/website-area-nav";
 import { WebsiteDraftCopyCleanup } from "@/components/admin/website/unsaved-changes";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { listWebsitePages } from "@/lib/data/website";
@@ -32,6 +33,7 @@ export default async function WebsitePage() {
           kept in the page history and the audit log.
         </p>
       </div>
+      <WebsiteAreaNav current="pages" />
 
       {result.ok ? (
         <>
