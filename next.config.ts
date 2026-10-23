@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
       // rejects first.
       bodySizeLimit: "12mb",
     },
+    // proxy.ts runs on every page request, and Next.js buffers a request
+    // body for proxy only up to this size (default 10MB), passing a cut-off
+    // body on beyond it. A 10 MB upload plus multipart overhead is just over
+    // 10MB, so the default made files at the advertised 10 MB limit fail.
+    // Kept equal to bodySizeLimit above.
+    proxyClientMaxBodySize: "12mb",
   },
 };
 
