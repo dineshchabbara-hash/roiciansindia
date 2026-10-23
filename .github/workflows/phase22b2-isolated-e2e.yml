@@ -1,0 +1,224 @@
+# Phase 22B-2 acceptance (runs the 22B-1 and 22B-2 suites together); disposable CI branch only. No deployments, no hosted secrets.
+# Triggered only when THIS workflow file is pushed to the dedicated CI branch.
+# Checkout is pinned to the Phase 22B-2 commit under review; main stays unchanged.
+name: Phase 22B-2 isolated browser tests (CI-only)
+
+on:
+  push:
+    branches:
+      - ci/phase22b2-e2e-c175b7a
+    paths:
+      - '.github/workflows/phase22b2-isolated-e2e.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase22b2-isolated-e2e
+  cancel-in-progress: false
+
+jobs:
+  program-website-management-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      PHASE22B_E2E_ISOLATED: "1"
+      PHASE22B_EXPECTED_TESTS: "16"
+      PHASE22B_BRANCH: claude/phase22b2-program-website-management
+      # 8 tests each: Phase 22B-1 (pages) as a regression check, then Phase 22B-2 (Programs).
+      PHASE22B_SPEC_PAGES: e2e/phase22b-website-management.spec.ts
+      PHASE22B_SPEC_PROGRAMS: e2e/phase22b2-program-website.spec.ts
+      # Pin exactly the Phase 22B-2 commit under review; no branch-tip drift.
+      TESTED_SHA: c175b7a3e2f8438abc84a013a34fe5a61103d8ff
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Refuse any branch other than isolated CI branch
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/ci/phase22b2-e2e-c175b7a" ]; then
+            echo "::error::Start this workflow from ci/phase22b2-e2e-c175b7a only (it was started from $GITHUB_REF)."
+            exit 1
+          fi
+          if ! printf '%s' "$TESTED_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::TESTED_SHA must be a full 40-character lowercase commit SHA."
+            exit 1
+          fi
+          echo "PLAYWRIGHT_JSON_OUTPUT_FILE=$RUNNER_TEMP/phase22b2-results.json" >> "$GITHUB_ENV"
+
+      - name: Check out the exact commit under test (no stored credentials)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: c175b7a3e2f8438abc84a013a34fe5a61103d8ff
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Confirm the commit is the Phase 22B-2 work under review
+        run: |
+          set -euo pipefail
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$TESTED_SHA" ]; then
+            echo "::error::Checked out $actual instead of $TESTED_SHA."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$TESTED_SHA" "origin/$PHASE22B_BRANCH"; then
+            echo "::error::$TESTED_SHA is not on $PHASE22B_BRANCH."
+            exit 1
+          fi
+          for spec in "$PHASE22B_SPEC_PAGES" "$PHASE22B_SPEC_PROGRAMS"; do
+            if [ ! -f "$spec" ]; then
+              echo "::error::$spec does not exist at $TESTED_SHA."
+              exit 1
+            fi
+          done
+          if git ls-files -- '.env*' | grep -qv '^\.env\.example$'; then
+            echo "::error::An environment file is committed at $TESTED_SHA; refusing to run."
+            exit 1
+          fi
+          {
+            echo "### Commit under test"
+            echo ""
+            echo "- Tested commit: \`$TESTED_SHA\` (on \`$PHASE22B_BRANCH\`)"
+            echo "- CI-only workflow branch: \`ci/phase22b2-e2e-c175b7a\` at \`$GITHUB_SHA\`"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up the Supabase CLI
+        uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
+        with:
+          version: 2.121.0
+
+      - name: Start a disposable local Supabase stack
+        # Local Docker containers on this runner only.
+        run: supabase start --exclude studio,imgproxy,realtime,edge-runtime,logflare,vector,supavisor
+
+      - name: Point the app at the local stack only
+        run: |
+          set -euo pipefail
+          supabase status -o env > "$RUNNER_TEMP/local-supabase.env"
+          value() { grep "^$1=" "$RUNNER_TEMP/local-supabase.env" | head -n1 | cut -d= -f2- | tr -d '"'; }
+          api_url=$(value API_URL)
+          anon_key=$(value ANON_KEY)
+          service_key=$(value SERVICE_ROLE_KEY)
+          rm -f "$RUNNER_TEMP/local-supabase.env"
+          case "$api_url" in
+            http://127.0.0.1:*|http://localhost:*) ;;
+            *) echo "::error::Refusing to continue: the Supabase URL is not a local address."; exit 1 ;;
+          esac
+          if [ -z "$anon_key" ] || [ -z "$service_key" ]; then
+            echo "::error::Refusing to continue: the local stack did not report its keys."
+            exit 1
+          fi
+          echo "::add-mask::$anon_key"
+          echo "::add-mask::$service_key"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$api_url"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$service_key"
+            echo "NEXT_PUBLIC_APP_URL=http://localhost:3000"
+          } >> "$GITHUB_ENV"
+          echo "App will use the local stack at $api_url"
+
+      - name: Install the Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the Phase 22B-1 and Phase 22B-2 browser tests only
+        run: >
+          npx playwright test "$PHASE22B_SPEC_PAGES" "$PHASE22B_SPEC_PROGRAMS"
+          --project=chromium --retries=0 --workers=1
+          --reporter=list,json,html
+
+      - name: Count the browser tests that ran (fails on zero, skipped or failed)
+        if: always()
+        shell: bash
+        run: |
+          node --input-type=module <<'EOF'
+          import { appendFileSync, existsSync, readFileSync } from "node:fs";
+          const file = process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
+          const expectedTotal = Number(process.env.PHASE22B_EXPECTED_TESTS);
+          const summaryFile = process.env.GITHUB_STEP_SUMMARY;
+          const out = (line) => {
+            console.log(line);
+            if (summaryFile) appendFileSync(summaryFile, line + "\n");
+          };
+          out(`Tested commit: ${process.env.TESTED_SHA}`);
+          out("");
+          if (!file || !existsSync(file)) {
+            out("## Phase 22B browser tests (22B-1 + 22B-2): FAILED");
+            out("No Playwright results file was produced, so no browser test can be shown to have run.");
+            process.exit(1);
+          }
+          const report = JSON.parse(readFileSync(file, "utf8"));
+          const rows = [];
+          const walk = (suite) => {
+            for (const spec of suite.specs ?? []) {
+              for (const t of spec.tests ?? []) {
+                const last = t.results?.[t.results.length - 1];
+                rows.push({ file: spec.file ?? suite.file ?? "", title: spec.title, outcome: t.status, result: last?.status ?? "not run" });
+              }
+            }
+            for (const child of suite.suites ?? []) walk(child);
+          };
+          for (const suite of report.suites ?? []) walk(suite);
+          const count = (outcome) => rows.filter((r) => r.outcome === outcome).length;
+          const passed = count("expected");
+          const failed = count("unexpected");
+          const flaky = count("flaky");
+          const skipped = count("skipped");
+          const total = rows.length;
+          const ran = passed + failed + flaky;
+          const problems = [];
+          if (total === 0) problems.push("no tests were found");
+          if (ran === 0) problems.push("no tests executed");
+          if (skipped > 0) problems.push(`${skipped} test(s) were skipped or did not run`);
+          if (failed > 0) problems.push(`${failed} test(s) failed`);
+          if (flaky > 0) problems.push(`${flaky} test(s) only passed on retry`);
+          if (Number.isFinite(expectedTotal) && total !== expectedTotal)
+            problems.push(`expected ${expectedTotal} tests but found ${total}`);
+          if (Number.isFinite(expectedTotal) && passed !== expectedTotal)
+            problems.push(`expected ${expectedTotal} passing tests but ${passed} passed`);
+          // Each suite must contribute exactly half (8 + 8).
+          for (const spec of [process.env.PHASE22B_SPEC_PAGES, process.env.PHASE22B_SPEC_PROGRAMS]) {
+            const name = spec.split("/").pop();
+            const n = rows.filter((r) => r.file.endsWith(name)).length;
+            if (n !== expectedTotal / 2) problems.push(`expected ${expectedTotal / 2} tests from ${name} but found ${n}`);
+          }
+          out(`## Phase 22B browser tests (22B-1 + 22B-2): ${problems.length ? "FAILED" : "PASSED"}`);
+          out("");
+          out("| Found | Ran | Passed | Failed | Flaky | Skipped or not run |");
+          out("|---:|---:|---:|---:|---:|---:|");
+          out(`| ${total} | ${ran} | ${passed} | ${failed} | ${flaky} | ${skipped} |`);
+          out("");
+          out("| Spec | Test | Result |");
+          out("|---|---|---|");
+          for (const r of rows) out(`| ${r.file.split("/").pop()} | ${r.title.replace(/\|/g, "\\|")} | ${r.result} |`);
+          if (problems.length) {
+            out("");
+            out(`**Failing the workflow:** ${problems.join("; ")}.`);
+            process.exit(1);
+          }
+          EOF
+
+      - name: Upload the test report and results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: phase22b2-playwright-report-c175b7a
+          path: |
+            playwright-report/
+            ${{ runner.temp }}/phase22b2-results.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop the local stack
+        if: always()
+        run: supabase stop --no-backup
