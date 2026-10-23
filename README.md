@@ -29,6 +29,14 @@ source of truth for scope and design decisions:
   after isolated browser acceptance (8 of 8 tests passed). Legal-page
   publishing is blocked in the application only; the database guard is a
   separate, unapproved proposal. Later 22B stages are authorized separately
+- `docs/requirements/PHASE_22B2_IMPLEMENTATION_REPORT.md` — Phase 22B-2
+  (Program website content, display groups, featured Programs, Batch
+  publication): accepted and merged to `main` (2026-10-23, `27f0ff2`) after
+  isolated browser acceptance (16 of 16 with the 22B-1 suite). Pre-launch
+  safeguards and the TI-3 decision are listed in its §7
+- `docs/requirements/PHASE_22B3_MEDIA_DESIGN.md` — Phase 22B-3 (website
+  media: upload, approval, selection): in development. Its upload policy is
+  a proposal in `docs/proposed-migrations/`, not applied
 
 ## Prerequisites
 
