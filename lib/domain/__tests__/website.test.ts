@@ -121,6 +121,25 @@ describe("content safety", () => {
     expect(containsPrice("Talk to an Advisor")).toBe(false);
   });
   it.each([
+    "Fee Rs 49,999",
+    "Rs.4999 only",
+    "rs. 1,200",
+    "INR 50000",
+    "Just 4,999/-",
+    "999 /-",
+  ])("detects the written price %j (22B-2, stricter than the database)", (value) => {
+    expect(containsPrice(value)).toBe(true);
+  });
+  it.each([
+    "120 hours of practice",
+    "Learners from 25 cities",
+    "Covers APIs and microservices",
+    "Version 2.0 of the course",
+    "Class of 2026",
+  ])("does not flag ordinary text %j", (value) => {
+    expect(containsPrice(value)).toBe(false);
+  });
+  it.each([
     "/contact",
     "/programs/data-analytics-with-ai?ref=home#top",
     "https://www.roicians.com/",
