@@ -108,6 +108,11 @@ function StatusPanel({ asset, usedByLive }: { asset: MediaAsset; usedByLive: boo
     return null;
   };
   const changes = availableStatusChanges(asset.status);
+  // One note per distinct reason (withdraw and retire share theirs).
+  const reasons = [
+    ...new Set(changes.map(reasonFor).filter((r): r is string => r !== null)),
+  ];
+  const reasonId = (reason: string) => `media-reason-${reasons.indexOf(reason)}`;
 
   return (
     <section aria-labelledby="media-status-heading" className="flex flex-col gap-3">
@@ -148,7 +153,7 @@ function StatusPanel({ asset, usedByLive }: { asset: MediaAsset; usedByLive: boo
               size="sm"
               variant={change === "approve" ? "default" : "outline"}
               disabled={isPending || reason !== null}
-              aria-describedby={reason ? `media-reason-${change}` : undefined}
+              aria-describedby={reason ? reasonId(reason) : undefined}
               onClick={() => setConfirming(change)}
             >
               {rule.label}…
@@ -156,18 +161,11 @@ function StatusPanel({ asset, usedByLive }: { asset: MediaAsset; usedByLive: boo
           );
         })}
       </div>
-      {changes.map((change) => {
-        const reason = reasonFor(change);
-        return reason ? (
-          <p
-            key={change}
-            id={`media-reason-${change}`}
-            className="text-muted-foreground text-xs"
-          >
-            {reason}
-          </p>
-        ) : null;
-      })}
+      {reasons.map((reason) => (
+        <p key={reason} id={reasonId(reason)} className="text-muted-foreground text-xs">
+          {reason}
+        </p>
+      ))}
       {confirming && (
         <form action={action} className="flex flex-col gap-2 rounded-md border p-3">
           <input type="hidden" name="assetId" value={asset.id} />

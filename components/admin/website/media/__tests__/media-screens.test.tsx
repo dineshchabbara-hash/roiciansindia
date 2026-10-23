@@ -319,6 +319,11 @@ describe("MediaDetail", () => {
         "Published content uses this image. Publish a version without it first.",
       );
     }
+    expect(
+      screen.getAllByText(
+        "Published content uses this image. Publish a version without it first.",
+      ),
+    ).toHaveLength(1);
     const usage = screen.getByRole("link", { name: "About" }).closest("li")!;
     expect(usage).toHaveTextContent("Live");
     expect(usage).toHaveTextContent("Latest draft");
