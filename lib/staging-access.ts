@@ -1,36 +1,87 @@
 /**
  * Private staging gate (self-hosted staging only, e.g. Hostinger).
  *
- * Off unless STAGING_ACCESS_PASSWORD is set, so local development, tests,
- * DEV and production behave exactly as before. When set, every request that
- * reaches proxy.ts must carry HTTP Basic credentials for STAGING_ACCESS_USER
- * (default "staging") and that password, and every response is marked
- * noindex. The LMS's own role logins still apply behind it.
+ * Switched on by STAGING_MODE=1 (the explicit switch the staging deployment
+ * sets), or by STAGING_ACCESS_PASSWORD being present at all. Once on, it
+ * FAILS CLOSED: unless STAGING_ACCESS_USER and STAGING_ACCESS_PASSWORD are
+ * both present and valid, every request is refused (503). With valid
+ * credentials, every request that reaches proxy.ts must carry matching HTTP
+ * Basic credentials, and every response is marked noindex and uncacheable.
+ * The LMS's own role logins still apply behind it.
  *
- * Not gated: whatever proxy.ts's matcher already skips: static build files,
- * public images and the Razorpay webhook (signature-verified, called by
- * Razorpay's servers, which cannot answer a password prompt).
+ * Off (no STAGING_MODE, no STAGING_ACCESS_* values): behaviour is unchanged
+ * for local development, tests, DEV and production.
  *
- * Fails closed: a password shorter than STAGING_ACCESS_MIN_LENGTH refuses
- * every request rather than protecting the site weakly.
+ * proxy.ts runs on every path except exactly /api/razorpay/webhook, which
+ * Razorpay's servers call with an HMAC signature that the route always
+ * verifies (they cannot answer a password prompt). Static build files are
+ * gated too.
  */
 
 export const STAGING_ACCESS_MIN_LENGTH = 16;
-export const STAGING_ACCESS_DEFAULT_USER = "staging";
+export const STAGING_ACCESS_MAX_LENGTH = 256;
 export const STAGING_NOINDEX = "noindex, nofollow, noarchive";
+export const STAGING_CACHE_CONTROL = "private, no-store, max-age=0";
 
 export type StagingAccess =
   | { mode: "off" }
-  | { mode: "misconfigured" }
+  | { mode: "misconfigured"; reason: string }
   | { mode: "on"; user: string; password: string };
 
 type Env = Record<string, string | undefined>;
 
+const ON_VALUES = new Set(["1", "true", "on", "yes", "enabled"]);
+const OFF_VALUES = new Set(["0", "false", "off", "no", "disabled"]);
+// No control characters (Basic credentials are one header line).
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+
+function isPresent(value: string | undefined): boolean {
+  return value !== undefined;
+}
+
 export function stagingAccess(env: Env = process.env): StagingAccess {
-  const password = env.STAGING_ACCESS_PASSWORD;
-  if (password === undefined || password === "") return { mode: "off" };
-  if (password.length < STAGING_ACCESS_MIN_LENGTH) return { mode: "misconfigured" };
-  const user = env.STAGING_ACCESS_USER?.trim() || STAGING_ACCESS_DEFAULT_USER;
+  const rawMode = env.STAGING_MODE?.trim().toLowerCase();
+  const anyCredential =
+    isPresent(env.STAGING_ACCESS_USER) || isPresent(env.STAGING_ACCESS_PASSWORD);
+
+  let enabled: boolean;
+  if (rawMode === undefined || rawMode === "") {
+    enabled = anyCredential;
+  } else if (ON_VALUES.has(rawMode)) {
+    enabled = true;
+  } else if (OFF_VALUES.has(rawMode)) {
+    // Credentials present while switched off is contradictory: fail closed.
+    if (anyCredential) {
+      return {
+        mode: "misconfigured",
+        reason: "STAGING_MODE is off but credentials are set",
+      };
+    }
+    enabled = false;
+  } else {
+    return { mode: "misconfigured", reason: "STAGING_MODE has an unrecognised value" };
+  }
+  if (!enabled) return { mode: "off" };
+
+  const user = env.STAGING_ACCESS_USER?.trim() ?? "";
+  const password = env.STAGING_ACCESS_PASSWORD ?? "";
+  if (!user) return { mode: "misconfigured", reason: "STAGING_ACCESS_USER is missing" };
+  if (user.includes(":") || CONTROL_CHARS.test(user) || user.length > 64) {
+    return { mode: "misconfigured", reason: "STAGING_ACCESS_USER is invalid" };
+  }
+  if (!password) {
+    return { mode: "misconfigured", reason: "STAGING_ACCESS_PASSWORD is missing" };
+  }
+  if (
+    password.length < STAGING_ACCESS_MIN_LENGTH ||
+    password.length > STAGING_ACCESS_MAX_LENGTH ||
+    CONTROL_CHARS.test(password) ||
+    password.trim() !== password ||
+    password.toLowerCase().includes(user.toLowerCase())
+  ) {
+    return { mode: "misconfigured", reason: "STAGING_ACCESS_PASSWORD is invalid" };
+  }
   return { mode: "on", user, password };
 }
 
@@ -67,13 +118,14 @@ export function hasStagingCredentials(
 }
 
 const REFUSAL_HEADERS = {
-  "Cache-Control": "private, no-store, max-age=0",
+  "Cache-Control": STAGING_CACHE_CONTROL,
   "X-Robots-Tag": STAGING_NOINDEX,
   "Content-Type": "text/plain; charset=utf-8",
 };
 
 /**
  * The response that stops a request at the gate, or null to let it through.
+ * The misconfiguration reason is never sent to the visitor.
  */
 export function stagingGateResponse(
   authorization: string | null,
@@ -96,10 +148,29 @@ export function stagingGateResponse(
   });
 }
 
-/** Marks a response noindex whenever the staging gate is on. */
+/** Marks a response noindex and uncacheable whenever staging mode is on. */
 export function applyStagingHeaders(
   headers: Headers,
   access: StagingAccess = stagingAccess(),
 ): void {
-  if (access.mode !== "off") headers.set("X-Robots-Tag", STAGING_NOINDEX);
+  if (access.mode === "off") return;
+  headers.set("X-Robots-Tag", STAGING_NOINDEX);
+  headers.set("Cache-Control", STAGING_CACHE_CONTROL);
 }
+
+/**
+ * Paths that need no Supabase session refresh (build files and image-like
+ * paths). They are still gated in staging; this only skips the refresh, as
+ * proxy.ts's matcher did before it was narrowed.
+ */
+export function skipsSessionRefresh(pathname: string): boolean {
+  return (
+    pathname.startsWith("/_next/static/") ||
+    pathname === "/_next/image" ||
+    pathname === "/favicon.ico" ||
+    /\.(?:svg|png|jpg|jpeg|gif|webp)$/i.test(pathname)
+  );
+}
+
+/** The one path proxy.ts never runs on. */
+export const RAZORPAY_WEBHOOK_PATH = "/api/razorpay/webhook";

@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import {
   applyWebsitePrivateHeaders,
@@ -6,15 +6,24 @@ import {
 } from "@/lib/domain/website-private-headers";
 import {
   applyStagingHeaders,
+  skipsSessionRefresh,
   stagingAccess,
   stagingGateResponse,
 } from "@/lib/staging-access";
 
 export async function proxy(request: NextRequest) {
-  // Private staging only: inert unless STAGING_ACCESS_PASSWORD is set.
+  // Private staging only: off unless STAGING_MODE or STAGING_ACCESS_* is set,
+  // and then fails closed (lib/staging-access.ts).
   const access = stagingAccess();
   const refusal = stagingGateResponse(request.headers.get("authorization"), access);
   if (refusal) return refusal;
+
+  // Build files and image-like paths need no session refresh (unchanged).
+  if (skipsSessionRefresh(request.nextUrl.pathname)) {
+    const response = NextResponse.next();
+    applyStagingHeaders(response.headers, access);
+    return response;
+  }
 
   const response = await updateSession(request);
   applyStagingHeaders(response.headers, access);
@@ -29,12 +38,12 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match every request except static assets and Next.js internals, so
-     * the session cookie stays fresh across normal navigation without
-     * doing unnecessary work on every image/font/etc. The Razorpay webhook
-     * (Phase 20B) is also excluded: it is authenticated by Razorpay's
-     * signature, never by a session, so refreshing a cookie there is waste.
+     * Every path except exactly /api/razorpay/webhook. That route is called
+     * by Razorpay's servers and authenticated by Razorpay's HMAC signature,
+     * which it always verifies; it reads no session. Static build files go
+     * through proxy too (skipping only the session refresh), so a private
+     * staging gate covers them as well.
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/razorpay/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api/razorpay/webhook$).*)",
   ],
 };

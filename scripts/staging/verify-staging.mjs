@@ -2,16 +2,19 @@
 // to nothing and needs no Supabase or Razorpay keys. Run on your computer:
 //
 //   export STAGING_URL=https://<staging host>
-//   export STAGING_ACCESS_PASSWORD=<the gate password>   # STAGING_ACCESS_USER defaults to "staging"
+//   export STAGING_ACCESS_USER=<the gate user name>
+//   export STAGING_ACCESS_PASSWORD=<the gate password>
 //   node scripts/staging/verify-staging.mjs
 //
-// Checks: the gate refuses visitors without the password; pages answer with
-// it and are marked noindex; portal pages send signed-out visitors to their
-// login; auth redirects use the public address (not localhost); the Razorpay
-// webhook is reachable without the gate and rejects an unsigned call.
+// Checks: the gate refuses visitors without the password on every kind of
+// path (pages, private APIs, build files, image-like paths, look-alikes of
+// the webhook); pages answer with it and are marked noindex and uncacheable;
+// portal pages send signed-out visitors to their login; auth redirects use
+// the public address (not localhost); only the exact Razorpay webhook path is
+// outside the gate, and it rejects an unsigned call.
 
 const base = (process.env.STAGING_URL ?? "").replace(/\/+$/, "");
-const user = process.env.STAGING_ACCESS_USER?.trim() || "staging";
+const user = process.env.STAGING_ACCESS_USER?.trim() ?? "";
 const password = process.env.STAGING_ACCESS_PASSWORD ?? "";
 
 let origin;
@@ -24,8 +27,10 @@ try {
   console.error(`Set STAGING_URL to the staging address (${error.message}).`);
   process.exit(1);
 }
-if (!password) {
-  console.error("Set STAGING_ACCESS_PASSWORD (the staging gate password).");
+if (!user || !password) {
+  console.error(
+    "Set STAGING_ACCESS_USER and STAGING_ACCESS_PASSWORD (the staging gate credentials).",
+  );
   process.exit(1);
 }
 
@@ -48,6 +53,36 @@ async function main() {
   res = await get("/login/admin", { authorization: auth(user, `${password}-wrong`) });
   check("Gate refuses a wrong password", res.status === 401, `HTTP ${res.status}`);
 
+  // A real build file, found through the login page.
+  const page = await (await get("/login/admin", good)).text();
+  const chunk =
+    page.match(/\/_next\/static\/[^"'\s]+\.js/)?.[0] ?? "/_next/static/missing.js";
+  for (const path of [
+    chunk,
+    "/_next/image?url=%2Ffavicon.ico&w=64&q=75",
+    "/favicon.ico",
+    "/admin/students/example.png",
+    "/student/enrollments/example.jpg",
+    "/api/students/00000000-0000-0000-0000-000000000000/photo",
+    "/api/payments/00000000-0000-0000-0000-000000000000/receipt",
+    "/api/exports/payments",
+    "/api/razorpay/webhook/extra",
+    "/api/razorpay/webhooks",
+  ]) {
+    res = await get(path);
+    check(
+      `Gate covers ${path.length > 48 ? `${path.slice(0, 45)}...` : path}`,
+      res.status === 401,
+      `HTTP ${res.status}`,
+    );
+  }
+  res = await get(chunk, good);
+  check(
+    "Build files load with the password and are not cacheable",
+    res.status === 200 && /no-store/.test(res.headers.get("cache-control") ?? ""),
+    `HTTP ${res.status}; cache-control: ${res.headers.get("cache-control")}`,
+  );
+
   for (const path of [
     "/",
     "/login/admin",
@@ -57,10 +92,11 @@ async function main() {
   ]) {
     res = await get(path, good);
     const robots = res.headers.get("x-robots-tag") ?? "";
+    const cache = res.headers.get("cache-control") ?? "";
     check(
-      `${path} opens with the password and is noindex`,
-      res.status === 200 && /noindex/.test(robots),
-      `HTTP ${res.status}; x-robots-tag: ${robots || "missing"}`,
+      `${path} opens with the password, noindex and uncacheable`,
+      res.status === 200 && /noindex/.test(robots) && /no-store/.test(cache),
+      `HTTP ${res.status}; x-robots-tag: ${robots || "missing"}; cache-control: ${cache || "missing"}`,
     );
   }
 
@@ -97,7 +133,7 @@ async function main() {
     "{}",
   );
   check(
-    "Razorpay webhook is outside the gate and rejects an unsigned call",
+    "Exact Razorpay webhook path is outside the gate and rejects an unsigned call",
     res.status === 400,
     res.status === 503
       ? "HTTP 503: RAZORPAY_WEBHOOK_SECRET is not set"
