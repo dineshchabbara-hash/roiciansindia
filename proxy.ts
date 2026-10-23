@@ -4,9 +4,20 @@ import {
   applyWebsitePrivateHeaders,
   isWebsiteManagementPath,
 } from "@/lib/domain/website-private-headers";
+import {
+  applyStagingHeaders,
+  stagingAccess,
+  stagingGateResponse,
+} from "@/lib/staging-access";
 
 export async function proxy(request: NextRequest) {
+  // Private staging only: inert unless STAGING_ACCESS_PASSWORD is set.
+  const access = stagingAccess();
+  const refusal = stagingGateResponse(request.headers.get("authorization"), access);
+  if (refusal) return refusal;
+
   const response = await updateSession(request);
+  applyStagingHeaders(response.headers, access);
   // Phase 22B-1: Website Management screens show unpublished drafts, so they
   // are never cached by a shared cache or indexed (B2, TI-6).
   if (isWebsiteManagementPath(request.nextUrl.pathname)) {
