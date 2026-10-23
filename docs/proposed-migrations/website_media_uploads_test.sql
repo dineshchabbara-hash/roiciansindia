@@ -1,4 +1,4 @@
--- PREPARED FOR REVIEW ONLY. NOT RUN. Not wired into scripts/test-rls.sh.
+-- PREPARED FOR REVIEW ONLY. Not wired into scripts/test-rls.sh. Run only in throwaway local databases (run_website_media_uploads_sql_tests.sh).
 -- Regression suite for docs/proposed-migrations/website_media_uploads.sql, to
 -- be run in an isolated local database after migrations 1-42, then
 -- website_media_uploads_harness_stub.sql (plain-Postgres harness only), then
@@ -221,9 +221,16 @@ begin
     raise exception 'FAIL: anon uploaded to website-media';
   exception when insufficient_privilege then null;
   end;
-  if (select count(*) from storage.objects where bucket_id = 'website-media') <> 0 then
-    raise exception 'FAIL: anon can see website-media files';
-  end if;
+  -- Existing LMS storage policies (migrations 18-32) apply to every role and
+  -- call helpers anon cannot execute, so an anon read of storage.objects is
+  -- refused outright. Zero rows and a permission refusal both mean anon sees
+  -- nothing; any visible row fails.
+  begin
+    if (select count(*) from storage.objects where bucket_id = 'website-media') <> 0 then
+      raise exception 'FAIL: anon can see website-media files';
+    end if;
+  exception when insufficient_privilege then null;
+  end;
   raise notice 'PASS M2c/M4a: anon cannot upload or list website-media files';
 end
 $$;
@@ -546,10 +553,16 @@ begin
                   and before_data ->> 'status' = 'draft' and after_data ->> 'status' = 'approved') then
     raise exception 'FAIL: approval not audited';
   end if;
-  if (select array_agg(after_data ->> 'change' order by created_at, id) from audit_logs
-       where entity_id = a2 and action = 'website_media_asset.updated')
-     is distinct from array['approved', 'retired', 'restored'] then
-    raise exception 'FAIL: a2 audit trail is wrong';
+  -- All rows share one transaction timestamp, so check each transition's
+  -- before and after status rather than row order.
+  if (select string_agg(format('%s>%s:%s', before_data ->> 'status', after_data ->> 'status',
+                               after_data ->> 'change'), ',' order by after_data ->> 'change')
+        from audit_logs where entity_id = a2 and action = 'website_media_asset.updated')
+     is distinct from 'draft>approved:approved,retired>draft:restored,approved>retired:retired' then
+    raise exception 'FAIL: a2 audit trail is wrong: %', (
+      select string_agg(format('%s>%s:%s', before_data ->> 'status', after_data ->> 'status',
+                               after_data ->> 'change'), ',' order by after_data ->> 'change')
+        from audit_logs where entity_id = a2 and action = 'website_media_asset.updated');
   end if;
   if exists (select 1 from audit_logs where entity_id = a1 and action = 'website_media_asset.updated'
               and after_data ->> 'change' in ('approval_withdrawn', 'retired')) then

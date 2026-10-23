@@ -1,4 +1,4 @@
--- PREPARED FOR REVIEW ONLY. NOT RUN.
+-- PREPARED FOR REVIEW ONLY. Run only in throwaway local databases (see README). Never against a hosted project.
 -- Plain-Postgres test harness only (scripts/test-rls.sh). Run after
 -- supabase/tests/auth_schema_stub.sql and before website_media_uploads.sql.
 --

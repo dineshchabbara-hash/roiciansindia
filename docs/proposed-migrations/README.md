@@ -118,12 +118,12 @@ An independent legal-page approval safeguard may require a **different** propose
 
 | | |
 |---|---|
-| Status | **Proposal only.** Not approved, not applied, not run against any database |
+| Status | **Proposal only.** Not approved. Never applied to DEV or production; run only in throwaway local databases (see *Validation runs*) |
 | Why | Phase 22A made `website-media` private with an Admin read policy only, so nothing can be uploaded. Phase 22B-3 needs uploads, safe clean-up of failed uploads, and a database check that a recorded image is the file actually stored |
 | Design | `docs/requirements/PHASE_22B3_MEDIA_DESIGN.md` |
 | Expected number | `20260101000043`, or the next free number, verified at approval time |
 | Test | `website_media_uploads_test.sql` (M1–M9; follows the `supabase/tests` conventions; ends with ROLLBACK). In the plain-Postgres harness, run `website_media_uploads_harness_stub.sql` first; a real Supabase stack already has those columns |
-| Checked so far | All three files parse as valid PostgreSQL, and every PL/pgSQL body parses (pglast parser only; nothing executed) |
+| Checked so far | Plain-Postgres run of every suite plus M1–M9: passed. Real Supabase Storage service run (S1–S14): 44 of 44 passed. Browser acceptance (24 tests): not yet run |
 
 ### What it changes (website-media only)
 
@@ -164,11 +164,32 @@ Two assertions in `supabase/tests/phase22a_website_foundation_test.sql` describe
 | W1, lines 236–238 | "website-media has a write storage policy" fails on any write policy | Expect exactly the upload and delete policies above, and still **no** update policy |
 | W6, line 486 | Records `…a001/hero.webp` with no stored file | First insert that object (as the Admin, with size and type metadata), because recording now requires the stored file |
 
+The exact change is `website_media_uploads_22a_test.patch` (W1 and W6 only; every other 22A assertion is untouched).
+
 ### Points for the reviewer
 
 1. **Content check location.** Postgres cannot read file bytes. The application checks the actual bytes after upload, and the database checks the stored size and type.
    - An active Admin calling the API directly could still record a file whose bytes are not a real image, as long as Storage accepted its declared type.
    - The bucket is private and approval shows a preview.
    - Phase 22C should re-encode images before public serving.
-2. **Owner column.** Policies and checks use `coalesce(owner_id, owner::text)`, which covers both current Storage columns. Signed uploads should record the URL creator as owner; the isolated acceptance run must confirm this.
+2. **Owner column.** Policies and checks use `coalesce(owner_id, owner::text)`, which covers both current Storage columns. Confirmed with the real Storage service (S1b): a signed upload records the Admin who created the link in both `owner` and `owner_id`.
 3. **24-hour window.** Another Admin can remove an unrecorded file only after 24 hours, so an upload in progress is never removed. The uploader can remove their own at any time.
+4. **Upload links are not single-use.** Storage checks the upload policy when the link is created, then writes the file with its own rights when the link is used (confirmed in the Storage source and run S14). Consequences, all limited to an unrecorded file at the exact path the link names:
+   - after the file is removed, the same link can upload it again until it expires (2 hours on hosted Supabase);
+   - an Admin deactivated after creating a link can still finish that upload, but can never record it (S14c).
+   Such files cannot be published and are listed for clean-up after 24 hours.
+5. **Anonymous Storage reads.** Older LMS Storage policies (migrations 18–32) apply to every role and call helpers that `anon` cannot run, so any anonymous Storage read is refused with a permission error rather than an empty result. This predates the proposal and fails closed; M2c/M4a accept either outcome and fail if any file is visible.
+
+### Validation runs (2026-10-23, throwaway local databases only)
+
+| Run | What it used | Result |
+|---|---|---|
+| Plain Postgres: `run_website_media_uploads_sql_tests.sh` | Local Postgres 16; harness stubs; migrations 1–42; the proposal; all 23 suites from `scripts/test-rls.sh` with the 22A suite patched by `website_media_uploads_22a_test.patch`; then M1–M9 | **Passed**, 3 runs out of 3 (487 PASS lines each; database dropped afterwards) |
+| Real Storage service: `website_media_uploads_storage_check.mjs` | `supabase/storage` run from source (file backend) on local Postgres with Storage's own schema, migrations 1–42 and the proposal; this repo's `@supabase/storage-js` | **44 of 44 passed**: signed upload as Admin and Super Admin, owner recorded, registration, no overwrite, upsert or move, removal of incomplete uploads, 24-hour rule, registered files kept, other roles and anon refused, 5 MiB and type limits, unsafe paths refused, private reads and previews, registration cross-checks |
+| Browser acceptance (24 tests) | Real `supabase start` stack in GitHub Actions | **Not run.** Awaiting approval |
+
+Not covered by these runs: PostgREST itself (functions were called as PostgREST calls them: role `authenticated` with the caller's claims), the hosted Storage version and its settings, and the browser screens. The 24-test acceptance run covers all three.
+
+Two of my own tests were corrected during the plain-Postgres runs; neither change weakens what they check:
+- **M2c/M4a** expected an anonymous Storage read to return no rows; it is refused instead (point 5). The test now accepts either outcome and still fails if any row is visible.
+- **M8b** checked the order of a2's audit rows by `created_at, id`. All rows share one transaction timestamp, so the order was random and the test failed about one run in two. It now checks each row's before status, after status and change (draft→approved, approved→retired, retired→draft), which is stricter. Three consecutive full runs then passed.

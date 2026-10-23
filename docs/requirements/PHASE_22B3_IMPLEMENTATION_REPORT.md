@@ -100,7 +100,12 @@ All screens are for Admin and Super Admin only, under `/admin/website`, with a n
 - approval, publishing and audit;
 - other buckets untouched.
 
-**Checked so far:** all three SQL files parse with the PostgreSQL parser (pglast), including every PL/pgSQL body. **Nothing has been executed.**
+**Checked so far (updated 2026-10-23, throwaway local databases only; nothing applied to DEV or production):**
+- Plain Postgres 16: migrations 1–42 plus the proposal, then all 23 existing suites (22A patched by `website_media_uploads_22a_test.patch`) and M1–M9. Passed 3 runs out of 3, 487 PASS lines each.
+- The real Supabase Storage service, run from source on local Postgres: 44 of 44 checks passed (`website_media_uploads_storage_check.mjs`). These confirm that a signed upload records the Admin as `owner_id`, and cover registration, removal of incomplete uploads, no overwrite, and the bucket limits.
+- Browser acceptance (24 tests): not yet run.
+
+Details and findings are in `docs/proposed-migrations/README.md` (*Validation runs* and points 4–5).
 
 **Changes needed on adoption:** two existing assertions in `supabase/tests/phase22a_website_foundation_test.sql`, W1 (no write policy) and W6 (records without a stored file), are listed in the README.
 

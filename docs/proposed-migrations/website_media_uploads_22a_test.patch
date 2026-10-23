@@ -1,0 +1,40 @@
+--- a/supabase/tests/phase22a_website_foundation_test.sql
++++ b/supabase/tests/phase22a_website_foundation_test.sql
+@@ -233,9 +233,21 @@
+      <> 'assignment-attachments=false,assignment-submissions=false,branding=true,certificates=false,materials=false,profile-photos=false,receipts=false,student-documents=false,website-media=false' then
+     raise exception 'FAIL: bucket visibility changed: %', (select string_agg(id || '=' || public::text, ',' order by id) from storage.buckets);
+   end if;
++  -- After the Phase 22B-3 media upload migration: exactly three website-media
++  -- policies (Admin read, Admin upload to safe paths, delete of never-recorded
++  -- files) and still NO update policy, so nothing can be overwritten or moved.
++  if (select string_agg(policyname || ':' || cmd, ',' order by policyname)
++        from pg_policies where schemaname = 'storage' and tablename = 'objects'
++         and policyname like 'website_media%')
++     is distinct from 'website_media_bucket_delete_unregistered:DELETE,website_media_bucket_insert_admin:INSERT,website_media_bucket_select_admin:SELECT' then
++    raise exception 'FAIL: website-media storage policies changed: %',
++      (select string_agg(policyname || ':' || cmd, ',' order by policyname) from pg_policies
++        where schemaname = 'storage' and tablename = 'objects' and policyname like 'website_media%');
++  end if;
+   if exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
+-             and policyname like 'website_media%' and cmd <> 'SELECT') then
+-    raise exception 'FAIL: website-media has a write storage policy';
++             and coalesce(qual, '') || coalesce(with_check, '') like '%website-media%'
++             and cmd in ('UPDATE', 'ALL')) then
++    raise exception 'FAIL: website-media has an update storage policy';
+   end if;
+ 
+   -- No fee/price column in any website table.
+@@ -483,6 +495,13 @@
+     raise exception 'FAIL: unsafe media accepted';
+   exception when sqlstate '22023' then null;
+   end;
++  -- After the Phase 22B-3 media upload migration, recording requires the
++  -- caller's own stored file: the Admin uploads it (through the upload policy)
++  -- with the size and type Storage would record.
++  insert into storage.objects (bucket_id, name, owner, owner_id, metadata)
++  values ('website-media', 'aaaaaaaa-0000-4000-8000-00000000a001/hero.webp',
++          '22a00000-0000-0000-0000-000000000002', '22a00000-0000-0000-0000-000000000002',
++          '{"size": 120000, "mimetype": "image/webp"}');
+   a1 := website_register_media_asset('aaaaaaaa-0000-4000-8000-00000000a001/hero.webp', 'image/webp', 120000, 1600, 900, null);
+   insert into p22a_ids values ('a1', a1);
+   if (select status from website_media_assets where id = a1) <> 'draft' then
