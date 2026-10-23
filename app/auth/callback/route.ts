@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { publicOrigin } from "@/lib/auth/public-origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // Allow-list of internal redirect targets — `next` comes from a query
@@ -9,7 +10,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 const ALLOWED_NEXT_PATHS = new Set(["/reset-password"]);
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = publicOrigin(request.url);
   const code = searchParams.get("code");
   const rawNext = searchParams.get("next") ?? "/";
   const next = ALLOWED_NEXT_PATHS.has(rawNext) ? rawNext : "/";

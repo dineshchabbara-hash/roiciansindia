@@ -1,5 +1,15 @@
 import type { NextConfig } from "next";
 
+// Self-hosting behind a reverse proxy (e.g. Hostinger): when the proxy does
+// not pass the public host on to Next.js, Server Actions refuse every form
+// because the browser's Origin no longer matches. List the public host(s)
+// here, comma-separated, only for such deployments. Empty means Next.js's
+// default same-origin check, unchanged.
+const serverActionsAllowedOrigins = (process.env.SERVER_ACTIONS_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
@@ -16,6 +26,9 @@ const nextConfig: NextConfig = {
       // close to this number, since the 10 MB application check always
       // rejects first.
       bodySizeLimit: "12mb",
+      ...(serverActionsAllowedOrigins.length > 0
+        ? { allowedOrigins: serverActionsAllowedOrigins }
+        : {}),
     },
     // proxy.ts runs on every page request, and Next.js buffers a request
     // body for proxy only up to this size (default 10MB), passing a cut-off
