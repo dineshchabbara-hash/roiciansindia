@@ -80,6 +80,12 @@ Use **Hostinger's temporary domain** first: no DNS change, no extra approval. A 
    - **Redirect URLs:** add `https://<staging host>/**`.
 6. **Apply migrations 1–42** from your computer, in a checkout of `staging/lms-preview`. *(Approval: hosted migration.)*
 
+   **New-project default (found 2026-10-23).** Supabase projects created after 30 May 2026 no longer grant `anon`, `authenticated` and `service_role` access to new `public` tables automatically, and these migrations rely on that older default. Tested on a throwaway database:
+   - applied as they are, the app roles get 93 grants instead of 549, and the LMS would fail;
+   - running `docs/staging/pre-migration-default-privileges.sql` once in the SQL Editor first restores Supabase's documented previous default, and the migrations then produce exactly DEV's 549 grants and identical policies.
+
+   After migrating, run the read-only `docs/staging/privilege-snapshot.sql`; it must report `549 | 183 | 226 | b62ffbb84312a7d5a5f95480cc13c59d`.
+
    ```
    npx supabase login
    npx supabase link --project-ref <staging ref>   # the name shown must be roicians-staging
