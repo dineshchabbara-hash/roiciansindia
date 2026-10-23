@@ -22,8 +22,13 @@ source of truth for scope and design decisions:
   foundation and Program-deletion database enforcement): accepted and merged
   to `main` (2026-10-22); applied to DEV
 - `docs/requirements/PHASE_22B_PLAN.md` — Phase 22B (Admin Website
-  Management): decisions, homepage visual prototype and 22B-1 plan; planning
-  only, no code yet
+  Management): decisions, homepage visual prototype and the 22B-1 plan
+- `docs/requirements/PHASE_22B1_IMPLEMENTATION_REPORT.md` — Phase 22B-1
+  (Admin management of website pages: drafts, private preview, publishing,
+  version history): accepted and merged to `main` (2026-10-23, `ffeb31b`)
+  after isolated browser acceptance (8 of 8 tests passed). Legal-page
+  publishing is blocked in the application only; the database guard is a
+  separate, unapproved proposal. Later 22B stages are authorized separately
 
 ## Prerequisites
 

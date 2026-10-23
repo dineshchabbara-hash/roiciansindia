@@ -59,7 +59,7 @@ in [`docs/requirements/PHASE_22_APPROVED_DESIGN.md`](docs/requirements/PHASE_22_
 | 21A | Receipts & Payment Documents (FR-94, FR-95) | Complete (merged `80008da`) |
 | 21B | Refunds (FR-97; D8 resolved, Option A) | Complete (merged `c527c08`; migration 38 on dev; Windows acceptance 2/2) |
 | 21C | LMS Administration & Identity (FR-140/141 Company Settings, D3 Student portal logins, Admin accounts, Audit Log viewer, FR-41 photo) | Complete (merged `6e5e4e9`; migration 39 on dev; Windows acceptance 3/3) |
-| 22 | Roicians India Public Website (approved design: `docs/requirements/PHASE_22_APPROVED_DESIGN.md`; stages 22A–22J) | In progress — 22A: **Accepted and merged to `main` (2026-10-22, `83b7536`)**; DEV recovered and verified. 22B: planning and visual prototype on branch `claude/phase22b-website-management` (see `docs/requirements/PHASE_22B_PLAN.md`); 22C–22J not started |
+| 22 | Roicians India Public Website (approved design: `docs/requirements/PHASE_22_APPROVED_DESIGN.md`; stages 22A–22J) | In progress — 22A: **Accepted and merged to `main` (2026-10-22, `83b7536`)**; DEV recovered and verified. 22B-1 (website pages): **Accepted and merged to `main` (2026-10-23, `ffeb31b`)** after isolated browser acceptance (8 of 8; see `docs/requirements/PHASE_22B1_IMPLEMENTATION_REPORT.md`). 22B-2 (Program website management): authorized 2026-10-23, in development on its branch. 22B-3, 22B-4 and 22C–22J not started |
 | 23 | Zoho CRM Integration (re-scoped from Lead Management) | Not started (after 22) |
 | 18b | Transactional Email & multi-channel delivery | Not started — deferred until after 23 (provider + credentials chosen first); required before 24 if in V1 |
 | 24 | Testing, Security & UAT | Not started |
@@ -1814,7 +1814,7 @@ starts automatically):
 | Stage | Scope | Status |
 |---|---|---|
 | 22A | Publication and structured Website Management data model, plus Program-deletion database enforcement | **Accepted and merged to `main` (2026-10-22, `83b7536`)**; DEV recovered, structurally and functionally verified; production not yet deployed — see `docs/requirements/PHASE_22A_IMPLEMENTATION.md` and `docs/recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`) |
-| 22B | Admin Website Management, drafts, preview and publishing | Planning: decisions recorded (design §5.5), homepage visual prototype for approval, 22B-1 plan proposed (`docs/requirements/PHASE_22B_PLAN.md`); no code yet |
+| 22B | Admin Website Management, drafts, preview and publishing | Decisions recorded (design §5.5) and plan in `docs/requirements/PHASE_22B_PLAN.md`. **22B-1** (website pages: drafts, private preview, publishing, version history): **accepted and merged to `main` (2026-10-23, merge commit `ffeb31b`, tested head `4a0202b`)**; isolated real-Supabase browser acceptance passed 8 of 8 (GitHub Actions run 39877714546); no migration; see `docs/requirements/PHASE_22B1_IMPLEMENTATION_REPORT.md`. **22B-2** (Program website management): authorized 2026-10-23, in development. 22B-3 (media) and 22B-4 (deletion screens): not started |
 | 22C | Safe server-only published-data contract | Not started |
 | 22D | Website foundation and multi-subdomain routing | Not started |
 | 22E | Programs listing and Program detail pages | Not started |
@@ -1827,7 +1827,8 @@ starts automatically):
 **DB changes:** 22A adds migrations `20260101000040_website_content_foundation.sql`
 (the complete Website Management data foundation, design §5.4) and
 `20260101000041_program_deletion_safeguards.sql` (replaces the broad Program
-DELETE with the controlled Super Admin function), on branch only — see
+DELETE with the controlled Super Admin function), corrected by
+`20260101000042_phase22a_corrections.sql`; merged to `main` 2026-10-22 — see
 `docs/requirements/PHASE_22A_IMPLEMENTATION.md` for tables, functions, tests
 and the DEV application status. The
 anticipatory comment in migration 14 about an `anon` policy on `programs` is
@@ -1841,7 +1842,12 @@ on the 22A branch and tested locally; applied to DEV with migration 42
 unchanged; the Super Admin screens remain 22B), TI-7
 (previously published Programs' slugs, redirects, references and assets
 before deletion), TI-3 (the public "upcoming Batch" rule) and TI-4/TI-5
-(Auth redirects, cookies and session refresh per host).
+(Auth redirects, cookies and session refresh per host). Separately tracked
+from 22B-1: legal-page publishing is blocked in the application only; a direct
+call to `website_publish_document()` by an Admin, or direct database access,
+can still publish a legal page (audited). The database guard proposed in
+`docs/proposed-migrations/legal_publication_hold.sql` is not approved or
+applied.
 
 **Launch dependencies:** design §17 — logo files, final tokens, approved
 Program and page content, legal/consent wording, contact details.
