@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageEditor, type EditorPage } from "@/components/admin/website/page-editor";
+import { getEditorMedia } from "@/lib/data/website-media";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import { WEBSITE_NOT_FOUND, getWebsitePage } from "@/lib/data/website";
 import { isAdminOrSuperAdmin, roleHomePath } from "@/lib/domain/rbac";
@@ -47,6 +48,9 @@ export default async function WebsitePageEditorPage({
     version: page.version,
   };
 
+  // Phase 22B-3: image choices (null keeps images unchanged, as before).
+  const media = await getEditorMedia(page.latest);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -77,6 +81,7 @@ export default async function WebsitePageEditorPage({
         key={`${page.id}:${restoredNumber ?? ""}`}
         page={editorPage}
         content={page.latest}
+        media={media ?? undefined}
         stashOwnerId={user.authUserId}
       />
     </div>

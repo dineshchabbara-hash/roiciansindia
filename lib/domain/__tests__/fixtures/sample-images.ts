@@ -4,7 +4,7 @@
  * are tested against genuine files rather than hand-made headers.
  */
 
-export function bytes(base64: string): Uint8Array {
+export function bytes(base64: string): Uint8Array<ArrayBuffer> {
   return new Uint8Array(Buffer.from(base64, "base64"));
 }
 

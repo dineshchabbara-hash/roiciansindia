@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { PageEditor, type EditorPage } from "@/components/admin/website/page-editor";
+import { getEditorMedia } from "@/lib/data/website-media";
 import { ProgramHeader } from "@/components/admin/website/programs/program-header";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import {
@@ -62,6 +63,9 @@ export default async function ProgramContentPage({
     version: document.version,
   };
 
+  // Phase 22B-3: image choices (null keeps images unchanged, as before).
+  const media = await getEditorMedia(latest);
+
   return (
     <div className="flex flex-col gap-6">
       <ProgramHeader detail={result.data} section="content" />
@@ -85,6 +89,7 @@ export default async function ProgramContentPage({
         key={`${document.id}:${restoredNumber ?? ""}`}
         page={editorPage}
         content={latest}
+        media={media ?? undefined}
         stashOwnerId={user.authUserId}
         bindings={{
           save: saveProgramDraftAction,

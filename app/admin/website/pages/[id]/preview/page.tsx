@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PagePreview } from "@/components/admin/website/page-preview";
+import { getMediaOptions } from "@/lib/data/website-media";
+import { contentImageIds } from "@/lib/domain/website-media";
 import { WebsiteDraftCopyCleanup } from "@/components/admin/website/unsaved-changes";
 import { getCurrentUserContext } from "@/lib/auth/session";
 import {
@@ -59,6 +61,9 @@ export default async function WebsitePagePreviewPage({
     content = chosen.data;
   }
 
+  // Phase 22B-3: the chosen images, through short-lived private links.
+  const media = content ? await getMediaOptions(contentImageIds(content)) : null;
+
   return (
     <div className="flex flex-col gap-6">
       <WebsiteDraftCopyCleanup ownerId={user.authUserId} />
@@ -82,6 +87,7 @@ export default async function WebsitePagePreviewPage({
         <PagePreview
           content={content}
           isLive={content.id === page.data.publishedRevisionId}
+          media={media?.ok ? media.data : undefined}
         />
       ) : (
         <p className="text-muted-foreground text-sm">

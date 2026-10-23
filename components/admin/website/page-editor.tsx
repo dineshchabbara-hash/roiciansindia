@@ -16,6 +16,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PublicationPanel } from "@/components/admin/website/publication-panel";
 import {
+  MediaPicker,
+  findMedia,
+  type EditorMedia,
+} from "@/components/admin/website/media/media-picker";
+import {
+  DOCUMENT_IMAGE_SLOTS,
+  SECTION_IMAGE_TYPES,
+  UNAPPROVED_IMAGES_MESSAGE,
+  contentImageIds,
+} from "@/lib/domain/website-media";
+import {
   draftStashKey,
   forgetStashWhenOpened,
   keepsRecoveryCopy,
@@ -239,8 +250,10 @@ function SectionCard(props: {
   onChange: (next: EditableSection) => void;
   onMove: (delta: -1 | 1) => void;
   onRemove: () => void;
+  /** Phase 22B-3: image choices; without it images are kept unchanged. */
+  media?: EditorMedia;
 }) {
-  const { section, index, count, errors, onChange, onMove, onRemove } = props;
+  const { section, index, count, errors, onChange, onMove, onRemove, media } = props;
   const type = section.type as WebsiteSectionType;
   const spec = SECTION_FIELDS[type] ?? {
     heading: true,
@@ -462,10 +475,21 @@ function SectionCard(props: {
           </fieldset>
         )}
         {spec.note ? <p className="text-muted-foreground text-xs">{spec.note}</p> : null}
-        {section.imageAssetId ? (
+        {media && SECTION_IMAGE_TYPES.has(section.type) ? (
+          <MediaPicker
+            label="Section image"
+            value={section.imageAssetId ?? null}
+            media={media}
+            onChange={(id) => {
+              const next: EditableSection = { ...section };
+              if (id) next.imageAssetId = id;
+              else delete next.imageAssetId;
+              onChange(next);
+            }}
+          />
+        ) : section.imageAssetId ? (
           <p className="text-muted-foreground text-xs">
-            This section has an image. Images are managed in a later stage and are kept
-            unchanged when you save.
+            This section has an image, which is kept unchanged when you save.
           </p>
         ) : null}
       </div>
@@ -489,6 +513,7 @@ export function PageEditor({
   content,
   stashOwnerId,
   bindings,
+  media,
 }: {
   page: EditorPage;
   content: WebsiteRevisionContent | null;
@@ -498,6 +523,8 @@ export function PageEditor({
    */
   stashOwnerId?: string;
   bindings?: EditorBindings;
+  /** Phase 22B-3: image choices. Without it, images are kept unchanged. */
+  media?: EditorMedia;
 }) {
   const saveAction = bindings?.save ?? saveWebsiteDraftAction;
   const basePath = bindings?.basePath ?? `/admin/website/pages/${page.id}`;
@@ -611,6 +638,12 @@ export function PageEditor({
   };
 
   const allowedTypes = SECTION_TYPES_BY_KIND[page.kind];
+  const slots = DOCUMENT_IMAGE_SLOTS[page.kind];
+  // Publishing needs every chosen image to be Approved (the database refuses
+  // otherwise); say so before the Admin tries.
+  const unapprovedImages = media
+    ? contentImageIds(draft).filter((id) => findMedia(media, id)?.status !== "approved")
+    : [];
   const stale = state.stale && !state.saved ? state.stale : null;
   const fieldErrorCount = Object.keys(errors).length;
 
@@ -777,11 +810,34 @@ export function PageEditor({
               error={errors.summary?.[0]}
               onChange={(v) => update({ summary: v })}
             />
-            {(draft.heroImageAssetId || draft.socialImageAssetId) && (
-              <p className="text-muted-foreground text-xs">
-                This page has images. Images are managed in a later stage and are kept
-                unchanged when you save.
-              </p>
+            {media && (slots.main || slots.social) ? (
+              <fieldset className="flex flex-col gap-4 rounded-md border p-3">
+                <legend className="px-1 text-sm font-medium">Images</legend>
+                {slots.main && (
+                  <MediaPicker
+                    label="Main image"
+                    hint="Shown at the top of the page."
+                    value={draft.heroImageAssetId}
+                    media={media}
+                    onChange={(id) => update({ heroImageAssetId: id })}
+                  />
+                )}
+                {slots.social && (
+                  <MediaPicker
+                    label="Social sharing image"
+                    hint="Shown when the page is shared on social media."
+                    value={draft.socialImageAssetId}
+                    media={media}
+                    onChange={(id) => update({ socialImageAssetId: id })}
+                  />
+                )}
+              </fieldset>
+            ) : (
+              (draft.heroImageAssetId || draft.socialImageAssetId) && (
+                <p className="text-muted-foreground text-xs">
+                  This page has images, which are kept unchanged when you save.
+                </p>
+              )
             )}
           </section>
 
@@ -808,6 +864,7 @@ export function PageEditor({
                     onRemove={() =>
                       update({ sections: draft.sections.filter((_, i) => i !== index) })
                     }
+                    media={media}
                   />
                 ))}
               </ol>
@@ -920,6 +977,9 @@ export function PageEditor({
           latestRevisionNumber={base}
           dirty={dirty}
           bindings={{ ...bindings, basePath }}
+          imageBlockedReason={
+            unapprovedImages.length > 0 ? UNAPPROVED_IMAGES_MESSAGE : null
+          }
         />
       </aside>
     </div>

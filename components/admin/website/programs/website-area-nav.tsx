@@ -1,12 +1,13 @@
 import Link from "next/link";
 
-export type WebsiteArea = "pages" | "programs" | "groups" | "featured";
+export type WebsiteArea = "pages" | "programs" | "groups" | "featured" | "media";
 
 const AREAS: Array<{ id: WebsiteArea; label: string; href: string }> = [
   { id: "pages", label: "Pages", href: "/admin/website" },
   { id: "programs", label: "Programs", href: "/admin/website/programs" },
   { id: "groups", label: "Display groups", href: "/admin/website/groups" },
   { id: "featured", label: "Featured Programs", href: "/admin/website/featured" },
+  { id: "media", label: "Media", href: "/admin/website/media" },
 ];
 
 /** Phase 22B-2: switches between the Website Management areas. */

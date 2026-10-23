@@ -31,12 +31,15 @@ export function PublicationPanel({
   latestRevisionNumber,
   dirty,
   bindings,
+  imageBlockedReason = null,
 }: {
   page: EditorPage;
   latestRevisionId: string | null;
   latestRevisionNumber: number;
   dirty: boolean;
   bindings?: EditorBindings;
+  /** Phase 22B-3: why the chosen images stop publishing (not all Approved). */
+  imageBlockedReason?: string | null;
 }) {
   const publishPageAction = bindings?.publish ?? publishWebsitePageAction;
   const unpublishPageAction = bindings?.unpublish ?? unpublishWebsitePageAction;
@@ -86,6 +89,7 @@ export function PublicationPanel({
   else if (latestRevisionId === null)
     publishBlockedReason = "Save a draft before publishing.";
   else if (dirty) publishBlockedReason = "Save your changes before publishing.";
+  else if (imageBlockedReason) publishBlockedReason = imageBlockedReason;
   else if (alreadyLive)
     publishBlockedReason = "The latest saved version is already live.";
 

@@ -8,6 +8,7 @@ import { isAdminPageKind, pageDisplayName } from "@/lib/domain/website-admin";
 import {
   MEDIA_PREVIEW_SECONDS,
   UPLOADS_NOT_ENABLED_MESSAGE,
+  contentImageIds,
   isMediaMimeType,
   isMediaStatus,
   mediaFileName,
@@ -61,6 +62,14 @@ export type MediaOption = Pick<
   MediaAsset,
   "id" | "fileName" | "altText" | "status" | "width" | "height" | "previewUrl"
 >;
+
+/** What the editor knows about images: approved choices and the chosen ones. */
+export type EditorMedia = {
+  /** Approved images that may be chosen. */
+  approved: MediaOption[];
+  /** Images the content already uses, whatever their status. */
+  chosen: Record<string, MediaOption>;
+};
 
 export type MediaUsage = {
   documentId: string;
@@ -215,6 +224,27 @@ export async function getMediaOptions(
     log("Could not load chosen images", error);
     return { ok: false, error: "Could not load the chosen images." };
   }
+}
+
+/**
+ * Everything the editor needs for images: Approved choices plus the images
+ * the content already uses. Null if it cannot be loaded (the editor then
+ * keeps images unchanged, as before 22B-3).
+ */
+export async function getEditorMedia(
+  content: {
+    heroImageAssetId: string | null;
+    socialImageAssetId: string | null;
+    sections: ReadonlyArray<{ imageAssetId?: string }>;
+  } | null,
+): Promise<EditorMedia | null> {
+  const ids = content ? contentImageIds(content) : [];
+  const [approved, chosen] = await Promise.all([
+    listApprovedMedia(),
+    getMediaOptions(ids),
+  ]);
+  if (!approved.ok || !chosen.ok) return null;
+  return { approved: approved.data, chosen: chosen.data };
 }
 
 export type MediaDetail = { asset: MediaAsset; usage: MediaUsage[] };

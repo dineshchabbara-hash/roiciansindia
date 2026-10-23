@@ -1,4 +1,9 @@
 import type { WebsiteRevisionContent } from "@/lib/data/website";
+import type { MediaOption } from "@/lib/data/website-media";
+import {
+  MediaImage,
+  MediaStatusBadge,
+} from "@/components/admin/website/media/media-image";
 import type { WebsiteSectionType } from "@/lib/domain/website";
 import {
   ITEM_FIELDS,
@@ -21,7 +26,61 @@ function Paragraphs({ body }: { body?: string }) {
   );
 }
 
-function PreviewSection({ section }: { section: EditableSection }) {
+type PreviewMedia = Record<string, MediaOption>;
+
+/** A chosen image in the preview, with its alt text and approval status. */
+function PreviewImage({
+  id,
+  media,
+  label,
+  className,
+}: {
+  id: string;
+  media?: PreviewMedia;
+  label: string;
+  className?: string;
+}) {
+  const image = media?.[id];
+  if (!media) {
+    return <p className="text-muted-foreground text-xs">{label}: an image is set.</p>;
+  }
+  return (
+    <figure className="flex flex-col gap-1">
+      <MediaImage
+        src={image?.previewUrl ?? null}
+        alt={image?.altText ?? ""}
+        fit="contain"
+        className={className ?? "max-h-80 w-full rounded-md border"}
+      />
+      <figcaption className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+        <span>{label}.</span>
+        {image ? (
+          <>
+            <span>Alt text: {image.altText ?? "none"}</span>
+            {image.status !== "approved" && (
+              <>
+                <MediaStatusBadge status={image.status} />
+                <span className="text-amber-800 dark:text-amber-300">
+                  Not Approved: this version cannot be published until it is.
+                </span>
+              </>
+            )}
+          </>
+        ) : (
+          <span className="text-amber-800 dark:text-amber-300">Image not found.</span>
+        )}
+      </figcaption>
+    </figure>
+  );
+}
+
+function PreviewSection({
+  section,
+  media,
+}: {
+  section: EditableSection;
+  media?: PreviewMedia;
+}) {
   const label = SECTION_TYPE_LABELS[section.type as WebsiteSectionType] ?? section.type;
   return (
     <section
@@ -34,6 +93,9 @@ function PreviewSection({ section }: { section: EditableSection }) {
         <span>{label}</span>
         {!section.visible && <span>Hidden: not shown on the website</span>}
       </div>
+      {section.imageAssetId && (
+        <PreviewImage id={section.imageAssetId} media={media} label="Section image" />
+      )}
       {section.heading && <h3 className="text-xl font-semibold">{section.heading}</h3>}
       <Paragraphs body={section.body} />
       {section.type === "program_showcase" && (
@@ -86,9 +148,12 @@ function PreviewSection({ section }: { section: EditableSection }) {
 export function PagePreview({
   content,
   isLive,
+  media,
 }: {
   content: WebsiteRevisionContent;
   isLive: boolean;
+  /** Phase 22B-3: the chosen images (private, short-lived preview links). */
+  media?: PreviewMedia;
 }) {
   return (
     <article className="flex flex-col gap-6">
@@ -97,6 +162,10 @@ export function PagePreview({
         {content.createdByName ?? "an admin"}.{" "}
         {isLive ? "This version is live." : "This version is not live."}
       </p>
+
+      {content.heroImageAssetId && (
+        <PreviewImage id={content.heroImageAssetId} media={media} label="Main image" />
+      )}
 
       <header className="flex flex-col gap-2">
         <h2 className="text-3xl font-semibold">{content.title}</h2>
@@ -111,7 +180,7 @@ export function PagePreview({
         <p className="text-muted-foreground text-sm">This version has no sections.</p>
       ) : (
         content.sections.map((section) => (
-          <PreviewSection key={section.key} section={section} />
+          <PreviewSection key={section.key} section={section} media={media} />
         ))
       )}
 
@@ -133,6 +202,16 @@ export function PagePreview({
             </div>
           ))}
         </dl>
+        {content.socialImageAssetId && (
+          <div className="mt-3">
+            <PreviewImage
+              id={content.socialImageAssetId}
+              media={media}
+              label="Social sharing image"
+              className="max-h-40 w-auto max-w-full rounded-md border"
+            />
+          </div>
+        )}
       </section>
     </article>
   );
