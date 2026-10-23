@@ -12,16 +12,20 @@ vi.mock("next/navigation", () => ({
 const { SidebarNav } = await import("@/components/admin/sidebar-nav");
 
 describe("SidebarNav", () => {
-  it("renders the 16 nav items an Admin sees (Phase 21C: Audit Log; Admin Accounts is Super Admin only)", () => {
+  it("renders the 17 nav items an Admin sees (Phase 21C: Audit Log; Phase 22B-1: Website; Admin Accounts is Super Admin only)", () => {
     mockUsePathname.mockReturnValue("/admin");
     render(<SidebarNav />);
-    expect(screen.getAllByRole("link")).toHaveLength(16);
+    expect(screen.getAllByRole("link")).toHaveLength(17);
+    expect(screen.getByRole("link", { name: /Website/ })).toHaveAttribute(
+      "href",
+      "/admin/website",
+    );
   });
 
   it("adds Admin Accounts for a Super Admin only", () => {
     mockUsePathname.mockReturnValue("/admin");
     const { unmount } = render(<SidebarNav role="super_admin" />);
-    expect(screen.getAllByRole("link")).toHaveLength(17);
+    expect(screen.getAllByRole("link")).toHaveLength(18);
     expect(screen.getByRole("link", { name: /Admin Accounts/ })).toHaveAttribute(
       "href",
       "/admin/admins",

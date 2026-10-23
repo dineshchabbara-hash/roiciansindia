@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Prototype Programs listing for ROICIANS.">
+<title>Programs · ROICIANS (prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" type="image/png" sizes="180x180" href="assets/brand/roicians-favicon.png">
+<link rel="apple-touch-icon" href="assets/brand/roicians-touch-icon.png">
+</head>
+<body>
+<div class="proto-bar" role="note">
+  <div class="wrap">
+    <span>Design prototype for review: not the live website, and not approved launch content.</span>
+    <a href="notes.html">Review notes</a>
+  </div>
+</div>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand-h" href="index.html" aria-label="ROICIANS home">
+      <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+      <img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57">
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="programs.html" aria-current="page">Programs</a>
+      <a href="index.html#upcoming">Upcoming Batches</a>
+      <a href="index.html#corporate">Corporate Training</a>
+      <a href="index.html#institutions">For Institutions</a>
+      <a href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a href="index.html#enquire">Contact</a>
+    </nav>
+    <div class="header-actions">
+      <div class="login">
+        <button type="button" id="login-btn" aria-expanded="false" aria-controls="login-menu">Log in
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <div class="login-menu" id="login-menu" hidden>
+          <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+          <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+        </div>
+      </div>
+      <a class="btn btn-primary btn-sm header-cta" href="index.html#enquire">Talk to an Advisor</a>
+      <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-panel"><span class="bars" aria-hidden="true"></span>Menu</button>
+    </div>
+  </div>
+  <div class="mobile-panel" id="mobile-panel" hidden>
+    <nav class="wrap" aria-label="Main (mobile)">
+      <a class="m-link" href="programs.html">Programs</a>
+      <a class="m-link" href="index.html#upcoming">Upcoming Batches</a>
+      <a class="m-link" href="index.html#corporate">Corporate Training</a>
+      <a class="m-link" href="index.html#institutions">For Institutions</a>
+      <a class="m-link" href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a class="m-link" href="index.html#enquire">Contact</a>
+      <div class="m-logins">
+        <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+        <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+      </div>
+      <a class="btn btn-primary" href="index.html#enquire">Talk to an Advisor</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <section class="page-intro" aria-labelledby="programs-title">
+    <div class="wrap">
+      <p class="crumbs"><a href="index.html">Home</a> / Programs</p>
+      <h1 id="programs-title">Programs</h1>
+      <p class="lede">Instructor-led technology programs for career starters, professionals and teams. Choose a group, or browse all ten.</p>
+      <div class="filters" role="group" aria-label="Filter programs by group">
+        <button class="filter" type="button" data-filter="all" aria-pressed="true">All programs <span class="n">10</span></button>
+        <button class="filter" type="button" data-filter="career" aria-pressed="false">Career &amp; Technology <span class="n">6</span></button>
+        <button class="filter" type="button" data-filter="specialist" aria-pressed="false">Specialist &amp; Professional <span class="n">4</span></button>
+      </div>
+      <p class="sr-only" id="filter-status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section class="section" aria-label="Program catalogue">
+    <div class="wrap">
+      <div class="group" id="career" data-group="career">
+        <div class="group-head">
+          <span class="eyebrow">Group 1</span>
+          <h2>Career &amp; Technology Programs</h2>
+          <p class="lede">Programs for building a career in software, data, cloud, security and AI.</p>
+        </div>
+        <div class="catalog">
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-testing.svg" alt="Illustration of automated test results and coverage" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>AI-Powered Software Testing &amp; QA</h3>
+            <p>Automate testing and build quality into modern software delivery.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-data-analytics.svg" alt="Illustration of an analytics dashboard" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Data Analytics with AI</h3>
+            <p>Turn data into clear answers with analysis, visualisation and AI-assisted tools.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-cybersecurity.svg" alt="Illustration of a security shield and alert triage" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Cybersecurity &amp; SOC Analyst</h3>
+            <p>Monitor, detect and respond to threats in a security operations role.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-cloud-devops.svg" alt="Illustration of cloud workloads and a delivery pipeline" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Cloud &amp; DevOps Engineering</h3>
+            <p>Build, ship and run applications on cloud platforms with modern delivery pipelines.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-applied-ml.svg" alt="Illustration of a classifier and a neural network" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Applied AI &amp; Machine Learning</h3>
+            <p>Train, evaluate and deploy machine learning models for real problems.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-genai-llmops.svg" alt="Illustration of an assistant chat and model monitoring" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Generative AI &amp; LLMOps Engineering</h3>
+            <p>Build, deploy and operate applications on large language models.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        </div>
+      </div>
+
+      <div class="group" id="specialist" data-group="specialist">
+        <div class="group-head">
+          <span class="eyebrow">Group 2</span>
+          <h2>Specialist &amp; Professional Programs</h2>
+          <p class="lede">Focused programs for specialists and working professionals.</p>
+        </div>
+        <div class="catalog four">
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-data-engineering.svg" alt="Illustration of data flowing through a pipeline into a warehouse" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Data Engineering &amp; Cloud Platforms</h3>
+            <p>Design reliable data pipelines and platforms in the cloud.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-api-automation.svg" alt="Illustration of API endpoints connected through an automation hub" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>API Integration &amp; Automation</h3>
+            <p>Connect systems through APIs and automate everyday workflows.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-business-analysis.svg" alt="Illustration of a process map and requirements checklist" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Business Analysis with AI</h3>
+            <p>Map processes, write clear requirements and use AI to work faster.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="media"><img src="assets/img/program-genai-agents.svg" alt="Illustration of an AI assistant coordinating business tools" width="960" height="600" loading="lazy"></div>
+          <div class="body">
+            <h3>Generative AI &amp; AI Agents for Business Professionals</h3>
+            <p>Use generative AI and AI agents in everyday business work, without coding.</p>
+            <a class="btn btn-primary btn-sm" href="#" data-proto="Program detail pages are built in Phase 22E. In this prototype the link goes nowhere.">Explore Program</a>
+          </div>
+        </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section bg-sky" aria-labelledby="help-title">
+    <div class="wrap final">
+      <span class="eyebrow">Talk to an Advisor</span>
+      <h2 id="help-title">Not sure which program fits?</h2>
+      <p class="lede">An advisor can help you compare programs based on your background or your team's goals.</p>
+      <a class="btn btn-primary" href="index.html#enquire">Talk to an Advisor</a>
+      <p style="color: var(--muted); font-size: 0.9rem">No prices are shown on the public website. Fees and schedules are discussed with an advisor.</p>
+    </div>
+  </section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot">
+      <div class="foot-brand">
+        <a class="brand-s" href="index.html" aria-label="ROICIANS home">
+          <img src="assets/brand/roicians-logo-web.png" alt="" width="293" height="260">
+        </a>
+        <p>Practical technology training for the AI era.</p>
+      </div>
+      <div>
+        <h4>Programs</h4>
+        <ul>
+          <li><a href="programs.html">All programs</a></li>
+          <li><a href="programs.html#career">Career &amp; Technology</a></li>
+          <li><a href="programs.html#specialist">Specialist &amp; Professional</a></li>
+          <li><a href="index.html#upcoming">Upcoming Batches</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="index.html#corporate">Corporate Training</a></li>
+          <li><a href="index.html#institutions">For Institutions</a></li>
+          <li><a href="#" data-proto="The About page is not part of this prototype.">About</a></li>
+          <li><a href="index.html#enquire">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Portals</h4>
+        <ul>
+          <li><a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a></li>
+          <li><a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a></li>
+          <li><a href="#" data-proto="Prototype only: certificate verification is the existing LMS page.">Verify a certificate</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="legal">
+      <span>© Roicians Tech Pvt. Ltd.</span>
+      <nav aria-label="Legal">
+        <a href="#" data-proto="Privacy wording needs business and legal approval before launch.">Privacy</a>
+        <a href="#" data-proto="Terms wording needs business and legal approval before launch.">Terms</a>
+        <a href="logo.html">Website logo</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>

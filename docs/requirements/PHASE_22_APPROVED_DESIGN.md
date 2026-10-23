@@ -45,16 +45,16 @@ they differ on Phase 22, this document wins.
 |---|---|---|
 | P22-01 | Same repository; subdomain-based hostnames; internal `/admin`, `/student`, `/trainer` paths kept | §3 |
 | P22-02 | Canada stays at `https://www.roicians.com`, untouched and operationally independent | §3.4 |
-| P22-03 | Public brand ROICIANS TECH; supporting line "Practical technology training for the AI era"; legal name Roicians Tech Pvt. Ltd. | §4 |
+| P22-03 | Public brand **ROICIANS** (revised 2026-10-22; previously ROICIANS TECH); website logo: the original ROICIANS logo without TECH; supporting line "Practical technology training for the AI era"; legal name Roicians Tech Pvt. Ltd.; the public brand name is set in one place, separate from the legal identity (§4.1) | §4 |
 | P22-04 | Structured Website Management in the Admin portal; Admin and Super Admin manage the complete ordinary public website | §5 |
-| P22-05 | Super Admin only: slug change after first publication and other sensitive structural operations | §5.2 |
+| P22-05 | Super Admin only: slug change after first publication and other sensitive structural operations (post-publication slug change stays disabled until redirects are verified — §5.5) | §5.2 |
 | P22-06 | Ten launch Programs in two editable display groups | §6 |
 | P22-07 | "AI Quality Engineering: Testing LLMs, RAG & AI Agents" removed; no curriculum change to AI-Powered Software Testing & QA | §6.3 |
 | P22-08 | Archive-first: Admin and Super Admin archive/restore; only Super Admin permanently deletes a verified safe, unused archived Program (revised; supersedes the earlier absolute ban) | §7 |
 | P22-09 | No course pricing or LMS financial information anywhere on the public website | §8 |
 | P22-10 | Public Batch privacy; registration states Open, Closed, Full | §9 |
 | P22-11 | "Next Cohort: Coming Soon" + "Join Interest List" when a published Program has no published upcoming Batch | §9.3 |
-| P22-12 | Visual direction: Concept A — Refined Enterprise Tech, with restrained Concept B elements | §10 |
+| P22-12 | Visual direction: Concept A — Refined Enterprise Tech, with restrained Concept B elements; **revised 2026-10-22:** predominantly white with soft-blue sections, cobalt accent, dark-navy text, no dark sections | §10 |
 | P22-13 | Primary CTA "Talk to an Advisor"; secondary "Explore Programs" | §10.3 |
 | P22-14 | Public website scope (pages listed in §11); dynamic Program template | §11 |
 | P22-15 | Online-first delivery; flexibility for future in-person/hybrid | §12 |
@@ -154,15 +154,159 @@ production hosting in Phase 25.
 
 | Element | Value |
 |---|---|
-| Primary public brand and logo identity | **ROICIANS TECH** |
+| Public brand name (India website) | **ROICIANS** (owner decision, 2026-10-22; previously ROICIANS TECH). Used consistently in page titles, branding labels, navigation and SEO metadata |
+| Website logo | The original **ROICIANS** logo, without TECH (owner decision, 2026-10-22; see below) |
 | Supporting line | **Practical technology training for the AI era** |
 | India legal name (footer, legal documents) | **Roicians Tech Pvt. Ltd.** |
 | Normal copy | May use "At Roicians, we…" |
 | Not used as brand or logo | "Roicians India" |
 
-Brand and legal names continue to come from the existing Company Settings
-(`company_name`, `legal_name`), whose permissions are unchanged: Super Admin
-edits, Admin reads (decision D5). The logo itself is not redesigned.
+**Approved logo (owner, 2026-10-22):** the original ROICIANS logo is the
+approved brand identity. It is a transparent PNG with a stylised R symbol and
+the ROICIANS wordmark in muted navy (about `#2E496C`), kept unchanged at
+[`../brand/roicians-logo-original.png`](../brand/roicians-logo-original.png).
+- It is never recoloured, redrawn or distorted.
+- Website use may trim transparent padding, or crop the symbol and wordmark
+  for layout, in separate copies.
+- The logo is used on white or very light blue, never on dark backgrounds.
+
+**Website logo decision (owner, 2026-10-22):** the website uses the original
+ROICIANS logo on its own, with **no TECH**, dividers or added lettering.
+- **Header:** the original R symbol and ROICIANS wordmark side by side, at
+  the same relative scale as in the original logo.
+- **Footer:** the original stacked logo. The tagline "Practical technology
+  training for the AI era" sits beneath it as normal text.
+- **Favicon:** the original R symbol alone.
+- **Scope:** the website logo only. The legal name **Roicians Tech Pvt.
+  Ltd.** and approved legal information are unchanged. (The public brand
+  name was decided separately; see below.)
+- **Superseded:** the earlier TECH lockups (header Option B, footer Option A,
+  and the two revision-2 options) are no longer used. They remain in the
+  review history.
+- **Record:** [`../brand/WEBSITE_LOGO_DECISIONS.md`](../brand/WEBSITE_LOGO_DECISIONS.md).
+  The prototype page is
+  [`../prototypes/website-v2/logo.html`](../prototypes/website-v2/logo.html).
+
+**Public brand name decision (owner, 2026-10-22, after the logo decision):**
+the India website's public brand is **ROICIANS**, not ROICIANS TECH.
+- **Used consistently** in public page titles, branding labels, navigation,
+  logo alt text and, from 22I, SEO and social metadata.
+- **Tagline kept:** "Practical technology training for the AI era."
+- **Legal name kept:** **Roicians Tech Pvt. Ltd.** stays on the footer
+  copyright line, legal pages, receipts and certificates.
+- **Unchanged:**
+  - the existing LMS, including its display name (`company_name`), which
+    the Admin portal and the payment checkout use;
+  - the legal company settings, historical records and the database;
+  - the domain plans (§3) and the Canada website (§3.4).
+- **The previous name:** ROICIANS TECH was the approved public brand until
+  this decision. It remains in the decision history; nothing historical is
+  rewritten.
+
+### 4.1 Centralized public-brand configuration (design approved; not built)
+
+**Owner approval (2026-10-22):** the ROICIANS public-brand decision and this
+centralized configuration approach are approved.
+- **Recorded decisions:**
+  1. The public India website brand is **ROICIANS**.
+  2. The website logo is the original ROICIANS logo only, without TECH.
+  3. The legal name remains **Roicians Tech Pvt. Ltd.**
+  4. The existing LMS company name (`company_name`) and the payment
+     checkout remain unchanged.
+  5. Future website brand changes are managed through one Super-Admin-
+     controlled setting.
+  6. That setting is the `public_brand_name` field in the existing Company
+     Settings architecture, with proper validation, permissions and audit
+     logging.
+  7. Public pages read branding only through a narrow server-side accessor.
+     Private Company Settings data is never exposed publicly.
+- **Approved:** the design of the additive field.
+- **Not approved:** execution of the database migration. It is prepared for
+  review in
+  [`../proposed-migrations/public_brand_name.sql`](../proposed-migrations/public_brand_name.sql)
+  (with a test and a README), must be reviewed before Phase 22C/22D, and is
+  not applied to DEV or production.
+- **Phase 22B-1** does not depend on this field and is not delayed by it.
+
+**Goal:** the owner may change the public brand name later. A change to
+another approved name must need **one settings change**, with no edits
+across website components and no database migration.
+
+**1. One source of truth, reusing Company Settings.**
+- Add one field, `public_brand_name`, to the existing single-row
+  `company_settings` table. It stores the public website brand name
+  (`ROICIANS`): required, 1–60 characters.
+- It is edited on the existing Company Settings screen, with the same
+  permissions (Super Admin edits, Admin reads; decision D5), validation and
+  audit trail as the other identity fields (Phase 21C).
+- **No new branding table, editor or service.**
+- **One-time setup:** one small additive migration, prepared and reviewed
+  separately before 22C/22D.
+  - It adds and seeds the field only.
+  - `company_name`, `legal_name` and historical rows are untouched.
+  - After it, renaming the brand is a data edit, never a migration.
+
+**2. Kept separate from the legal identity and from the LMS name.**
+
+| Setting | Holds | Used by |
+|---|---|---|
+| `public_brand_name` (new) | Public website brand: **ROICIANS** | Public website only |
+| `company_name` (existing) | LMS display name | LMS portals and payment checkout, unchanged |
+| `legal_name` (existing) | **Roicians Tech Pvt. Ltd.** | Copyright line, legal pages, receipts, certificates |
+
+- None of these is derived from another.
+- `company_name` is not reused for the website, because changing it would
+  change the LMS.
+- If the owner later wants one name everywhere, that is a separate,
+  explicit settings decision.
+
+**3. One server-side accessor.**
+- The 22C published-data layer provides `getPublicBrand()`. It returns the
+  public brand name, the legal name and the tagline.
+- It reads through the narrow server-only contract (§14). There is no
+  `anon` policy on `company_settings`.
+- It is cached with the other published website data. Saving Company
+  Settings revalidates that cache, so a rename appears without a code
+  change or redeploy.
+- **The tagline** stays editable website content: the footer document in
+  Website Management, with drafts and publishing as today. It is not a new
+  setting.
+
+**4. Every public surface reads the accessor, never a literal name.**
+- Header and footer logo labels and alt text; navigation labels that name
+  the brand.
+- The page-title template ("{page} · {brand}") and default meta
+  descriptions.
+- Open Graph and social `site_name`; the web-app manifest name.
+- Structured data: `Organization.name` is the brand, and
+  `Organization.legalName` is the legal name.
+- Error pages; enquiry acknowledgements and emails (22H).
+- **Guard:** a unit test fails if a literal brand name appears in
+  public-website source outside the accessor and its tests.
+
+**5. What a future rename still involves (by nature, not code).**
+- New logo artwork, if the name in the logo changes. Logo files are assets
+  referenced from one place in the accessor's module.
+- Editor-written page copy that mentions the name, updated through Website
+  Management.
+- Separate decisions on domains and SEO redirects. This configuration does
+  not change the domain plans.
+
+**Not chosen:**
+- A deployment setting (environment variable): every rename would need a
+  redeploy and developer access, and it goes against FR-140 (no brand
+  detail hard-coded in the application).
+- A separate branding system: more than the need requires.
+
+**Status:**
+- **Prototype:** the name is set once, in `BRAND` in
+  `docs/prototypes/website-v2/build_pages.py`. A build check keeps every
+  page consistent.
+- **Migration:** prepared for review only (see above). It is not in
+  `supabase/migrations/` and not applied anywhere.
+- **Application:** not built. The accompanying Company Settings and accessor
+  changes are listed in the proposed-migration README. They are built in
+  22C/22D after the migration is approved.
 
 ---
 
@@ -265,6 +409,42 @@ must accommodate:
 The concrete tables, columns, constraints and policies are designed and
 reviewed in Phase 22A itself.
 
+### 5.5 Phase 22B implementation decisions (owner, 2026-10-22)
+
+1. **Media uploads:** only authenticated Admin and Super Admin, scoped to the
+   private `website-media` bucket, with file-type and size validation and
+   audit. The exact migration is prepared separately for review and is not
+   applied without approval.
+2. **Preview:** secure, authenticated, structured content preview in 22B.
+   Draft content is never exposed publicly, publicly cached or indexed (TI-6).
+3. **Placement:** featured-Program and display-order settings stay live for
+   the initial version, with clear confirmation messages, permissions and
+   audit logging. No new publication model or placement migration now.
+4. **Browser tests:** run in an isolated local test environment. No permanent
+   synthetic records or published test content in DEV.
+5. **Existing DEV Program content:** not published or modified without
+   separate authorization. All existing LMS business data and audit history
+   are preserved.
+6. **Slugs:** published slug history is recorded, but post-publication slug
+   changes stay disabled until redirects are implemented and verified in
+   later website phases.
+7. **Carried issues:** TI-7, TI-3, the existing audit-history limitations and
+   other carried-forward issues stay documented, and their protections are
+   never bypassed.
+8. **DEV business data (confirmed for 22B-1):** 22B-1 is accepted from the
+   isolated environment. No website page, draft, revision or test record is
+   created on DEV for acceptance without separate authorization.
+9. **Legal wording:** legal pages may be drafted (drafts are never public),
+   but a legal page cannot be published until the owner records business and
+   legal approval of its wording. The application enforces this hold on the
+   server, not only in the interface.
+10. **Brand setting:** the `public_brand_name` design (§4.1) is approved and
+    its migration is prepared for review only. Phase 22B-1 does not depend on
+    it.
+
+The 22B plan, including the 22B-1 readiness assessment, is
+[`PHASE_22B_PLAN.md`](PHASE_22B_PLAN.md).
+
 ---
 
 ## 6. Program portfolio and display groups (P22-06, P22-07)
@@ -321,9 +501,8 @@ Implementation status:
   Program through its `status` (`archived` and back to an operational
   status), available to Admin and Super Admin with audit. It is not
   rebuilt.
-- **Phase 22A — Implemented on branch; DEV recovered; structural and
-  functional verification passed on DEV; ready for owner acceptance; not
-  merged:**
+- **Phase 22A — Accepted by the owner and merged to `main` (2026-10-22,
+  `83b7536`); DEV recovered, structurally and functionally verified:**
   - The database enforcement and eligibility checks: migration
     `20260101000041_program_deletion_safeguards.sql`, corrected forward by
     `20260101000042_phase22a_corrections.sql`.
@@ -339,7 +518,8 @@ Implementation status:
 - **Not implemented (Phase 22B):** the Super Admin eligibility review,
   reason/confirmation screen and blocked-deletion explanations (§7.4). The
   enforcement gap in §7.6 is closed on DEV; it remains open in production
-  until the branch is merged and the migrations are deployed there.
+  until migrations 40–42 are deployed there (Phase 25 or a separately
+  authorized deployment).
 
 ### 7.1 Rules
 
@@ -489,13 +669,13 @@ separately authorized implementation must replace the broad deletion
 behavior with the controlled workflow above, with regression tests.
 Existing migrations are not edited.
 
-*Update (Phase 22A branch, not merged):*
+*Update (Phase 22A, merged to `main` 2026-10-22):*
 - **What implements it:** migration 41, corrected forward by migration 42.
   Its regression and concurrency tests pass locally.
 - **DEV:** both are applied by the reviewed recovery and structurally
   verified, recorded 2026-10-21. `programs_delete_admin` is gone there.
-- **Production:** still has the broad delete until the branch is accepted,
-  merged and deployed.
+- **Production:** still has the broad delete until the migrations are
+  deployed there. The branch was accepted and merged on 2026-10-22.
 - See [`PHASE_22A_IMPLEMENTATION.md`](PHASE_22A_IMPLEMENTATION.md) and
   [`../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md`](../recovery/PHASE_22A_DEV_RECOVERY_RECORD.md).
 
@@ -580,23 +760,60 @@ any new public state.
 - Limited visual clutter
 - Restrained technical diagrams
 - Small monospaced metadata labels
-- One dark-navy Corporate/GCC section
+- ~~One dark-navy Corporate/GCC section~~ — removed 2026-10-22: the
+  Corporate/GCC section uses a soft-blue (`#F1F6FF`) band instead
 - Mobile-first layouts
 - Subtle motion that respects reduced-motion preferences
 
-**Avoid:** full-dark startup styling, heavy gradients or glow, excessive
-animation, generic AI robots, unapproved stock photography, and unapproved
-testimonials, people, logos or outcomes.
+**Avoid:** dark backgrounds or a predominantly dark page, full-dark startup
+styling, heavy or excessive gradients, glow effects, excessive animation,
+generic AI imagery or robots, visual clutter, unapproved stock photography,
+and unapproved testimonials, people, logos or outcomes.
 
-### 10.2 Suggested starting tokens
+**Owner revision (2026-10-22):** the public website is **bright and premium**:
+predominantly white (`#FFFFFF`), with soft-blue sections (`#F1F6FF`), cobalt
+accents (`#2347D0`) and dark-navy text (`#14263F`). The large dark-navy
+Corporate/GCC section is removed in favour of a light-blue alternative. The
+ROICIANS branding and logo requirements (§4) are unchanged.
 
-| Token | Value |
-|---|---|
-| Background | `#F8F8F5` |
-| Ink | `#0E1A2B` |
-| Accent (cobalt) | `#2347D0` |
-| Optional restrained brass | `#8A6A2F` |
-| Fonts | Instrument Sans, Inter, limited Geist Mono |
+**Prototypes:**
+- **v1** (`../prototypes/roicians-tech-homepage-prototype.html`) was **not
+  approved** (2026-10-22). It looked like a plain catalogue, showed all ten
+  Programs in the hero and on the homepage, and used repetitive bordered
+  boxes.
+- **v2** (`../prototypes/website-v2/`) is the image-led redesign now under
+  review. It has a three-slide hero, a featured-Programs carousel, a separate
+  Programs page and the original ROICIANS logo. Its copy is sample, not launch content.
+
+**Provisional owner decisions on v2 (2026-10-22):** branding direction
+approved provisionally; not final approval of the visual prototype.
+- Original logo artwork and colour preserved.
+- **Website logo (decided later the same day):** the original ROICIANS logo
+  without TECH. It replaces the header Option B and footer Option A lockups;
+  see §4.
+- White, soft-blue and cobalt palette kept.
+- Original topic-specific illustrations kept for Program cards in the
+  prototype.
+- **Live website:** a limited amount of properly licensed professional
+  photography in the hero and Corporate Training sections, to be sourced
+  with licences and model releases recorded.
+- No demand, outcome or similar claims unless independently substantiated.
+  The Featured heading reads "Explore our technology programs".
+- Unapproved copy stays identified in the review notes.
+
+### 10.2 Approved colour tokens (revised 2026-10-22)
+
+| Token | Value | Use |
+|---|---|---|
+| Background | `#FFFFFF` | Predominant page background |
+| Soft-blue section | `#F1F6FF` | Alternating sections, including Corporate Training |
+| Accent (cobalt) | `#2347D0` | Primary buttons, links, small labels |
+| Text (dark navy) | `#14263F` | Headings and body text |
+| Brand blue (original logo) | `#2E496C` | Supporting brand colour: logo, small brand details |
+| Fonts | Instrument Sans, Inter, limited Geist Mono | Unchanged |
+
+Superseded starting tokens (2026-10-17): background `#F8F8F5`, ink
+`#0E1A2B`, optional brass `#8A6A2F`.
 
 The direction is approved; exact graphic assets and token refinements may be
 adjusted after reviewing the authorized logo files. Design tokens apply to
@@ -733,7 +950,7 @@ LCP < 2.5 s; CLS < 0.1.
 
 | ID | Issue | Resolve in |
 |---|---|---|
-| TI-1 | Broad `programs_delete_admin` DELETE (migration 14), cascading to `program_modules`, program-level `materials` and `assignments`, nulling `leads.program_id` and leaving Storage files. **Fix implemented on the 22A branch** (migration 41, corrected forward by migration 42 after review found a forgeable deletion marker and a Program-history gap), locally tested on PostgreSQL 16 and 17.6; **applied to DEV, structurally and functionally verified (2026-10-21/22); not merged; still open in production**. | Database: 22A (branch). Super Admin workflow screens: 22B |
+| TI-1 | Broad `programs_delete_admin` DELETE (migration 14), cascading to `program_modules`, program-level `materials` and `assignments`, nulling `leads.program_id` and leaving Storage files. **Fix implemented on the 22A branch** (migration 41, corrected forward by migration 42 after review found a forgeable deletion marker and a Program-history gap), locally tested on PostgreSQL 16 and 17.6; **applied to DEV, structurally and functionally verified (2026-10-21/22); accepted and merged to `main` 2026-10-22; still open in production until deployed**. | Database: 22A (branch). Super Admin workflow screens: 22B |
 | TI-7 | Handling of a previously published Program's slug, redirects, website references, enquiry references and owned or shared public assets before deletion (§7.3). Until designed, such deletion stays blocked — implemented in 22A as the `website_published_history` blocker (a temporary implementation restriction; the §7 rule is unchanged). | 22B or later design |
 | TI-2 | Migration 14 comment anticipates an `anon` policy on `programs`; superseded by §14 through documentation only. | Closed by this document |
 | TI-3 | Public "upcoming" rule: in-progress Batches, registration date boundaries, timezone of "today". | Before 22E/22F |
@@ -747,8 +964,9 @@ LCP < 2.5 s; CLS < 0.1.
 
 | Item | Needed by |
 |---|---|
-| Authorized ROICIANS TECH logo files (SVG, light/dark if available) | 22D |
+| Logo: original ROICIANS PNG supplied 2026-10-22 (approved). Website logo decided: the original logo without TECH (§4). Still needed: a vector (SVG) or larger master | 22D |
 | Final design tokens after logo review | 22D |
+| Public brand setting (§4.1): the additive `company_settings.public_brand_name` field. Design approved (2026-10-22); migration prepared for review in `docs/proposed-migrations/`; execution needs separate approval; not applied to DEV or production | Review before 22C/22D (not needed for 22B-1) |
 | Approved content for each Program (summary, outcomes, curriculum overview, audience, prerequisites, FAQs) | 22E launch |
 | Approved homepage, About, Corporate, Institutions and FAQ copy | 22F–22G launch |
 | Privacy policy, terms and enquiry consent wording (including India DPDP requirements) | 22H launch |
@@ -779,3 +997,19 @@ Project Record & Phase 22 Plan" document maintained outside the repository
 during the design discussions. Where it differs from this document — for
 example on pricing display, deletion or launch grouping — this document
 wins.
+
+
+### 5.6 Phase 22B-1 implementation handoff and explicit safeguards (2026-10-22)
+
+The owner requested updated implementation documentation reflecting the revised ROICIANS brand, safe continuation of Phase 22B-1 and previously identified security constraints. The subordinate, non-authoritative implementation documents are:
+
+- [PHASE_22B1_IMPLEMENTATION_HANDOFF.md](PHASE_22B1_IMPLEMENTATION_HANDOFF.md)
+- [PHASE_22B1_SECURITY_AND_TESTING_GATES.md](PHASE_22B1_SECURITY_AND_TESTING_GATES.md)
+
+**No Phase 22B-1 implementation, migration or deployment is performed by these documents.** The Admin Website Management interface reuses the accepted 22A draft/publish/revision functions. It does not require the separately proposed public_brand_name migration.
+
+**Legal-page publication:** permit private drafting; block Publish in the interface and server actions until wording is approved. The existing Phase 22A database RPC remains directly callable by authenticated Admin users, so the app-only legal hold must not be described as a database-level guarantee. Design and separately authorize a revision-specific, database-enforced approval rule before any public legal publication.
+
+**Isolation:** browser test data belongs in disposable local/CI databases. Preparing a manually triggered GitHub Actions workflow is not permission to commit or activate it; review its exact YAML first. Do not create durable test revisions or audit rows in DEV.
+
+**Release boundaries:** no automated merge, main changes, DEV/production database writes, public deployment, public data contract, post-publication slug changes or next-stage work without the corresponding explicit approval. The standalone visual prototype remains separate from the eventual authenticated Admin structured preview.

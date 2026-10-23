@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Review notes for the ROICIANS website prototype.">
+<title>Review notes · ROICIANS (prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" type="image/png" sizes="180x180" href="assets/brand/roicians-favicon.png">
+<link rel="apple-touch-icon" href="assets/brand/roicians-touch-icon.png">
+</head>
+<body>
+<div class="proto-bar" role="note">
+  <div class="wrap">
+    <span>Design prototype for review: not the live website, and not approved launch content.</span>
+    <a href="notes.html">Review notes</a>
+  </div>
+</div>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand-h" href="index.html" aria-label="ROICIANS home">
+      <img class="sym" src="assets/brand/roicians-symbol.png" alt="" width="172" height="180">
+      <img class="wm" src="assets/brand/roicians-wordmark.png" alt="" width="290" height="57">
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="programs.html">Programs</a>
+      <a href="index.html#upcoming">Upcoming Batches</a>
+      <a href="index.html#corporate">Corporate Training</a>
+      <a href="index.html#institutions">For Institutions</a>
+      <a href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a href="index.html#enquire">Contact</a>
+    </nav>
+    <div class="header-actions">
+      <div class="login">
+        <button type="button" id="login-btn" aria-expanded="false" aria-controls="login-menu">Log in
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <div class="login-menu" id="login-menu" hidden>
+          <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+          <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+        </div>
+      </div>
+      <a class="btn btn-primary btn-sm header-cta" href="index.html#enquire">Talk to an Advisor</a>
+      <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-panel"><span class="bars" aria-hidden="true"></span>Menu</button>
+    </div>
+  </div>
+  <div class="mobile-panel" id="mobile-panel" hidden>
+    <nav class="wrap" aria-label="Main (mobile)">
+      <a class="m-link" href="programs.html">Programs</a>
+      <a class="m-link" href="index.html#upcoming">Upcoming Batches</a>
+      <a class="m-link" href="index.html#corporate">Corporate Training</a>
+      <a class="m-link" href="index.html#institutions">For Institutions</a>
+      <a class="m-link" href="#" data-proto="The About page is not part of this prototype.">About</a>
+      <a class="m-link" href="index.html#enquire">Contact</a>
+      <div class="m-logins">
+        <a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a>
+        <a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a>
+      </div>
+      <a class="btn btn-primary" href="index.html#enquire">Talk to an Advisor</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <section class="page-intro" aria-labelledby="notes-title">
+    <div class="wrap">
+      <p class="crumbs"><a href="index.html">Home</a> / Review notes</p>
+      <h1 id="notes-title">Prototype review notes</h1>
+      <p class="lede">What is approved, what is sample, which actions are prototype-only, and where every image comes from.</p>
+    </div>
+  </section>
+  <section class="section" aria-label="Review notes">
+    <div class="wrap doc">
+      <h2 style="margin-top:0">Approved content used</h2>
+      <ul>
+        <li>The public brand name ROICIANS (owner decision, 2026-10-22), the line "Practical technology training for the AI era", the legal name Roicians Tech Pvt. Ltd. and the original ROICIANS logo (supplied by the owner).</li>
+        <li>The ten Program names and the two initial groups: Career &amp; Technology Programs, Specialist &amp; Professional Programs.</li>
+        <li>Button labels Talk to an Advisor, Explore Programs and Join Interest List, and the state "Next Cohort: Coming Soon".</li>
+        <li>Online-first delivery with room for in-person or hybrid formats.</li>
+        <li>Rules: no public prices, fees, seat counts, capacity or private Batch details; no invented Batch dates.</li>
+        <li>Colour palette: white #FFFFFF, soft blue #F1F6FF, cobalt #2347D0, dark navy #14263F, plus the original logo blue #2E496C as a supporting colour.</li>
+      </ul>
+
+      <h2>Owner decisions so far (provisional, 2026-10-22)</h2>
+      <p>These approve the branding direction provisionally. They are not final approval of the whole visual prototype.</p>
+      <ul>
+        <li>The original logo artwork and navy colour are preserved: no redesign or recolouring.</li>
+        <li><strong>Website logo (decision, 2026-10-22):</strong> the original ROICIANS logo without TECH. The header uses the original R symbol and wordmark side by side. The footer uses the original stacked logo, with the tagline as normal text beneath it. The R symbol alone is the favicon. See <a href="logo.html">Website logo</a>.</li>
+        <li>The earlier TECH lockups (header Option B, footer Option A and the two revision-2 options) are no longer used. They remain in the review history.</li>
+        <li><strong>Public brand name (decision, 2026-10-22):</strong> the India website's public brand is <strong>ROICIANS</strong>, replacing the earlier name <span data-history>ROICIANS TECH</span>. It is used for page titles, branding labels, navigation and future SEO metadata. The tagline stays "Practical technology training for the AI era".</li>
+        <li>The legal company name stays <strong>Roicians Tech Pvt. Ltd.</strong>, used for the copyright line and legal information. The LMS, legal company settings, historical records, the database, the domain plans and the Canada website are unchanged.</li>
+        <li><strong>Changing the name later:</strong> the future website reads the public brand name from one setting (design doc §4.1), so a rename needs no code edits across components and no database migration. In this prototype, the name is set once in <code>build_pages.py</code> (<code>BRAND</code>).</li>
+        <li>Palette stays white, soft blue and cobalt.</li>
+        <li>The original topic-specific illustrations stay on the Program cards in the prototype.</li>
+        <li>For the live website: a limited amount of properly licensed professional photography in the hero and Corporate Training sections (not yet sourced).</li>
+        <li>"Start with a program in demand" is replaced by "Explore our technology programs". A demand claim needs independent substantiation before it can be used.</li>
+      </ul>
+
+      <h2>Sample copy (not approved launch content)</h2>
+      <ul>
+        <li>All headlines, slide text, value-proposition text, Program descriptions, group descriptions, Corporate Training and For Institutions text.</li>
+        <li>Featured Programs on the homepage (testing, data analytics, cybersecurity, generative AI and LLMOps) are a provisional choice for layout only, not an approved order.</li>
+        <li>"GenAI &amp; LLMOps for GCC Teams" is the design's example Corporate Training audience.</li>
+        <li>Section headings such as "Explore our technology programs", "Training shaped around your teams" and "Not sure which program fits?" are sample wording.</li>
+        <li>Statements that would need evidence before launch: any claim about demand, outcomes, placement, employers or numbers. None are used in this prototype.</li>
+      </ul>
+
+      <h2>Prototype-only actions</h2>
+      <ul>
+        <li>Explore Program, About, Student and Trainer login, certificate verification, Privacy and Terms show a short note instead of navigating.</li>
+        <li>Talk to an Advisor scrolls to the enquiry section. Its button shows a note that nothing is sent; no submission is simulated.</li>
+        <li>Join Interest List shows a note; the form arrives with the enquiry pages (Phase 22H).</li>
+        <li>Working: navigation, the Programs page and its group filter, the hero slider (arrows, indicators, keyboard arrows, swipe), the Featured Programs carousel, the mobile menu and the Log in menu.</li>
+      </ul>
+
+      <h2>Images: sources and licensing</h2>
+      <p>No stock photography or third-party images are used. Every image is an original illustration generated for this prototype from basic shapes by the script <code>gen_illustrations.py</code>, which is kept with the prototype files. There are no real people, client logos or AI robots. Silhouettes in the team illustrations are generic and do not depict actual ROICIANS clients, instructors or students.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>File</th><th>Used for</th><th>Source</th><th>Licence</th></tr></thead>
+        <tbody>
+<tr><td><code>hero-career.svg</code></td><td>Hero slide 1: code editor, test run and learning path</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>hero-corporate.svg</code></td><td>Hero slide 2: team session, cohort plan and skills map</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>hero-ai.svg</code></td><td>Hero slide 3: prompt, knowledge store, model, evaluation and agent steps</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>corporate-session.svg</code></td><td>Corporate Training section</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>institutions.svg</code></td><td>For Institutions section</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-testing.svg</code></td><td>Program card: AI-Powered Software Testing &amp; QA</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-data-analytics.svg</code></td><td>Program card: Data Analytics with AI</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-cybersecurity.svg</code></td><td>Program card: Cybersecurity &amp; SOC Analyst</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-cloud-devops.svg</code></td><td>Program card: Cloud &amp; DevOps Engineering</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-applied-ml.svg</code></td><td>Program card: Applied AI &amp; Machine Learning</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-genai-llmops.svg</code></td><td>Program card: Generative AI &amp; LLMOps Engineering</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-data-engineering.svg</code></td><td>Program card: Data Engineering &amp; Cloud Platforms</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-api-automation.svg</code></td><td>Program card: API Integration &amp; Automation</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-business-analysis.svg</code></td><td>Program card: Business Analysis with AI</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+<tr><td><code>program-genai-agents.svg</code></td><td>Program card: Generative AI &amp; AI Agents for Business Professionals</td><td>Original illustration created for this prototype</td><td>Owned by the project; no third-party licence</td></tr>
+        <tr><td><code>roicians-*.png</code></td><td>Header and footer logo, favicon</td><td>Original ROICIANS logo supplied by the owner (2026-10-22)</td><td>Owner's brand asset</td></tr>
+        </tbody>
+      </table></div>
+      <p style="margin-top:12px">Fonts: Instrument Sans, Inter and Geist Mono from Google Fonts, under the SIL Open Font License.</p>
+      <p>If photography is wanted for launch, it should come from a licensed library or a commissioned shoot, with releases for any recognisable people.</p>
+
+      <h2>Not shown on purpose</h2>
+      <ul>
+        <li>No testimonials, student counts, employer or partner logos, placement results or Batch dates (none approved).</li>
+        <li>No dark backgrounds, heavy gradients, glow effects or generic AI imagery.</li>
+        <li>The Admin login is not promoted on the public site.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot">
+      <div class="foot-brand">
+        <a class="brand-s" href="index.html" aria-label="ROICIANS home">
+          <img src="assets/brand/roicians-logo-web.png" alt="" width="293" height="260">
+        </a>
+        <p>Practical technology training for the AI era.</p>
+      </div>
+      <div>
+        <h4>Programs</h4>
+        <ul>
+          <li><a href="programs.html">All programs</a></li>
+          <li><a href="programs.html#career">Career &amp; Technology</a></li>
+          <li><a href="programs.html#specialist">Specialist &amp; Professional</a></li>
+          <li><a href="index.html#upcoming">Upcoming Batches</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="index.html#corporate">Corporate Training</a></li>
+          <li><a href="index.html#institutions">For Institutions</a></li>
+          <li><a href="#" data-proto="The About page is not part of this prototype.">About</a></li>
+          <li><a href="index.html#enquire">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Portals</h4>
+        <ul>
+          <li><a href="#" data-proto="Prototype only: the Student portal is the existing LMS login.">Student login</a></li>
+          <li><a href="#" data-proto="Prototype only: the Trainer portal is the existing LMS login.">Trainer login</a></li>
+          <li><a href="#" data-proto="Prototype only: certificate verification is the existing LMS page.">Verify a certificate</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="legal">
+      <span>© Roicians Tech Pvt. Ltd.</span>
+      <nav aria-label="Legal">
+        <a href="#" data-proto="Privacy wording needs business and legal approval before launch.">Privacy</a>
+        <a href="#" data-proto="Terms wording needs business and legal approval before launch.">Terms</a>
+        <a href="logo.html">Website logo</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>

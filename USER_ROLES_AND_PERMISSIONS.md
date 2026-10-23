@@ -120,7 +120,7 @@ Notes:
   Database enforcement is implemented on the 22A branch (migration 41: no
   direct Program DELETE for any API role; `delete_archived_program()` for an
   active Super Admin only). It is applied to DEV (confirmed 2026-10-21) and
-  functionally verified there (owner-run), but not merged, and not in production; the
+  functionally verified there (owner-run), merged to `main` 2026-10-22, but not yet in production; the
   Super Admin screens are Phase 22B.
 
 ## 4. Role-Specific Detail

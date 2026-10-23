@@ -421,7 +421,7 @@ Applied (token-bucket, per-IP and/or per-account as appropriate) to:
   and carries no unnecessary personal data. File cleanup applies only to
   ownership-established public website assets and never to private
   learning, receipt, certificate or student-document storage. **TI-1:**
-  migration 41 (Phase 22A branch, not merged; applied to DEV, confirmed 2026-10-21)
+  migration 41 (Phase 22A, merged to `main` 2026-10-22; applied to DEV, confirmed 2026-10-21)
   replaces the broad `programs_delete_admin` DELETE with a guard trigger and
   the Super-Admin-only `delete_archived_program()` (see
   `docs/requirements/PHASE_22A_IMPLEMENTATION.md` §4). Migration 42

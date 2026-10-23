@@ -32,7 +32,8 @@ address, phone, email, GSTIN, and primary/secondary brand colors — placeholder
 remain in `company_settings` for these until supplied, editable at any time from
 Settings, needed no later than Phase 4 (Admin shell branding) / Phase 22 (Public
 Website).
-(Phase 22 update, D11: the public brand is **ROICIANS TECH** with the line
+(Phase 22 update, D11: the public brand is **ROICIANS** (revised 2026-10-22;
+previously ROICIANS TECH) with the line
 "Practical technology training for the AI era"; the visual direction and
 suggested starting palette are approved. Still outstanding for the website:
 the authorized logo files, final colour tokens after logo review, and the
@@ -199,7 +200,12 @@ All Phase 22 business decisions are recorded in
 - Same repository; `roicians.in`, `student.roicians.in`,
   `trainer.roicians.in`, `admin.roicians.in`; Canada stays at
   `https://www.roicians.com`.
-- Public brand ROICIANS TECH; legal name Roicians Tech Pvt. Ltd.
+- Public brand ROICIANS (revised 2026-10-22; previously ROICIANS TECH), set in
+  one place separate from the legal identity (design doc §4.1); website logo is
+  the original ROICIANS logo without TECH; legal name Roicians Tech Pvt. Ltd.
+- Brand setting: the `company_settings.public_brand_name` design is approved
+  (2026-10-22). Its migration is prepared for review in
+  `docs/proposed-migrations/`; execution still needs approval (before 22C/22D).
 - Website Management: Admin and Super Admin manage the complete ordinary
   public website; Super Admin alone changes a published Program slug.
 - Ten launch Programs in two editable groups; the eleventh ("AI Quality
@@ -209,7 +215,7 @@ All Phase 22 business decisions are recorded in
   Programs with history or protected dependencies remain archived. (Revised
   2026-10-17 by explicit owner approval; supersedes the earlier "no
   permanent deletion" decision. Database enforcement implemented on the
-  Phase 22A branch, not merged; applied to DEV by the reviewed recovery
+  Phase 22A, merged to `main` 2026-10-22; applied to DEV by the reviewed recovery
   (confirmed 2026-10-21) and functionally verified there (owner-run); screens are 22B —
   TI-1.)
 - No public pricing or financial information.

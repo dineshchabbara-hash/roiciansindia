@@ -1,0 +1,532 @@
+<title>ROICIANS TECH Homepage Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: light editorial grid, 1200px measure; white page with soft-blue bands;
+   flat, lightly bordered cards; one cobalt accent. Single light look by owner decision
+   (2026-10-22): the public site is never predominantly dark. */
+:root {
+  --white: #FFFFFF;      /* page background (approved) */
+  --sky: #F1F6FF;        /* soft blue sections (approved) */
+  --cobalt: #2347D0;     /* accent (approved) */
+  --navy: #14263F;       /* text (approved) */
+  --muted: #4A5B76;      /* secondary text, navy-tinted */
+  --line: #D9E3F2;       /* hairline borders, blue-tinted */
+  --chip: #E6EDFF;       /* cobalt tint for chips and focus halos */
+  --cobalt-deep: #1A37A8;/* pressed / hover state of the accent */
+  --sample: #8A5A00;     /* SAMPLE marker text (amber, reads as a review annotation) */
+  --sample-bg: #FFF4DB;
+
+  --display: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --fs-hero: clamp(2.1rem, 1.35rem + 3.2vw, 3.6rem);
+  --fs-h2: clamp(1.6rem, 1.2rem + 1.6vw, 2.35rem);
+  --fs-h3: 1.125rem;
+  --fs-body: 1rem;
+  --fs-small: 0.875rem;
+  --fs-label: 0.72rem;
+
+  --measure: 1200px;
+  --radius: 10px;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+body {
+  background: var(--white);
+  color: var(--navy);
+  font: 400 var(--fs-body)/1.6 var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 40; background: var(--white);
+}
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--cobalt); outline-offset: 2px; border-radius: 4px; }
+
+.wrap {
+  max-width: var(--measure); margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+@media (min-width: 720px) {
+  .wrap { padding-left: max(32px, env(safe-area-inset-left, 0px)); padding-right: max(32px, env(safe-area-inset-right, 0px)); }
+}
+
+.label {
+  font: 500 var(--fs-label)/1.3 var(--mono);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--cobalt);
+}
+.sample {
+  display: inline-flex; align-items: center; gap: 4px;
+  font: 500 0.66rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--sample); background: var(--sample-bg); border: 1px dashed #E2B65C;
+  padding: 4px 6px; border-radius: 4px; vertical-align: middle; white-space: nowrap;
+}
+h1, h2, h3 { font-family: var(--display); color: var(--navy); margin: 0; text-wrap: balance; }
+h1 { font-size: var(--fs-hero); font-weight: 600; line-height: 1.08; letter-spacing: -0.02em; }
+h2 { font-size: var(--fs-h2); font-weight: 600; line-height: 1.15; letter-spacing: -0.015em; }
+h3 { font-size: var(--fs-h3); font-weight: 600; line-height: 1.3; }
+p { margin: 0; }
+.lede { color: var(--muted); font-size: 1.075rem; max-width: 62ch; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font: 600 0.95rem/1 var(--body); text-decoration: none; border-radius: 8px;
+  padding: 14px 20px; border: 1.5px solid transparent; cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.btn-primary { background: var(--cobalt); color: var(--white); }
+.btn-primary:hover { background: var(--cobalt-deep); }
+.btn-secondary { background: var(--white); color: var(--cobalt); border-color: #B9C8F2; }
+.btn-secondary:hover { border-color: var(--cobalt); }
+.btn-small { padding: 10px 14px; font-size: 0.875rem; }
+
+/* Prototype banner */
+.proto {
+  background: var(--sample-bg); border-bottom: 1px solid #F0D79B; color: #5C3D00;
+  font-size: var(--fs-small);
+}
+.proto .wrap { padding-block: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.proto strong { font-family: var(--mono); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.72rem; }
+.proto a { color: #5C3D00; font-weight: 600; }
+
+/* Header */
+.site-header {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30;
+  background: rgba(255, 255, 255, 0.96); border-bottom: 1px solid var(--line);
+  backdrop-filter: saturate(1.2) blur(6px);
+}
+.site-header .wrap { display: flex; align-items: center; gap: 24px; min-height: 68px; }
+.wordmark { display: flex; flex-direction: column; text-decoration: none; line-height: 1; }
+.wordmark b { font: 700 1.2rem/1 var(--display); letter-spacing: 0.06em; color: var(--navy); }
+.wordmark b span { color: var(--cobalt); }
+.wordmark small { font: 400 0.6rem/1.4 var(--mono); letter-spacing: 0.06em; color: var(--muted); margin-top: 4px; text-transform: uppercase; }
+.nav { display: none; gap: 20px; margin-left: 8px; }
+.nav a { white-space: nowrap; text-decoration: none; font-size: 0.92rem; font-weight: 500; color: var(--navy); padding-block: 6px; border-bottom: 2px solid transparent; }
+.nav a:hover { color: var(--cobalt); border-bottom-color: var(--cobalt); }
+.header-actions { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.logins { display: none; gap: 14px; font-size: 0.85rem; }
+.logins a { color: var(--muted); text-decoration: none; white-space: nowrap; }
+.logins a:hover { color: var(--cobalt); text-decoration: underline; }
+.menu-btn {
+  display: inline-flex; align-items: center; gap: 8px; background: var(--white);
+  border: 1.5px solid var(--line); border-radius: 8px; padding: 9px 12px;
+  font: 600 0.875rem/1 var(--body); color: var(--navy); cursor: pointer;
+}
+.menu-btn .bars { width: 16px; height: 2px; background: var(--navy); position: relative; display: inline-block; }
+.menu-btn .bars::before, .menu-btn .bars::after { content: ""; position: absolute; left: 0; width: 16px; height: 2px; background: var(--navy); }
+.menu-btn .bars::before { top: -5px; } .menu-btn .bars::after { top: 5px; }
+.header-cta { display: none; }
+.mobile-panel { border-top: 1px solid var(--line); background: var(--white); }
+.mobile-panel .wrap { padding-block: 12px 20px; display: grid; gap: 2px; }
+.mobile-panel a { text-decoration: none; padding: 12px 4px; border-bottom: 1px solid var(--line); font-weight: 500; }
+.mobile-panel .mp-logins { display: flex; gap: 18px; padding: 14px 4px 10px; font-size: 0.9rem; color: var(--muted); }
+.mobile-panel .mp-logins a { border: 0; padding: 0; }
+.mobile-panel .btn { margin-top: 10px; }
+@media (min-width: 1120px) {
+  .nav, .header-cta { display: flex; }
+  .menu-btn, .mobile-panel { display: none !important; }
+}
+@media (min-width: 1320px) { .logins { display: flex; } }
+
+/* Hero */
+.hero { padding-block: clamp(40px, 7vw, 88px) clamp(48px, 7vw, 96px); }
+.hero .wrap { display: grid; gap: 48px; align-items: center; }
+@media (min-width: 960px) { .hero .wrap { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 56px; } }
+.hero-copy { display: grid; gap: 22px; min-width: 0; }
+.hero-copy .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
+.tagline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.hero-note { font-size: var(--fs-small); color: var(--muted); }
+
+/* Program map: a restrained technical diagram built only from approved Program names */
+.map {
+  min-width: 0; background: var(--sky); border: 1px solid var(--line); border-radius: 14px;
+  padding: 22px; display: grid; gap: 18px;
+}
+.map-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.map-head .count { font: 400 var(--fs-label)/1 var(--mono); letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase; }
+.cluster { display: grid; gap: 10px; }
+.cluster-title { display: flex; align-items: center; gap: 10px; font: 600 0.82rem/1.2 var(--display); color: var(--navy); }
+.cluster-title::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--cobalt); flex: none; }
+.cluster:nth-of-type(3) .cluster-title::before { background: var(--white); border: 2px solid var(--cobalt); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  background: var(--white); border: 1px solid var(--line); border-radius: 999px;
+  padding: 7px 12px; font-size: 0.82rem; font-weight: 500; color: var(--navy); line-height: 1.25;
+}
+.map-foot { border-top: 1px dashed #C7D5EE; padding-top: 14px; font-size: var(--fs-small); color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* Programs */
+.section { padding-block: clamp(56px, 8vw, 104px); }
+.section-head { display: grid; gap: 14px; margin-bottom: 32px; }
+@media (min-width: 900px) { .section-head.split { grid-template-columns: minmax(0, 1fr) auto; align-items: end; } }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab {
+  font: 500 0.85rem/1 var(--body); color: var(--navy); background: var(--white);
+  border: 1.5px solid var(--line); border-radius: 999px; padding: 10px 14px; cursor: pointer;
+}
+.tab[aria-selected="true"] { background: var(--navy); border-color: var(--navy); color: var(--white); }
+.tab:hover:not([aria-selected="true"]) { border-color: var(--cobalt); color: var(--cobalt); }
+.group-block { display: grid; gap: 16px; }
+.group-block + .group-block { margin-top: 36px; }
+.group-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.group-head h3 { font-size: 1.05rem; }
+.group-head span { font: 400 var(--fs-label)/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .grid.n6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .grid.n4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.card {
+  background: var(--white); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px; min-width: 0;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.card:hover { border-color: #AFC1EC; box-shadow: 0 6px 20px rgba(20, 38, 63, 0.06); }
+.card h3 a { text-decoration: none; }
+.card h3 a:hover { color: var(--cobalt); }
+.card .desc { color: var(--muted); font-size: 0.92rem; }
+.card-foot { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; }
+.cohort { display: flex; align-items: center; gap: 8px; font: 500 0.8rem/1.3 var(--mono); color: var(--navy); }
+.cohort::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #C8D3E6; flex: none; }
+.card-links { display: flex; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; font-size: 0.88rem; font-weight: 600; }
+.card-links a { color: var(--cobalt); text-decoration: none; }
+.card-links a:hover { text-decoration: underline; }
+.policy-note { margin-top: 22px; font-size: var(--fs-small); color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* Corporate Training: soft blue band (replaces the former dark-navy section) */
+.band { background: var(--sky); border-block: 1px solid var(--line); }
+.corp { display: grid; gap: 40px; }
+@media (min-width: 960px) { .corp { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 64px; align-items: start; } }
+.corp-copy { display: grid; gap: 18px; min-width: 0; }
+.audience {
+  display: grid; gap: 4px; background: var(--white); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px 18px;
+}
+.audience .label { color: var(--muted); }
+.audience b { font: 600 1.05rem/1.3 var(--display); }
+.offers { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.offer { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: grid; gap: 8px; min-width: 0; }
+.offer p { color: var(--muted); font-size: 0.92rem; }
+.corp-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+
+/* Institutions strip */
+.inst { display: grid; gap: 20px; align-items: center; border: 1px solid var(--line); border-radius: 14px; padding: clamp(22px, 4vw, 36px); }
+@media (min-width: 860px) { .inst { grid-template-columns: minmax(0, 1fr) auto; } }
+.inst-copy { display: grid; gap: 10px; min-width: 0; }
+
+/* Review notes */
+.notes { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.note { border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; background: var(--white); min-width: 0; }
+.note h3 { margin-bottom: 10px; }
+.note ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.92rem; display: grid; gap: 6px; }
+.note.approved { border-top: 3px solid var(--cobalt); }
+.note.sample-n { border-top: 3px solid #E2B65C; }
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.sw { display: grid; gap: 6px; font: 400 0.7rem/1.2 var(--mono); color: var(--muted); }
+.sw i { width: 56px; height: 36px; border-radius: 6px; border: 1px solid var(--line); display: block; }
+
+/* Footer: light, never dark */
+.site-footer { background: var(--sky); border-top: 1px solid var(--line); padding-block: 48px 28px; font-size: 0.9rem; }
+.foot-grid { display: grid; gap: 28px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+.foot-grid h4 { font: 500 var(--fs-label)/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.foot-grid ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.foot-grid a { text-decoration: none; color: var(--navy); }
+.foot-grid a:hover { color: var(--cobalt); text-decoration: underline; }
+.foot-brand p { color: var(--muted); margin-top: 10px; max-width: 32ch; }
+.legal { margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between; color: var(--muted); font-size: 0.82rem; }
+</style>
+
+<div class="proto" role="note">
+  <div class="wrap">
+    <strong>Prototype · not the live website</strong>
+    <span>Non-production design review only. No data is read or saved. Text marked <span class="sample">Sample</span> is placeholder copy, not approved launch content.</span>
+    <a href="#review-notes">What is approved vs sample</a>
+  </div>
+</div>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="wordmark" href="#top" aria-label="ROICIANS TECH home">
+      <b>ROICIANS <span>TECH</span></b>
+      <small>Logo placeholder</small>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#programs">Programs</a>
+      <a href="#upcoming">Upcoming Batches</a>
+      <a href="#corporate">Corporate Training</a>
+      <a href="#institutions">For Institutions</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="header-actions">
+      <div class="logins" aria-label="Portal logins">
+        <a href="#portals">Student login</a>
+        <a href="#portals">Trainer login</a>
+      </div>
+      <a class="btn btn-primary btn-small header-cta" href="#contact">Talk to an Advisor</a>
+      <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-panel"><span class="bars" aria-hidden="true"></span>Menu</button>
+    </div>
+  </div>
+  <div class="mobile-panel" id="mobile-panel" hidden>
+    <nav class="wrap" aria-label="Main (mobile)">
+      <a href="#programs">Programs</a>
+      <a href="#upcoming">Upcoming Batches</a>
+      <a href="#corporate">Corporate Training</a>
+      <a href="#institutions">For Institutions</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+      <div class="mp-logins"><a href="#portals">Student login</a><a href="#portals">Trainer login</a></div>
+      <a class="btn btn-primary" href="#contact">Talk to an Advisor</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div class="hero-copy">
+        <div class="tagline"><span class="label">Practical technology training for the AI era</span></div>
+        <h1 id="hero-title">Learn the technology skills teams are hiring for, by building real work. <span class="sample">Sample</span></h1>
+        <p class="lede">Instructor-led programs in software testing, data, cloud, cybersecurity and applied AI, taught through hands-on projects. <span class="sample">Sample</span></p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#contact">Talk to an Advisor</a>
+          <a class="btn btn-secondary" href="#programs">Explore Programs</a>
+        </div>
+        <p class="hero-note">No prices on the public site. Fees and schedules are discussed with an advisor.</p>
+      </div>
+
+      <aside class="map" aria-label="Program portfolio">
+        <div class="map-head">
+          <span class="label">Program portfolio</span>
+          <span class="count">10 programs · 2 groups</span>
+        </div>
+        <div class="cluster">
+          <div class="cluster-title">Career &amp; Technology Programs</div>
+          <div class="chips">
+            <span class="chip">AI-Powered Software Testing &amp; QA</span>
+            <span class="chip">Data Analytics with AI</span>
+            <span class="chip">Cybersecurity &amp; SOC Analyst</span>
+            <span class="chip">Cloud &amp; DevOps Engineering</span>
+            <span class="chip">Applied AI &amp; Machine Learning</span>
+            <span class="chip">Generative AI &amp; LLMOps Engineering</span>
+          </div>
+        </div>
+        <div class="cluster">
+          <div class="cluster-title">Specialist &amp; Professional Programs</div>
+          <div class="chips">
+            <span class="chip">Data Engineering &amp; Cloud Platforms</span>
+            <span class="chip">API Integration &amp; Automation</span>
+            <span class="chip">Business Analysis with AI</span>
+            <span class="chip">Generative AI &amp; AI Agents for Business Professionals</span>
+          </div>
+        </div>
+        <div class="map-foot">Program names and groups are approved. On the live site they come from Website Management, never from the page code.</div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section band-white" id="programs" aria-labelledby="programs-title" style="padding-top: 0">
+    <div class="wrap">
+      <div class="section-head split">
+        <div style="display:grid; gap:12px; min-width:0">
+          <span class="label">Programs</span>
+          <h2 id="programs-title">Choose a program</h2>
+          <p class="lede">Each program page will show its outline, format and next cohort. <span class="sample">Sample</span></p>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Program groups">
+          <button class="tab" role="tab" type="button" id="tab-all" aria-selected="true" data-group="all">All programs</button>
+          <button class="tab" role="tab" type="button" id="tab-career" aria-selected="false" data-group="career">Career &amp; Technology</button>
+          <button class="tab" role="tab" type="button" id="tab-specialist" aria-selected="false" data-group="specialist">Specialist &amp; Professional</button>
+        </div>
+      </div>
+
+      <div id="program-grid"></div>
+
+      <p class="policy-note"><span class="sample">Sample</span> Card descriptions are placeholders. Every card shows the approved "Next Cohort: Coming Soon" state because no Batch is published in this prototype. Capacity, seat counts and fees are never shown.</p>
+    </div>
+  </section>
+
+  <section class="section band" id="corporate" aria-labelledby="corp-title">
+    <div class="wrap corp">
+      <div class="corp-copy">
+        <span class="label">Corporate Training</span>
+        <h2 id="corp-title">Upskill your technology teams with programs shaped to your stack. <span class="sample">Sample</span></h2>
+        <p class="lede">Private cohorts for engineering, data and operations teams, scheduled around your delivery calendar. <span class="sample">Sample</span></p>
+        <div class="audience">
+          <span class="label">Example audience</span>
+          <b>GenAI &amp; LLMOps for GCC Teams</b>
+          <p style="color:var(--muted); font-size:0.9rem">GCC is an audience for Corporate Training, not a student Program.</p>
+        </div>
+        <div class="corp-actions">
+          <a class="btn btn-primary" href="#contact">Talk to an Advisor</a>
+          <a class="btn btn-secondary" href="#programs">Explore Programs</a>
+        </div>
+      </div>
+      <div class="offers">
+        <div class="offer"><span class="label">Format</span><h3>Private team cohorts <span class="sample">Sample</span></h3><p>One cohort for your team, run online or at your office.</p></div>
+        <div class="offer"><span class="label">Content</span><h3>Built around your tools <span class="sample">Sample</span></h3><p>Exercises use the cloud, data and testing tools your teams already work with.</p></div>
+        <div class="offer"><span class="label">Planning</span><h3>Skills review first <span class="sample">Sample</span></h3><p>An advisor maps team roles to programs before any schedule is fixed.</p></div>
+        <div class="offer"><span class="label">Topics</span><h3>AI adoption for delivery teams <span class="sample">Sample</span></h3><p>Generative AI and LLMOps practice for teams moving pilots into production.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="institutions" aria-labelledby="inst-title">
+    <div class="wrap">
+      <div class="inst">
+        <div class="inst-copy">
+          <span class="label">For Institutions</span>
+          <h2 id="inst-title" style="font-size: clamp(1.35rem, 1.1rem + 1vw, 1.8rem)">Partner programs for colleges and universities. <span class="sample">Sample</span></h2>
+          <p class="lede">Industry-aligned technology training delivered alongside your academic calendar. <span class="sample">Sample</span></p>
+        </div>
+        <a class="btn btn-secondary" href="#contact">Talk to an Advisor</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section band" id="review-notes" aria-labelledby="notes-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="label">Prototype review notes</span>
+        <h2 id="notes-title">What is approved, and what is sample</h2>
+      </div>
+      <div class="notes">
+        <div class="note approved">
+          <h3>Approved</h3>
+          <ul>
+            <li>Brand: ROICIANS TECH, with the line "Practical technology training for the AI era".</li>
+            <li>The ten Program names and the two initial display groups.</li>
+            <li>Button labels: Talk to an Advisor, Explore Programs, Join Interest List.</li>
+            <li>"Next Cohort: Coming Soon" when a Program has no published upcoming Batch.</li>
+            <li>No prices, fees, seat counts or capacity anywhere public.</li>
+            <li>Light palette (owner decision, 2026-10-22):
+              <div class="swatches" aria-label="Colour palette">
+                <span class="sw"><i style="background:#FFFFFF"></i>#FFFFFF</span>
+                <span class="sw"><i style="background:#F1F6FF"></i>#F1F6FF</span>
+                <span class="sw"><i style="background:#2347D0"></i>#2347D0</span>
+                <span class="sw"><i style="background:#14263F"></i>#14263F</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div class="note sample-n">
+          <h3>Sample or placeholder</h3>
+          <ul>
+            <li>All headlines, descriptions and offer text marked Sample.</li>
+            <li>The wordmark: the authorized logo files will replace it.</li>
+            <li>Footer legal links: wording needs business and legal approval.</li>
+            <li>Links in this prototype only jump within the page.</li>
+          </ul>
+        </div>
+        <div class="note">
+          <h3>Not shown on purpose</h3>
+          <ul>
+            <li>No testimonials, student counts, employer logos, placement results or dates (none approved).</li>
+            <li>No dark-navy section; Corporate Training uses the soft blue band.</li>
+            <li>No stock photography, AI robots, glow or heavy gradients.</li>
+            <li>Admin login is not promoted on the public site.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" id="contact">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="wordmark" href="#top" aria-label="ROICIANS TECH home"><b>ROICIANS <span>TECH</span></b></a>
+        <p>Practical technology training for the AI era.</p>
+      </div>
+      <div>
+        <h4>Programs</h4>
+        <ul><li><a href="#programs">All programs</a></li><li><a href="#upcoming" id="upcoming">Upcoming Batches</a></li><li><a href="#corporate">Corporate Training</a></li><li><a href="#institutions">For Institutions</a></li></ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul><li><a href="#about" id="about">About</a></li><li><a href="#contact">Contact</a></li><li><a href="#top">Talk to an Advisor</a></li></ul>
+      </div>
+      <div id="portals">
+        <h4>Portals</h4>
+        <ul><li><a href="#portals">Student login</a></li><li><a href="#portals">Trainer login</a></li><li><a href="#portals">Verify a certificate</a></li></ul>
+      </div>
+    </div>
+    <div class="legal">
+      <span>© Roicians Tech Pvt. Ltd.</span>
+      <span>Privacy · Terms <span class="sample">Pending approval</span></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Approved Program names and groups. Descriptions are SAMPLE copy for layout review only.
+  var programs = [
+    { g: "career", name: "AI-Powered Software Testing & QA", d: "Test automation and quality practices for modern software teams." },
+    { g: "career", name: "Data Analytics with AI", d: "Analyse, visualise and explain data with AI-assisted tools." },
+    { g: "career", name: "Cybersecurity & SOC Analyst", d: "Monitoring, detection and incident response in a security operations role." },
+    { g: "career", name: "Cloud & DevOps Engineering", d: "Build, deploy and operate applications on cloud platforms." },
+    { g: "career", name: "Applied AI & Machine Learning", d: "Train, evaluate and deploy machine learning models." },
+    { g: "career", name: "Generative AI & LLMOps Engineering", d: "Build and run applications on large language models." },
+    { g: "specialist", name: "Data Engineering & Cloud Platforms", d: "Design data pipelines and platforms in the cloud." },
+    { g: "specialist", name: "API Integration & Automation", d: "Connect systems through APIs and automate workflows." },
+    { g: "specialist", name: "Business Analysis with AI", d: "Requirements, process analysis and AI-assisted documentation." },
+    { g: "specialist", name: "Generative AI & AI Agents for Business Professionals", d: "Use generative AI and agents in everyday business work." }
+  ];
+  var groupName = { career: "Career & Technology", specialist: "Specialist & Professional" };
+  var groupTitle = { career: "Career & Technology Programs", specialist: "Specialist & Professional Programs" };
+  var grid = document.getElementById("program-grid");
+
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function card(p) {
+      return '<article class="card">' +
+        '<span class="label">' + esc(groupName[p.g]) + '</span>' +
+        '<h3><a href="#programs">' + esc(p.name) + '</a></h3>' +
+        '<p class="desc">' + esc(p.d) + ' <span class="sample">Sample</span></p>' +
+        '<div class="card-foot">' +
+          '<span class="cohort">Next Cohort: Coming Soon</span>' +
+          '<div class="card-links"><a href="#contact">Join Interest List</a><a href="#programs">View Program →</a></div>' +
+        '</div>' +
+      '</article>';
+  }
+  function render(filter) {
+    var groups = filter === "all" ? ["career", "specialist"] : [filter];
+    grid.innerHTML = groups.map(function (g) {
+      var items = programs.filter(function (p) { return p.g === g; });
+      return '<div class="group-block">' +
+        '<div class="group-head"><h3>' + esc(groupTitle[g]) + '</h3><span>' + items.length + ' programs · display group</span></div>' +
+        '<div class="grid n' + items.length + '">' + items.map(card).join("") + '</div>' +
+      '</div>';
+    }).join("");
+  }
+  render("all");
+
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+  tabs.forEach(function (t) {
+    t.addEventListener("click", function () {
+      tabs.forEach(function (o) { o.setAttribute("aria-selected", o === t ? "true" : "false"); });
+      render(t.getAttribute("data-group"));
+    });
+  });
+
+  var btn = document.getElementById("menu-btn");
+  var panel = document.getElementById("mobile-panel");
+  btn.addEventListener("click", function () {
+    var open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  panel.addEventListener("click", function (e) {
+    if (e.target.closest("a")) { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); }
+  });
+})();
+</script>

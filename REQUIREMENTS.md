@@ -103,7 +103,7 @@ sign-off are also listed in `DECISIONS_NEEDED.md`.
   direct deletion of an unarchived Program, no automatic and no bulk
   deletion. This supersedes the earlier absolute ban on Program deletion.
   Database enforcement is implemented on the Phase 22A branch (migrations
-  41 and 42; not merged). It is applied to DEV (confirmed 2026-10-21), and the Super
+  41 and 42; merged to `main` 2026-10-22). It is applied to DEV (confirmed 2026-10-21), and the Super
   Admin screens are Phase 22B. Production still allows a broad delete until
   the branch is merged and deployed (TI-1). Program fees and other FR-20 financial
   fields stay internal and are never shown on the public website (P22-09).
@@ -816,8 +816,8 @@ contradictions" instruction:
    emergency contact are modeled as **nullable/optional** fields, collected only if
    the enrollment/program requires them, not mandatory on every student.
 8. **Public website (Phase 22 approved design)** — the brief's public site is
-   now the Roicians India website on `roicians.in` with the ROICIANS TECH
-   brand; it publishes no course pricing; its content is managed by Admin and
+   now the Roicians India website on `roicians.in` with the ROICIANS brand
+   (revised 2026-10-22; previously ROICIANS TECH); it publishes no course pricing; its content is managed by Admin and
    Super Admin in a structured Website Management area; leads belong to Zoho
    CRM (Phase 23). See `docs/requirements/PHASE_22_APPROVED_DESIGN.md`.
 

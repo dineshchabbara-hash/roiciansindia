@@ -18,6 +18,7 @@ import {
   Bell,
   ScrollText,
   ShieldCheck,
+  Globe,
 } from "lucide-react";
 import type { Role } from "@/lib/domain/rbac";
 
@@ -72,6 +73,8 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   },
   { label: "Leads", href: "/admin/leads", icon: UserPlus, implemented: false },
   { label: "Reports", href: "/admin/reports", icon: BarChart3, implemented: false },
+  // Phase 22B-1: Website Management (Admin and Super Admin).
+  { label: "Website", href: "/admin/website", icon: Globe, implemented: true },
   { label: "Audit Log", href: "/admin/audit-log", icon: ScrollText, implemented: true },
   {
     label: "Admin Accounts",
